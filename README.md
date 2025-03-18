@@ -13,9 +13,9 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 - Role-based permissions (Admin, PI, Bioinformatician)
 - Beautiful and user-friendly interface
 
-## Screenshots
+## Overview
 
-*(Screenshots will appear here once the application is deployed)*
+   ![Description de l'image](overview.png)
 
 ## Requirements
 
@@ -25,48 +25,68 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 
 ## Installation
 
+### Prerequisites
+- Python 3.8+
+- Git
+
+### Setup
+
 1. Clone the repository:
-   ```
-   git clone <repository-url>
-   cd terryfox
-   ```
-
-2. Activate the Conda environment:
-   ```
-   conda activate django
+   ```bash
+   git clone https://github.com/acri-nb/terryfox-lims.git
+   cd terryfox-lims
    ```
 
-3. Install required packages:
-   ```
-   pip install django crispy-forms crispy-bootstrap5
+2. Choose one of the following installation methods:
+
+#### Option A: Using pip (recommended)
+   ```bash
+   # Create and activate a virtual environment (optional but recommended)
+   python -m venv venv
+   source venv/bin/activate  # On Windows use: venv\Scripts\activate
+   
+   # Install dependencies from requirements.txt
+   pip install -r requirements.txt
    ```
 
-4. Run migrations:
+#### Option B: Using Conda
+   ```bash
+   # Create and activate a Conda environment
+   conda create -n terryfox python=3.9
+   conda activate terryfox
+   
+   # Install dependencies
+   pip install -r requirements.txt
    ```
+
+3. Run migrations to set up the database:
+   ```bash
    python manage.py makemigrations
    python manage.py migrate
    ```
 
-5. Create a superuser:
-   ```
+4. Create a superuser account:
+   ```bash
    python manage.py createsuperuser
    ```
 
-6. Run the development server:
-   ```
+5. Run the development server:
+   ```bash
    python manage.py runserver
    ```
 
-7. Visit `http://127.0.0.1:8000/admin/` to access the admin panel and create user groups:
-   - Create "PI" group
-   - Create "Bioinformatician" group
-   - Assign users to these groups
+6. Visit `http://127.0.0.1:8000/` to access the application
+   - For admin access, go to `http://127.0.0.1:8000/admin/`
+   - Use the admin panel to create required user groups:
+     - Create "PI" group (Read-only access)
+     - Create "Bioinformatician" group (CRUD access)
+     - Assign users to these groups
 
 ## User Roles
 
 - **Superuser/Admin**: Full access to all features and admin panel
-- **PI (Principal Investigator)**: Full CRUD permissions on projects and cases
-- **Bioinformatician**: Read-only access to all information
+- **PI (Principal Investigator)**: Read-only access to view projects and cases
+- **Bioinformatician**: Full CRUD permissions (Create, Read, Update, Delete) on projects and cases
 
 ## Usage
 
@@ -74,8 +94,8 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 2. From the dashboard, you can see all projects
 3. Click on a project to view its cases
 4. Click on a case to view its details, including status, coverage information, and accession numbers
-5. PI users can create, edit, and delete projects and cases
-6. Bioinformaticians can view all information but cannot make changes
+5. Bioinformaticians can create, edit, and delete projects and cases
+6. PIs can view all information but cannot make changes
 
 ## Development
 
