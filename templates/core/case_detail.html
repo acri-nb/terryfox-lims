@@ -1,0 +1,241 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ case.name }} | TerryFox LIMS{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'project_detail' project_id=project.id %}">{{ project.name }}</a></li>
+        <li class="breadcrumb-item active">{{ case.name }}</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">{{ case.name }}</h1>
+    <div>
+        {% if can_edit %}
+        <a href="{% url 'case_delete' case_id=case.id %}" class="btn btn-outline-danger">
+            <i class="fas fa-trash-alt me-1"></i> Delete Case
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row">
+    <!-- Main Case Information -->
+    <div class="col-lg-8 mb-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i> Case Information</h5>
+                    <span class="badge badge-{{ case.status }} rounded-pill">{{ case.get_status_display }}</span>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if can_edit %}
+                <form method="post" class="mb-4">
+                    {% csrf_token %}
+                    <input type="hidden" name="case_update" value="1">
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ case_form.name|as_crispy_field }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ case_form.status|as_crispy_field }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            {{ case_form.rna_coverage|as_crispy_field }}
+                        </div>
+                        <div class="col-md-4">
+                            {{ case_form.dna_t_coverage|as_crispy_field }}
+                        </div>
+                        <div class="col-md-4">
+                            {{ case_form.dna_n_coverage|as_crispy_field }}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ case_form.tier|as_crispy_field }}
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i> Save Changes
+                        </button>
+                    </div>
+                </form>
+                {% else %}
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <p class="mb-2"><strong>Project:</strong> {{ case.project.name }}</p>
+                        <p class="mb-2"><strong>Status:</strong> <span class="badge badge-{{ case.status }}">{{ case.get_status_display }}</span></p>
+                        <p class="mb-0"><strong>Tier:</strong> <span class="badge badge-{{ case.tier }}">{{ case.tier }}</span></p>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="mb-2"><strong>Created:</strong> {{ case.created_at|date:"F d, Y" }}</p>
+                        <p class="mb-0"><strong>Last Updated:</strong> {{ case.updated_at|date:"F d, Y H:i" }}</p>
+                    </div>
+                </div>
+                
+                <div class="coverage-section">
+                    <h6 class="mb-3">Coverage Information</h6>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="coverage-item">
+                                <div class="coverage-label">RNA Coverage</div>
+                                <div class="coverage-value">{{ case.rna_coverage|default:"--" }} <small>M</small></div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="coverage-item">
+                                <div class="coverage-label">DNA (T) Coverage</div>
+                                <div class="coverage-value">{{ case.dna_t_coverage|default:"--" }} <small>X</small></div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="coverage-item">
+                                <div class="coverage-label">DNA (N) Coverage</div>
+                                <div class="coverage-value">{{ case.dna_n_coverage|default:"--" }} <small>X</small></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="tier-info">
+                                <h6>Tier: <span class="badge badge-{{ case.tier }}">{{ case.tier }}</span></h6>
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i> Tier is automatically calculated based on coverage values:<br>
+                                    - Tier A: DNA(T) ≥ 80X, DNA(N) ≥ 30X, RNA ≥ 100M<br>
+                                    - Tier B: 30X ≤ DNA(T) < 80X, DNA(N) ≥ 30X, RNA ≥ 100M<br>
+                                    - FAIL: DNA(T) < 30X or DNA(N) < 30X or RNA < 100M
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+            
+        <!-- Accession Numbers -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-list-ol me-2"></i> Accession Numbers</h5>
+            </div>
+            <div class="card-body">
+                {% if can_edit %}
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="accession_update" value="1">
+                    {{ accession_formset.management_form }}
+                    <div id="accession-forms">
+                        {% for form in accession_formset %}
+                            <div class="accession-form mb-2 {% if form.instance.pk %}border-start border-primary ps-2{% endif %}">
+                                <div class="d-flex">
+                                    {{ form.id }}
+                                    <div class="flex-grow-1">
+                                        {{ form.accession_number|as_crispy_field }}
+                                    </div>
+                                    <div class="ms-2 d-flex align-items-end">
+                                        {% if form.instance.pk %}
+                                        <div class="form-check">
+                                            {{ form.DELETE }}
+                                            <label class="form-check-label text-danger" for="{{ form.DELETE.id_for_label }}">
+                                                Delete
+                                            </label>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <div class="text-end mt-3">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i> Save Accessions
+                        </button>
+                    </div>
+                </form>
+                {% else %}
+                {% if accessions %}
+                <ul class="acc-list">
+                    {% for acc in accessions %}
+                    <li>{{ acc.accession_number }}</li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted">No accession numbers added yet.</p>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="col-lg-4 mb-4">
+        <!-- Comments Section -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-comments me-2"></i> Comments</h5>
+            </div>
+            <div class="card-body">
+                {% if can_edit %}
+                <form method="post" class="mb-4">
+                    {% csrf_token %}
+                    <input type="hidden" name="comment_submit" value="1">
+                    {{ comment_form|crispy }}
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane me-1"></i> Add Comment
+                        </button>
+                    </div>
+                </form>
+                {% endif %}
+                
+                <div class="comments-container">
+                    {% if comments %}
+                        {% for comment in comments %}
+                        <div class="comment mb-3">
+                            <div class="comment-header">
+                                <span>{{ comment.user.get_full_name|default:comment.user.username }}</span>
+                                <span class="comment-time">{{ comment.created_at|date:"M d, Y H:i" }}</span>
+                            </div>
+                            <div class="comment-body">
+                                {{ comment.text|linebreaks }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No comments yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="text-end">
+    <a href="{% url 'project_detail' project_id=project.id %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left me-1"></i> Back to Project
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Bootstrap custom file input
+        document.querySelectorAll('.custom-file-input').forEach(input => {
+            input.addEventListener('change', function(e) {
+                const fileName = this.files[0]?.name || 'Choose file';
+                const nextSibling = this.nextElementSibling;
+                nextSibling.innerText = fileName;
+            });
+        });
+    });
+</script>
+{% endblock %} 

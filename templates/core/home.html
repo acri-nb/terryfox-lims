@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block title %}Home | TerryFox LIMS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0"><i class="fas fa-flask me-2"></i> TerryFox LIMS</h1>
+    {% if user.is_superuser or user.groups.all.0.name == 'Bioinformatician' %}
+    <a href="{% url 'project_create' %}" class="btn btn-primary">
+        <i class="fas fa-plus me-1"></i> New Project
+    </a>
+    {% endif %}
+</div>
+
+<div class="card mb-4">
+    <div class="card-body p-4">
+        <h5><i class="fas fa-info-circle me-2"></i> Welcome to TerryFox LIMS</h5>
+        <p class="mb-0">This Laboratory Information Management System (LIMS) helps track projects and cases with their sequencing, analysis, and coverage information.</p>
+    </div>
+</div>
+
+{% if projects %}
+    <h2 class="mb-3"><i class="fas fa-project-diagram me-2"></i> Projects</h2>
+    <div class="row">
+        {% for project in projects %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card project-card h-100 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <a href="{% url 'project_detail' project_id=project.id %}" class="text-decoration-none">
+                                {{ project.name }}
+                            </a>
+                        </h5>
+                        <p class="card-text text-muted">
+                            {% if project.description %}
+                                {{ project.description|truncatechars:100 }}
+                            {% else %}
+                                <em>No description provided</em>
+                            {% endif %}
+                        </p>
+                        <div class="mt-3">
+                            <span class="badge bg-info">
+                                <i class="fas fa-folder me-1"></i> {{ project.cases_count }} Cases
+                            </span>
+                            <span class="badge bg-secondary">
+                                <i class="fas fa-calendar-alt me-1"></i> {{ project.created_at|date:"M d, Y" }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-footer text-end">
+                        <a href="{% url 'project_detail' project_id=project.id %}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-arrow-right me-1"></i> View Project
+                        </a>
+                        {% if user.is_superuser or user.groups.all.0.name == 'PI' %}
+                        <a href="{% url 'project_update' project_id=project.id %}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-edit me-1"></i> Edit
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="alert alert-info" role="alert">
+        <i class="fas fa-info-circle me-2"></i> No projects available yet.
+        {% if user.is_superuser or user.groups.all.0.name == 'PI' %}
+            <a href="{% url 'project_create' %}" class="alert-link">Create the first project</a>.
+        {% endif %}
+    </div>
+{% endif %}
+{% endblock %} 

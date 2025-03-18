@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete Case | TerryFox LIMS{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'project_detail' project_id=case.project.id %}">{{ case.project.name }}</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'case_detail' case_id=case.id %}">{{ case.name }}</a></li>
+        <li class="breadcrumb-item active">Delete Case</li>
+    </ol>
+</nav>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-danger text-white">
+        <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i> Delete Case</h5>
+    </div>
+    <div class="card-body">
+        <p class="mb-4">Are you sure you want to delete the case "<strong>{{ case.name }}</strong>" from project "<strong>{{ case.project.name }}</strong>"?</p>
+        
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-circle me-2"></i> This action cannot be undone. All data associated with this case including accession numbers and comments will be permanently deleted.
+        </div>
+        
+        <form method="post">
+            {% csrf_token %}
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{% url 'case_detail' case_id=case.id %}" class="btn btn-secondary">
+                    <i class="fas fa-times me-1"></i> Cancel
+                </a>
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-trash-alt me-1"></i> Delete Case
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %} 

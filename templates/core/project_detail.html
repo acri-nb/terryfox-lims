@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ project.name }} | TerryFox LIMS{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+        <li class="breadcrumb-item active">{{ project.name }}</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">{{ project.name }}</h1>
+    <div>
+        {% if can_edit %}
+        <a href="{% url 'project_update' project_id=project.id %}" class="btn btn-outline-secondary me-2">
+            <i class="fas fa-edit me-1"></i> Edit Project
+        </a>
+        <a href="{% url 'case_create' project_id=project.id %}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> Add Case
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-8">
+                <h5 class="card-title mb-3">Project Details</h5>
+                <p>
+                    {% if project.description %}
+                        {{ project.description }}
+                    {% else %}
+                        <em>No description provided</em>
+                    {% endif %}
+                </p>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Created by</h6>
+                        <p class="card-text">
+                            <i class="fas fa-user me-1"></i> {{ project.created_by.get_full_name|default:project.created_by.username }}
+                        </p>
+                        <h6 class="card-subtitle mb-2 text-muted">Created on</h6>
+                        <p class="card-text">
+                            <i class="fas fa-calendar-alt me-1"></i> {{ project.created_at|date:"F d, Y" }}
+                        </p>
+                        <h6 class="card-subtitle mb-2 text-muted">Last update</h6>
+                        <p class="card-text mb-0">
+                            <i class="fas fa-clock me-1"></i> {{ project.updated_at|date:"F d, Y H:i" }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 class="mb-3"><i class="fas fa-folder-open me-2"></i> Cases</h2>
+
+{% if cases %}
+    <div class="row">
+        {% for case in cases %}
+            <div class="col-md-6 mb-4">
+                <div class="card case-card case-{{ case.status }} shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="card-title mb-0">
+                                <a href="{% url 'case_detail' case_id=case.id %}" class="text-decoration-none">
+                                    {{ case.name }}
+                                </a>
+                            </h5>
+                            <span class="badge badge-{{ case.status }} rounded-pill">
+                                {{ case.get_status_display }}
+                            </span>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <div class="d-flex align-items-center">
+                                    <span class="me-2">Tier:</span>
+                                    <span class="badge badge-{{ case.tier }} rounded-pill">{{ case.tier }}</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="small text-muted">
+                                    <i class="fas fa-calendar-alt me-1"></i> {{ case.updated_at|date:"M d, Y" }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4">
+                                <small class="d-block text-muted mb-1">RNA Coverage</small>
+                                <span class="fw-bold">{{ case.rna_coverage|default:"--" }}</span>
+                            </div>
+                            <div class="col-md-4">
+                                <small class="d-block text-muted mb-1">DNA (T) Coverage</small>
+                                <span class="fw-bold">{{ case.dna_t_coverage|default:"--" }}</span>
+                            </div>
+                            <div class="col-md-4">
+                                <small class="d-block text-muted mb-1">DNA (N) Coverage</small>
+                                <span class="fw-bold">{{ case.dna_n_coverage|default:"--" }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge bg-light text-dark">
+                                <i class="fas fa-list me-1"></i> {{ case.accessions.count }} ACC
+                            </span>
+                            <span class="badge bg-light text-dark">
+                                <i class="fas fa-comments me-1"></i> {{ case.comments.count }}
+                            </span>
+                        </div>
+                        <div>
+                            <a href="{% url 'case_detail' case_id=case.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye me-1"></i> View
+                            </a>
+                            {% if can_edit %}
+                            <a href="{% url 'case_delete' case_id=case.id %}" class="btn btn-sm btn-outline-danger">
+                                <i class="fas fa-trash-alt me-1"></i> Delete
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="alert alert-info" role="alert">
+        <i class="fas fa-info-circle me-2"></i> No cases available for this project yet.
+        {% if can_edit %}
+            <a href="{% url 'case_create' project_id=project.id %}" class="alert-link">Add the first case</a>.
+        {% endif %}
+    </div>
+{% endif %}
+
+{% if can_edit %}
+<div class="text-end mt-4">
+    <a href="{% url 'project_delete' project_id=project.id %}" class="btn btn-outline-danger">
+        <i class="fas fa-trash-alt me-1"></i> Delete Project
+    </a>
+</div>
+{% endif %}
+{% endblock %} 
