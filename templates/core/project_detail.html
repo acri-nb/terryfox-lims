@@ -36,6 +36,43 @@
                         <em>No description provided</em>
                     {% endif %}
                 </p>
+                
+                <div class="mt-4">
+                    <h6 class="border-bottom pb-2">Statistics</h6>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Project Lead:</span>
+                                <span class="badge bg-secondary">{{ project.project_lead|default:"Not specified" }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Total Cases:</span>
+                                <span class="badge bg-primary rounded-pill">{{ total_cases }}</span>
+                            </div>
+                            
+                            <h6 class="small text-muted mb-2 mt-4">Cases by Tier</h6>
+                            {% for tier_stat in cases_by_tier %}
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Tier {{ tier_stat.tier }}:</span>
+                                    <span class="badge badge-{{ tier_stat.tier }} rounded-pill">{{ tier_stat.count }}</span>
+                                </div>
+                            {% empty %}
+                                <div class="small text-muted">No cases available</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="small text-muted mb-2">Cases by Status</h6>
+                            {% for status_stat in cases_by_status %}
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>{{ status_stat.status|title }}:</span>
+                                    <span class="badge badge-{{ status_stat.status }} rounded-pill">{{ status_stat.count }}</span>
+                                </div>
+                            {% empty %}
+                                <div class="small text-muted">No cases available</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="col-md-4">
                 <div class="card bg-light">

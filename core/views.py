@@ -14,7 +14,26 @@ def home(request):
     Home page view showing all projects
     """
     projects = Project.objects.all().annotate(cases_count=Count('cases'))
-    return render(request, 'core/home.html', {'projects': projects})
+    
+    # Statistics for all projects
+    total_projects = projects.count()
+    total_cases = Case.objects.count()
+    
+    # Projects by project lead
+    projects_by_lead = Project.objects.values('project_lead').annotate(count=Count('id')).order_by('-count')
+    
+    # Cases by status and tier
+    cases_by_status = Case.objects.values('status').annotate(count=Count('id')).order_by('-count')
+    cases_by_tier = Case.objects.values('tier').annotate(count=Count('id')).order_by('-count')
+    
+    return render(request, 'core/home.html', {
+        'projects': projects,
+        'total_projects': total_projects,
+        'total_cases': total_cases,
+        'projects_by_lead': projects_by_lead,
+        'cases_by_status': cases_by_status,
+        'cases_by_tier': cases_by_tier,
+    })
 
 @login_required
 def project_detail(request, project_id):
@@ -24,12 +43,20 @@ def project_detail(request, project_id):
     project = get_object_or_404(Project, id=project_id)
     cases = project.cases.all()
     
+    # Project statistics
+    total_cases = cases.count()
+    cases_by_status = cases.values('status').annotate(count=Count('id'))
+    cases_by_tier = cases.values('tier').annotate(count=Count('id'))
+    
     # Check if user is part of Bioinformatician group for edit permissions (previously PI)
     can_edit = request.user.groups.filter(name='Bioinformatician').exists() or request.user.is_superuser
     
     return render(request, 'core/project_detail.html', {
         'project': project,
         'cases': cases,
+        'total_cases': total_cases,
+        'cases_by_status': cases_by_status,
+        'cases_by_tier': cases_by_tier,
         'can_edit': can_edit
     })
 

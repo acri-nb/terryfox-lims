@@ -19,6 +19,61 @@
     </div>
 </div>
 
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i> Statistics</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="border-bottom pb-2">Projects Overview</h6>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Total Projects:</span>
+                    <span class="badge bg-primary rounded-pill">{{ total_projects }}</span>
+                </div>
+                
+                <h6 class="border-bottom pb-2 mt-4">Projects by Lead</h6>
+                {% for lead_stat in projects_by_lead %}
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{{ lead_stat.project_lead|default:"Not specified" }}:</span>
+                        <span class="badge bg-info rounded-pill">{{ lead_stat.count }}</span>
+                    </div>
+                {% empty %}
+                    <div class="text-muted">No project leads specified</div>
+                {% endfor %}
+            </div>
+            
+            <div class="col-md-6">
+                <h6 class="border-bottom pb-2">Cases Overview</h6>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Total Cases:</span>
+                    <span class="badge bg-primary rounded-pill">{{ total_cases }}</span>
+                </div>
+                
+                <h6 class="border-bottom pb-2 mt-4">Cases by Status</h6>
+                {% for status_stat in cases_by_status %}
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{{ status_stat.status|title }}</span>
+                        <span class="badge badge-{{ status_stat.status }} rounded-pill">{{ status_stat.count }}</span>
+                    </div>
+                {% empty %}
+                    <div class="text-muted">No cases available</div>
+                {% endfor %}
+                
+                <h6 class="border-bottom pb-2 mt-4">Cases by Tier</h6>
+                {% for tier_stat in cases_by_tier %}
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Tier {{ tier_stat.tier }}</span>
+                        <span class="badge badge-{{ tier_stat.tier }} rounded-pill">{{ tier_stat.count }}</span>
+                    </div>
+                {% empty %}
+                    <div class="text-muted">No cases available</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
 {% if projects %}
     <h2 class="mb-3"><i class="fas fa-project-diagram me-2"></i> Projects</h2>
     <div class="row">

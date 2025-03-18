@@ -6,6 +6,7 @@ class Project(models.Model):
     """Model representing a research project in the LIMS."""
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    project_lead = models.CharField(max_length=255, blank=True, verbose_name=_('Project Lead'))
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_projects')

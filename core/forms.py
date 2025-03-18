@@ -9,10 +9,11 @@ class ProjectForm(forms.ModelForm):
     
     class Meta:
         model = Project
-        fields = ['name', 'description']
+        fields = ['name', 'description', 'project_lead']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
+            'project_lead': forms.TextInput(attrs={'class': 'form-control'}),
         }
 
 class CaseForm(forms.ModelForm):

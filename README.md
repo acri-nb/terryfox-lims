@@ -4,18 +4,19 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 
 ## Features
 
-- Project management
+- Project management with Project Lead tracking
 - Case tracking with status monitoring
 - Coverage information (RNA, DNA-T, DNA-N)
-- Tier classification (A, B, FA)
+- Tier classification (A, B, FAIL)
 - Accession number management
 - Comment system for cases
 - Role-based permissions (Admin, PI, Bioinformatician)
+- Comprehensive statistics at global and project levels
 - Beautiful and user-friendly interface
 
 ## Overview
 
-   ![Description de l'image](overview.png)
+   ![Overview on the Project](overview.png)
 
 ## Requirements
 
@@ -88,11 +89,28 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 - **PI (Principal Investigator)**: Read-only access to view projects and cases
 - **Bioinformatician**: Full CRUD permissions (Create, Read, Update, Delete) on projects and cases
 
+## Project Statistics
+
+The LIMS provides detailed statistics at two levels:
+
+1. **Global statistics** (Home page):
+   - Total number of projects
+   - Projects by Project Lead
+   - Total number of cases
+   - Cases by status (Sequenced, Transferred to NFL, Bioinfo Analysis, Completed)
+   - Cases by tier (A, B, FAIL)
+
+2. **Project-specific statistics** (Project detail page):
+   - Project Lead information
+   - Total cases in the project
+   - Cases by status
+   - Cases by tier
+
 ## Usage
 
 1. Login with your user credentials
-2. From the dashboard, you can see all projects
-3. Click on a project to view its cases
+2. From the dashboard, you can see all projects and global statistics
+3. Click on a project to view its details, statistics, and associated cases
 4. Click on a case to view its details, including status, coverage information, and accession numbers
 5. Bioinformaticians can create, edit, and delete projects and cases
 6. PIs can view all information but cannot make changes
