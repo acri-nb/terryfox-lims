@@ -110,7 +110,7 @@ This project follows standard Django application architecture:
 
 ## License
 
-© IARC - International Agency for Research on Cancer
+© ACRI - Atlantic Cancer Research Institute
 
 ## Contact
 
