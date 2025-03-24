@@ -5,8 +5,8 @@ from django.contrib import messages
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Count
 
-from .models import Project, Case, Accession, Comment
-from .forms import ProjectForm, CaseForm, CommentForm, AccessionFormSet
+from .models import Project, Case, Accession, Comment, ProjectLead
+from .forms import ProjectForm, CaseForm, CommentForm, AccessionFormSet, ProjectLeadForm
 
 @login_required
 def home(request):
@@ -20,7 +20,7 @@ def home(request):
     total_cases = Case.objects.count()
     
     # Projects by project lead
-    projects_by_lead = Project.objects.values('project_lead').annotate(count=Count('id')).order_by('-count')
+    projects_by_lead = Project.objects.values('project_lead__name').annotate(count=Count('id')).order_by('-count')
     
     # Cases by status and tier
     cases_by_status = Case.objects.values('status').annotate(count=Count('id')).order_by('-count')
@@ -221,3 +221,89 @@ def case_delete(request, case_id):
         return redirect('project_detail', project_id=project_id)
     
     return render(request, 'core/case_confirm_delete.html', {'case': case})
+
+# CRUD operations for Project Leads, only for Bioinformatician users
+@login_required
+@permission_required('core.view_projectlead', raise_exception=True)
+def project_lead_list(request):
+    """
+    View for listing all project leads
+    """
+    leads = ProjectLead.objects.all().order_by('name')
+    project_counts = {}
+    
+    # Get project counts for each lead
+    for lead in leads:
+        project_counts[lead.id] = lead.projects.count()
+    
+    # Convert to JSON-serializable dictionary with string keys
+    project_counts_json = {str(k): v for k, v in project_counts.items()}
+    
+    return render(request, 'core/project_lead_list.html', {
+        'leads': leads,
+        'project_counts': project_counts,
+        'project_counts_json': project_counts_json,
+    })
+
+@login_required
+@permission_required('core.add_projectlead', raise_exception=True)
+def project_lead_create(request):
+    """
+    View for creating a new project lead
+    """
+    if request.method == 'POST':
+        form = ProjectLeadForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, _('Project Lead created successfully!'))
+            return redirect('project_lead_list')
+    else:
+        form = ProjectLeadForm()
+    
+    return render(request, 'core/project_lead_form.html', {
+        'form': form,
+        'title': _('Create Project Lead')
+    })
+
+@login_required
+@permission_required('core.change_projectlead', raise_exception=True)
+def project_lead_update(request, lead_id):
+    """
+    View for updating an existing project lead
+    """
+    lead = get_object_or_404(ProjectLead, id=lead_id)
+    
+    if request.method == 'POST':
+        form = ProjectLeadForm(request.POST, instance=lead)
+        if form.is_valid():
+            form.save()
+            messages.success(request, _('Project Lead updated successfully!'))
+            return redirect('project_lead_list')
+    else:
+        form = ProjectLeadForm(instance=lead)
+    
+    return render(request, 'core/project_lead_form.html', {
+        'form': form,
+        'lead': lead,
+        'title': _('Update Project Lead')
+    })
+
+@login_required
+@permission_required('core.delete_projectlead', raise_exception=True)
+def project_lead_delete(request, lead_id):
+    """
+    View for deleting a project lead
+    """
+    lead = get_object_or_404(ProjectLead, id=lead_id)
+    
+    # Check if there are projects using this lead
+    if lead.projects.exists():
+        messages.error(request, _('Cannot delete Project Lead that is being used by existing projects.'))
+        return redirect('project_lead_list')
+    
+    if request.method == 'POST':
+        lead.delete()
+        messages.success(request, _('Project Lead deleted successfully!'))
+        return redirect('project_lead_list')
+    
+    return render(request, 'core/project_lead_confirm_delete.html', {'lead': lead})

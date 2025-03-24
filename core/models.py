@@ -2,11 +2,30 @@ from django.db import models
 from django.contrib.auth.models import User, Group
 from django.utils.translation import gettext_lazy as _
 
+class ProjectLead(models.Model):
+    """Model representing a project lead in the LIMS."""
+    name = models.CharField(max_length=255, unique=True)
+    
+    def __str__(self):
+        return self.name
+        
+    class Meta:
+        ordering = ['name']
+        verbose_name = _('Project Lead')
+        verbose_name_plural = _('Project Leads')
+
 class Project(models.Model):
     """Model representing a research project in the LIMS."""
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    project_lead = models.CharField(max_length=255, blank=True, verbose_name=_('Project Lead'))
+    project_lead = models.ForeignKey(
+        ProjectLead, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='projects',
+        verbose_name=_('Project Lead')
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_projects')
@@ -17,6 +36,11 @@ class Project(models.Model):
     def get_cases_count(self):
         """Return the number of cases in this project."""
         return self.cases.count()
+    
+    @classmethod
+    def get_unique_project_leads(cls):
+        """Return all unique project leads."""
+        return ProjectLead.objects.all().order_by('name')
 
 class Case(models.Model):
     """Model representing a case within a project."""

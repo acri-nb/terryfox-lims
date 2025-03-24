@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% load core_extras %}
+
+{% block title %}Project Leads | TerryFox LIMS{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+        <li class="breadcrumb-item active">Project Leads</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0"><i class="fas fa-user-tie me-2"></i> Project Leads</h1>
+    <a href="{% url 'project_lead_create' %}" class="btn btn-primary">
+        <i class="fas fa-plus me-1"></i> New Project Lead
+    </a>
+</div>
+
+{% if messages %}
+<div class="messages mb-4">
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if leads %}
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Name</th>
+                        <th>Projects</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lead in leads %}
+                    <tr>
+                        <td>{{ lead.name }}</td>
+                        <td>
+                            <span class="badge bg-info rounded-pill" data-lead-id="{{ lead.id }}">
+                                {{ project_counts|get_item:lead.id }}
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <a href="{% url 'project_lead_update' lead_id=lead.id %}" class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{% url 'project_lead_delete' lead_id=lead.id %}" class="btn btn-sm btn-outline-danger {% if project_counts|get_item:lead.id > 0 %}disabled{% endif %}">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info" role="alert">
+    <i class="fas fa-info-circle me-2"></i> No project leads available yet.
+    <a href="{% url 'project_lead_create' %}" class="alert-link">Create the first project lead</a>.
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Load project counts from JSON
+    var projectCounts = {{ project_counts_json|to_json|safe }};
+    
+    // Update the badge counts with JavaScript
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('[data-lead-id]').forEach(function(element) {
+            var leadId = element.getAttribute('data-lead-id');
+            if (projectCounts[leadId] !== undefined) {
+                element.textContent = projectCounts[leadId];
+            } else {
+                element.textContent = '0';
+            }
+        });
+    });
+</script>
+{% endblock %} 

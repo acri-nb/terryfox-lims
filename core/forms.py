@@ -2,7 +2,17 @@ from django import forms
 from django.forms import inlineformset_factory
 from django.utils.translation import gettext_lazy as _
 
-from .models import Project, Case, Comment, Accession
+from .models import Project, Case, Comment, Accession, ProjectLead
+
+class ProjectLeadForm(forms.ModelForm):
+    """Form for creating and updating project leads."""
+    
+    class Meta:
+        model = ProjectLead
+        fields = ['name']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('Project Lead Name')}),
+        }
 
 class ProjectForm(forms.ModelForm):
     """Form for creating and updating projects."""
@@ -13,8 +23,14 @@ class ProjectForm(forms.ModelForm):
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
-            'project_lead': forms.TextInput(attrs={'class': 'form-control'}),
+            'project_lead': forms.Select(attrs={'class': 'form-select'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Create blank option for project_lead
+        self.fields['project_lead'].empty_label = _('-- Select a Project Lead --')
 
 class CaseForm(forms.ModelForm):
     """Form for creating and updating cases."""

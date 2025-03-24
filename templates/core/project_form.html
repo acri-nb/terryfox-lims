@@ -28,7 +28,27 @@
     <div class="card-body">
         <form method="post">
             {% csrf_token %}
-            {{ form|crispy }}
+            
+            {# Display name and description fields #}
+            {% for field in form %}
+                {% if field.name == 'name' or field.name == 'description' %}
+                    {{ field|as_crispy_field }}
+                {% endif %}
+            {% endfor %}
+            
+            {# Display project_lead field with custom handling #}
+            <div class="mb-3">
+                <label class="form-label" for="id_project_lead">{{ form.project_lead.label }}</label>
+                {{ form.project_lead }}
+                {{ form.custom_project_lead }}
+                {% if form.project_lead.help_text %}
+                <div class="form-text">{{ form.project_lead.help_text }}</div>
+                {% endif %}
+                {% if form.project_lead.errors %}
+                <div class="invalid-feedback d-block">{{ form.project_lead.errors }}</div>
+                {% endif %}
+            </div>
+            
             <div class="d-flex justify-content-between mt-4">
                 <a href="{% if project %}{% url 'project_detail' project_id=project.id %}{% else %}{% url 'home' %}{% endif %}" class="btn btn-secondary">
                     <i class="fas fa-times me-1"></i> Cancel
@@ -40,4 +60,28 @@
         </form>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const projectLeadSelect = document.getElementById('id_project_lead');
+        const customProjectLeadInput = document.getElementById('id_custom_project_lead');
+        
+        // Show/hide custom project lead field based on selection
+        function toggleCustomField() {
+            if (projectLeadSelect.value === '_new_') {
+                customProjectLeadInput.style.display = 'block';
+                customProjectLeadInput.required = true;
+            } else {
+                customProjectLeadInput.style.display = 'none';
+                customProjectLeadInput.required = false;
+            }
+        }
+        
+        // Initial setup
+        toggleCustomField();
+        
+        // Change event listener
+        projectLeadSelect.addEventListener('change', toggleCustomField);
+    });
+</script>
 {% endblock %} 

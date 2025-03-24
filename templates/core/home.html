@@ -5,11 +5,16 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="mb-0"><i class="fas fa-flask me-2"></i> TerryFox LIMS</h1>
-    {% if user.is_superuser or user.groups.all.0.name == 'Bioinformatician' %}
-    <a href="{% url 'project_create' %}" class="btn btn-primary">
-        <i class="fas fa-plus me-1"></i> New Project
-    </a>
-    {% endif %}
+    <div>
+        {% if user.is_superuser or user.groups.all.0.name == 'Bioinformatician' %}
+        <a href="{% url 'project_lead_list' %}" class="btn btn-danger me-2">
+            <i class="fas fa-user-tie me-1"></i> Project Leads
+        </a>
+        <a href="{% url 'project_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> New Project
+        </a>
+        {% endif %}
+    </div>
 </div>
 
 <div class="card mb-4">
@@ -35,12 +40,16 @@
                 <h6 class="border-bottom pb-2 mt-4">Projects by Lead</h6>
                 {% for lead_stat in projects_by_lead %}
                     <div class="d-flex justify-content-between mb-2">
-                        <span>{{ lead_stat.project_lead|default:"Not specified" }}:</span>
+                        <span>{{ lead_stat.project_lead__name|default:"Not specified" }}:</span>
                         <span class="badge bg-info rounded-pill">{{ lead_stat.count }}</span>
                     </div>
                 {% empty %}
                     <div class="text-muted">No project leads specified</div>
                 {% endfor %}
+                
+                <div class="alert alert-info mt-3 small">
+                    <i class="fas fa-info-circle me-1"></i> Project Leads are individuals who manage research projects. Choose from existing leads when creating a new project.
+                </div>
             </div>
             
             <div class="col-md-6">
