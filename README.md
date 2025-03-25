@@ -10,6 +10,7 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 - Tier classification (A, B, FAIL)
 - Accession number management
 - Comment system for cases
+- Search and filter functionality for projects and cases
 - Role-based permissions (Admin, PI, Bioinformatician)
 - Comprehensive statistics at global and project levels
 - Beautiful and user-friendly interface
@@ -110,11 +111,13 @@ The LIMS provides detailed statistics at two levels:
 
 1. Login with your user credentials
 2. From the dashboard, you can see all projects and global statistics
-3. Click on "Project Leads" button to manage project leads (create, edit, delete)
-4. Click on a project to view its details, statistics, and associated cases
-5. Click on a case to view its details, including status, coverage information, and accession numbers
-6. Bioinformaticians can create, edit, and delete projects, project leads, and cases
-7. PIs can view all information but cannot make changes
+3. Use the search box to filter projects by name or project lead
+4. Click on "Project Leads" button to manage project leads (create, edit, delete)
+5. Click on a project to view its details, statistics, and associated cases
+6. Use the search and filter options to find specific cases by name, status, or tier
+7. Click on a case to view its details, including status, coverage information, and accession numbers
+8. Bioinformaticians can create, edit, and delete projects, project leads, and cases
+9. PIs can view all information but cannot make changes
 
 ## Project Lead Management
 
@@ -126,6 +129,22 @@ The system provides a dedicated interface for managing Project Leads:
 4. Edit existing project leads by clicking the edit icon
 5. Delete project leads that aren't associated with any projects
 6. When creating or editing a project, select a project lead from the dropdown menu
+
+## Search and Filter Features
+
+The system provides search and filter capabilities to help you quickly find what you need:
+
+### Project Filtering (Home Page)
+- **Project Name**: Search for projects by entering part of their name
+- **Project Lead**: Filter projects to show only those managed by a specific project lead
+- Filter results update immediately when you click the "Filter" button
+- A "Clear" button allows you to reset all filters
+
+### Case Filtering (Project Detail Page)
+- **Case Name**: Search for cases by entering part of their name
+- **Status**: Filter cases by their current status (Sequenced, Transferred to NFL, etc.)
+- **Tier**: Filter cases by their tier classification (A, B, FAIL)
+- Visual indicators show when filters are active and how many results match
 
 ## Development
 
