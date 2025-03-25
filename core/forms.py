@@ -91,4 +91,45 @@ AccessionFormSet = inlineformset_factory(
     form=AccessionForm,
     extra=1,
     can_delete=True
-) 
+)
+
+class ProjectFilterForm(forms.Form):
+    """Form for filtering projects on the home page."""
+    name = forms.CharField(
+        required=False, 
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('Search by project name...')
+        })
+    )
+    project_lead = forms.ModelChoiceField(
+        queryset=ProjectLead.objects.all(),
+        required=False,
+        empty_label=_("All Project Leads"),
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Order project leads by name
+        self.fields['project_lead'].queryset = ProjectLead.objects.all().order_by('name')
+
+class CaseFilterForm(forms.Form):
+    """Form for filtering cases on the project detail page."""
+    name = forms.CharField(
+        required=False, 
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('Search by name...')
+        })
+    )
+    status = forms.ChoiceField(
+        choices=[('', _('All Statuses'))] + Case.STATUS_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    tier = forms.ChoiceField(
+        choices=[('', _('All Tiers'))] + Case.TIER_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'})
+    ) 

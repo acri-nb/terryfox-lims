@@ -84,7 +84,50 @@
 </div>
 
 {% if projects %}
-    <h2 class="mb-3"><i class="fas fa-project-diagram me-2"></i> Projects</h2>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0"><i class="fas fa-project-diagram me-2"></i> Projects
+        {% if request.GET.project_lead or request.GET.name %}
+            <span class="badge bg-info ms-2">Filtered</span>
+            <small class="text-muted ms-2">({{ projects|length }} results)</small>
+        {% endif %}
+        </h2>
+        <div>
+            {% if user.is_superuser or user.groups.all.0.name == 'Bioinformatician' %}
+            <a href="{% url 'project_lead_list' %}" class="btn btn-danger me-2">
+                <i class="fas fa-user-tie me-1"></i> Project Leads
+            </a>
+            <a href="{% url 'project_create' %}" class="btn btn-sm btn-primary">
+                <i class="fas fa-plus me-1"></i> New Project
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label for="{{ filter_form.name.id_for_label }}" class="form-label">Search by Project Name</label>
+                    {{ filter_form.name }}
+                </div>
+                <div class="col-md-4">
+                    <label for="{{ filter_form.project_lead.id_for_label }}" class="form-label">Filter by Project Lead</label>
+                    {{ filter_form.project_lead }}
+                </div>
+                <div class="col-md-auto">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-filter me-1"></i> Filter
+                    </button>
+                    {% if request.GET.project_lead or request.GET.name %}
+                    <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times me-1"></i> Clear
+                    </a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+    
     <div class="row">
         {% for project in projects %}
             <div class="col-md-6 col-lg-4 mb-4">

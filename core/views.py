@@ -6,17 +6,35 @@ from django.utils.translation import gettext_lazy as _
 from django.db.models import Count
 
 from .models import Project, Case, Accession, Comment, ProjectLead
-from .forms import ProjectForm, CaseForm, CommentForm, AccessionFormSet, ProjectLeadForm
+from .forms import ProjectForm, CaseForm, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm
 
 @login_required
 def home(request):
     """
     Home page view showing all projects
     """
-    projects = Project.objects.all().annotate(cases_count=Count('cases'))
+    # Initialize filter form
+    filter_form = ProjectFilterForm(request.GET)
+    
+    # Start with all projects
+    projects = Project.objects.all()
+    
+    # Apply filters if the form is valid
+    if filter_form.is_valid():
+        project_name = filter_form.cleaned_data.get('name')
+        project_lead = filter_form.cleaned_data.get('project_lead')
+        
+        if project_name:
+            projects = projects.filter(name__icontains=project_name)
+            
+        if project_lead:
+            projects = projects.filter(project_lead=project_lead)
+    
+    # Annotate with case count
+    projects = projects.annotate(cases_count=Count('cases'))
     
     # Statistics for all projects
-    total_projects = projects.count()
+    total_projects = Project.objects.count()
     total_cases = Case.objects.count()
     
     # Projects by project lead
@@ -33,6 +51,7 @@ def home(request):
         'projects_by_lead': projects_by_lead,
         'cases_by_status': cases_by_status,
         'cases_by_tier': cases_by_tier,
+        'filter_form': filter_form,
     })
 
 @login_required
@@ -41,12 +60,33 @@ def project_detail(request, project_id):
     View for showing project details including all cases
     """
     project = get_object_or_404(Project, id=project_id)
+    
+    # Initialize filter form
+    filter_form = CaseFilterForm(request.GET)
+    
+    # Start with all cases for this project
     cases = project.cases.all()
     
-    # Project statistics
-    total_cases = cases.count()
-    cases_by_status = cases.values('status').annotate(count=Count('id'))
-    cases_by_tier = cases.values('tier').annotate(count=Count('id'))
+    # Apply filters if the form is valid
+    if filter_form.is_valid():
+        case_name = filter_form.cleaned_data.get('name')
+        case_status = filter_form.cleaned_data.get('status')
+        case_tier = filter_form.cleaned_data.get('tier')
+        
+        if case_name:
+            cases = cases.filter(name__icontains=case_name)
+        
+        if case_status:
+            cases = cases.filter(status=case_status)
+            
+        if case_tier:
+            cases = cases.filter(tier=case_tier)
+    
+    # Project statistics - always based on all cases
+    all_cases = project.cases.all()
+    total_cases = all_cases.count()
+    cases_by_status = all_cases.values('status').annotate(count=Count('id'))
+    cases_by_tier = all_cases.values('tier').annotate(count=Count('id'))
     
     # Check if user is part of Bioinformatician group for edit permissions (previously PI)
     can_edit = request.user.groups.filter(name='Bioinformatician').exists() or request.user.is_superuser
@@ -57,7 +97,8 @@ def project_detail(request, project_id):
         'total_cases': total_cases,
         'cases_by_status': cases_by_status,
         'cases_by_tier': cases_by_tier,
-        'can_edit': can_edit
+        'can_edit': can_edit,
+        'filter_form': filter_form,
     })
 
 @login_required
