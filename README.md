@@ -4,7 +4,7 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 
 ## Features
 
-- Project management with Project Lead tracking
+- Project management with dedicated Project Lead tracking and management
 - Case tracking with status monitoring
 - Coverage information (RNA, DNA-T, DNA-N)
 - Tier classification (A, B, FAIL)
@@ -86,8 +86,8 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 ## User Roles
 
 - **Superuser/Admin**: Full access to all features and admin panel
-- **PI (Principal Investigator)**: Read-only access to view projects and cases
-- **Bioinformatician**: Full CRUD permissions (Create, Read, Update, Delete) on projects and cases
+- **PI (Principal Investigator)**: Read-only access to view projects, project leads, and cases
+- **Bioinformatician**: Full CRUD permissions on projects, project leads, and cases
 
 ## Project Statistics
 
@@ -110,19 +110,32 @@ The LIMS provides detailed statistics at two levels:
 
 1. Login with your user credentials
 2. From the dashboard, you can see all projects and global statistics
-3. Click on a project to view its details, statistics, and associated cases
-4. Click on a case to view its details, including status, coverage information, and accession numbers
-5. Bioinformaticians can create, edit, and delete projects and cases
-6. PIs can view all information but cannot make changes
+3. Click on "Project Leads" button to manage project leads (create, edit, delete)
+4. Click on a project to view its details, statistics, and associated cases
+5. Click on a case to view its details, including status, coverage information, and accession numbers
+6. Bioinformaticians can create, edit, and delete projects, project leads, and cases
+7. PIs can view all information but cannot make changes
+
+## Project Lead Management
+
+The system provides a dedicated interface for managing Project Leads:
+
+1. Access the Project Leads management by clicking the "Project Leads" button on the home page
+2. View all existing project leads and the number of projects they manage
+3. Create new project leads by clicking "New Project Lead"
+4. Edit existing project leads by clicking the edit icon
+5. Delete project leads that aren't associated with any projects
+6. When creating or editing a project, select a project lead from the dropdown menu
 
 ## Development
 
 This project follows standard Django application architecture:
 
-- `core/models.py`: Database models
-- `core/views.py`: View functions
+- `core/models.py`: Database models (ProjectLead, Project, Case, etc.)
+- `core/views.py`: View functions for all CRUD operations
 - `core/forms.py`: Forms for data input
 - `core/admin.py`: Admin interface configuration
+- `core/templatetags/`: Custom template tags and filters
 - `templates/`: HTML templates
 - `static/`: Static files (CSS, JS, images)
 
