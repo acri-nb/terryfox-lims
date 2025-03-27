@@ -98,7 +98,7 @@ The LIMS provides detailed statistics at two levels:
    - Total number of projects
    - Projects by Project Lead
    - Total number of cases
-   - Cases by status (Sequenced, Transferred to NFL, Bioinfo Analysis, Completed)
+   - Cases by status (Received, Library Prepped, Transferred to NFL, Bioinfo Analysis, Completed)
    - Cases by tier (A, B, FAIL)
 
 2. **Project-specific statistics** (Project detail page):
@@ -142,9 +142,22 @@ The system provides search and filter capabilities to help you quickly find what
 
 ### Case Filtering (Project Detail Page)
 - **Case Name**: Search for cases by entering part of their name
-- **Status**: Filter cases by their current status (Sequenced, Transferred to NFL, etc.)
+- **Status**: Filter cases by their current status (Received, Library Prepped, Transferred to NFL, etc.)
 - **Tier**: Filter cases by their tier classification (A, B, FAIL)
 - Visual indicators show when filters are active and how many results match
+
+### Batch Case Creation
+
+The system allows users with CRUD permissions (Bioinformaticians and Administrators) to add multiple cases to a project at once:
+
+- Access the batch creation by clicking "Add Cases in Batch" on the project detail page
+- Specify the **number of cases** to create (minimum 2)
+- Enter a **batch name** that will be used as a prefix for all case names
+- Set the **default values** that will be applied to all cases in the batch (status, coverage values)
+
+Cases are created with names following the pattern `{batch_name}-{number}`. For example, if you enter "Lung" as the batch name and 3 for the number of cases, the system will create cases named "Lung-1", "Lung-2", and "Lung-3".
+
+This feature is particularly useful when processing sample batches from the same experiment or tissue type.
 
 ## Development
 

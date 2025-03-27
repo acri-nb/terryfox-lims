@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ title }} | TerryFox LIMS{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'project_detail' project_id=project.id %}">{{ project.name }}</a></li>
+        <li class="breadcrumb-item active">{{ title }}</li>
+    </ol>
+</nav>
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-layer-group me-2"></i> {{ title }}</h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info mb-4">
+            <i class="fas fa-info-circle me-2"></i> 
+            <strong>Batch Creation:</strong> This will create multiple cases with the naming pattern "<strong>BatchName-#</strong>". 
+            For example, if you enter "Lung" as the batch name and 3 for the number of cases, cases named "Lung-1", "Lung-2", and "Lung-3" will be created.
+        </div>
+        
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    {{ form.batch_name|as_crispy_field }}
+                </div>
+                <div class="col-md-6">
+                    {{ form.batch_size|as_crispy_field }}
+                </div>
+            </div>
+            
+            <h5 class="mb-3">Default Values for All Cases</h5>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    {{ form.status|as_crispy_field }}
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-4">
+                    {{ form.rna_coverage|as_crispy_field }}
+                </div>
+                <div class="col-md-4">
+                    {{ form.dna_t_coverage|as_crispy_field }}
+                </div>
+                <div class="col-md-4">
+                    {{ form.dna_n_coverage|as_crispy_field }}
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i> <strong>Note:</strong> Tier will be calculated automatically based on the following criteria:
+                        <ul class="mb-0 mt-2">
+                            <li>Tier A: DNA(T) ≥ 80X, DNA(N) ≥ 30X, RNA ≥ 100M</li>
+                            <li>Tier B: 30X ≤ DNA(T) < 80X, DNA(N) ≥ 30X, RNA ≥ 100M</li>
+                            <li>FAIL: DNA(T) < 30X OR DNA(N) < 30X OR RNA < 100M</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{% url 'project_detail' project_id=project.id %}" class="btn btn-secondary">
+                    <i class="fas fa-times me-1"></i> Cancel
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-layer-group me-1"></i> Create Batch
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %} 

@@ -46,13 +46,15 @@ class Case(models.Model):
     """Model representing a case within a project."""
     
     # Status options
-    STATUS_SEQUENCED = 'sequenced'
+    STATUS_RECEIVED = 'received'
+    STATUS_LIBRARY_PREPPED = 'library_prepped'
     STATUS_TRANSFERRED = 'transferred_to_nfl'
     STATUS_BIOINFO = 'bioinfo_analysis'
     STATUS_COMPLETED = 'completed'
     
     STATUS_CHOICES = [
-        (STATUS_SEQUENCED, _('Sequenced')),
+        (STATUS_RECEIVED, _('Recieved')),
+        (STATUS_LIBRARY_PREPPED, _('Library Prepped')),
         (STATUS_TRANSFERRED, _('Transferred to NFL')),
         (STATUS_BIOINFO, _('Bioinfo Analysis')),
         (STATUS_COMPLETED, _('Completed')),
@@ -71,7 +73,7 @@ class Case(models.Model):
     
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='cases')
     name = models.CharField(max_length=255)
-    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default=STATUS_SEQUENCED)
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default=STATUS_RECEIVED)
     
     # Coverage values
     rna_coverage = models.FloatField(null=True, blank=True, verbose_name=_('RNA Coverage (M)'))

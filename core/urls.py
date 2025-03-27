@@ -14,6 +14,7 @@ urlpatterns = [
     # Case URLs
     path('cases/<int:case_id>/', views.case_detail, name='case_detail'),
     path('projects/<int:project_id>/cases/create/', views.case_create, name='case_create'),
+    path('projects/<int:project_id>/cases/batch/', views.batch_case_create, name='batch_case_create'),
     path('cases/<int:case_id>/delete/', views.case_delete, name='case_delete'),
     
     # Project Lead URLs

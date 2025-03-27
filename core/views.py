@@ -6,7 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from django.db.models import Count
 
 from .models import Project, Case, Accession, Comment, ProjectLead
-from .forms import ProjectForm, CaseForm, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm
+from .forms import ProjectForm, CaseForm, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm
 
 @login_required
 def home(request):
@@ -245,6 +245,69 @@ def case_create(request, project_id):
         'form': form, 
         'project': project,
         'title': _('Create Case')
+    })
+
+@login_required
+@permission_required('core.add_case', raise_exception=True)
+def batch_case_create(request, project_id):
+    """
+    View for creating multiple cases in a batch within a project
+    """
+    project = get_object_or_404(Project, id=project_id)
+    
+    if request.method == 'POST':
+        form = BatchCaseForm(request.POST)
+        if form.is_valid():
+            batch_size = form.cleaned_data['batch_size']
+            batch_name = form.cleaned_data['batch_name']
+            status = form.cleaned_data['status']
+            rna_coverage = form.cleaned_data['rna_coverage']
+            dna_t_coverage = form.cleaned_data['dna_t_coverage']
+            dna_n_coverage = form.cleaned_data['dna_n_coverage']
+            
+            cases_created = 0
+            
+            # Create the specified number of cases
+            for i in range(1, batch_size + 1):
+                case_name = f"{batch_name}-{i}"
+                
+                # Check if a case with this name already exists in the project
+                if Case.objects.filter(project=project, name=case_name).exists():
+                    continue
+                
+                case = Case(
+                    project=project,
+                    name=case_name,
+                    status=status,
+                    rna_coverage=rna_coverage,
+                    dna_t_coverage=dna_t_coverage,
+                    dna_n_coverage=dna_n_coverage
+                )
+                case.save()
+                cases_created += 1
+            
+            if cases_created > 0:
+                messages.success(
+                    request, 
+                    _('Successfully created {count} cases in batch "{batch}"!').format(
+                        count=cases_created, 
+                        batch=batch_name
+                    )
+                )
+            else:
+                messages.warning(
+                    request, 
+                    _('No new cases were created. Cases with these names may already exist.')
+                )
+                
+            return redirect('project_detail', project_id=project.id)
+    else:
+        form = BatchCaseForm()
+    
+    return render(request, 'core/batch_case_form.html', {
+        'form': form, 
+        'project': project,
+        'title': _('Create Cases in Batch')
     })
 
 @login_required

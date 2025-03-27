@@ -58,6 +58,45 @@ class CaseForm(forms.ModelForm):
         # Make tier field read-only - it will be calculated automatically
         self.fields['tier'].disabled = True
 
+class BatchCaseForm(forms.Form):
+    """Form for creating multiple cases in a batch."""
+    batch_size = forms.IntegerField(
+        min_value=2,
+        widget=forms.NumberInput(attrs={'class': 'form-control'}),
+        label=_('Number of Cases'),
+        help_text=_('Minimum 2 cases')
+    )
+    batch_name = forms.CharField(
+        max_length=255,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        label=_('Batch Name'),
+        help_text=_('Will be used as prefix for case names (e.g., "Lung" will create cases named "Lung-1", "Lung-2", etc.)')
+    )
+    status = forms.ChoiceField(
+        choices=Case.STATUS_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label=_('Default Status'),
+        initial=Case.STATUS_RECEIVED
+    )
+    rna_coverage = forms.FloatField(
+        required=False,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'RNA Coverage in M'}),
+        label=_('Default RNA Coverage (M)'),
+        help_text=_('RNA Coverage in million reads (M)')
+    )
+    dna_t_coverage = forms.FloatField(
+        required=False,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'DNA (T) Coverage in X'}),
+        label=_('Default DNA (T) Coverage (X)'),
+        help_text=_('DNA Tumor Coverage in X')
+    )
+    dna_n_coverage = forms.FloatField(
+        required=False,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'DNA (N) Coverage in X'}),
+        label=_('Default DNA (N) Coverage (X)'),
+        help_text=_('DNA Normal Coverage in X')
+    )
+
 class CommentForm(forms.ModelForm):
     """Form for adding comments to a case."""
     
