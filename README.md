@@ -13,6 +13,8 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 - Search and filter functionality for projects and cases
 - Role-based permissions (Admin, PI, Bioinformatician)
 - Comprehensive statistics at global and project levels
+- Batch case creation for adding multiple cases at once
+- CSV import for creating and updating cases
 - Beautiful and user-friendly interface
 
 ## Overview
@@ -158,6 +160,24 @@ The system allows users with CRUD permissions (Bioinformaticians and Administrat
 Cases are created with names following the pattern `{batch_name}-{number}`. For example, if you enter "Lung" as the batch name and 3 for the number of cases, the system will create cases named "Lung-1", "Lung-2", and "Lung-3".
 
 This feature is particularly useful when processing sample batches from the same experiment or tissue type.
+
+### CSV Case Import
+
+The system allows users with CRUD permissions (Bioinformaticians and Administrators) to import multiple cases from a CSV file:
+
+- Access the CSV import by clicking "Add Cases with CSV" on the project detail page
+- Upload a CSV file following the required format with these headers:
+  - **CaseID**: The unique identifier for the case
+  - **Status**: The status of the case (must match system values)
+  - **DNAT**: DNA Tumor Coverage value
+  - **DNAN**: DNA Normal Coverage value
+  - **RNA**: RNA Coverage value
+- The system will automatically:
+  - Create new cases for entries that don't exist yet
+  - Update existing cases with the new data
+  - Display a summary of how many cases were created and updated
+
+A template CSV file is available for download on the import page to help users get started. This feature is particularly useful for importing data from other systems or for bulk updates to existing cases.
 
 ## Development
 
