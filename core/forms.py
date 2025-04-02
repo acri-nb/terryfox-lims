@@ -60,17 +60,23 @@ class CaseForm(forms.ModelForm):
 
 class BatchCaseForm(forms.Form):
     """Form for creating multiple cases in a batch."""
-    batch_size = forms.IntegerField(
+    min_case_number = forms.IntegerField(
+        min_value=1,
+        widget=forms.NumberInput(attrs={'class': 'form-control'}),
+        label=_('Number of the first case'),
+        help_text=_('First case number in the sequence')
+    )
+    max_case_number = forms.IntegerField(
         min_value=2,
         widget=forms.NumberInput(attrs={'class': 'form-control'}),
-        label=_('Number of Cases'),
-        help_text=_('Minimum 2 cases')
+        label=_('Number of the last case'),
+        help_text=_('Last case number in the sequence')
     )
     batch_name = forms.CharField(
         max_length=255,
         widget=forms.TextInput(attrs={'class': 'form-control'}),
         label=_('Batch Name'),
-        help_text=_('Will be used as prefix for case names (e.g., "Lung" will create cases named "Lung-1", "Lung-2", etc.)')
+        help_text=_('Will be used as prefix for case names (e.g., "Lung" with range 5-7 will create cases named "Lung-5", "Lung-6", "Lung-7")')
     )
     status = forms.ChoiceField(
         choices=Case.STATUS_CHOICES,
@@ -96,6 +102,21 @@ class BatchCaseForm(forms.Form):
         label=_('Default DNA (N) Coverage (X)'),
         help_text=_('DNA Normal Coverage in X')
     )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        min_case_number = cleaned_data.get('min_case_number')
+        max_case_number = cleaned_data.get('max_case_number')
+        
+        if min_case_number is not None and max_case_number is not None:
+            if max_case_number < min_case_number:
+                raise forms.ValidationError(_("The last case number must be greater than or equal to the first case number."))
+            
+            # Check that at least 2 cases will be created
+            if (max_case_number - min_case_number + 1) < 2:
+                raise forms.ValidationError(_("You must create at least 2 cases in a batch."))
+        
+        return cleaned_data
 
 class CSVImportForm(forms.Form):
     """Form for importing cases from a CSV file."""

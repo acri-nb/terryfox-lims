@@ -260,7 +260,8 @@ def batch_case_create(request, project_id):
     if request.method == 'POST':
         form = BatchCaseForm(request.POST)
         if form.is_valid():
-            batch_size = form.cleaned_data['batch_size']
+            min_case_number = form.cleaned_data['min_case_number']
+            max_case_number = form.cleaned_data['max_case_number']
             batch_name = form.cleaned_data['batch_name']
             status = form.cleaned_data['status']
             rna_coverage = form.cleaned_data['rna_coverage']
@@ -269,8 +270,8 @@ def batch_case_create(request, project_id):
             
             cases_created = 0
             
-            # Create the specified number of cases
-            for i in range(1, batch_size + 1):
+            # Create cases with numbers from min to max (inclusive)
+            for i in range(min_case_number, max_case_number + 1):
                 case_name = f"{batch_name}-{i}"
                 
                 # Check if a case with this name already exists in the project
@@ -291,9 +292,11 @@ def batch_case_create(request, project_id):
             if cases_created > 0:
                 messages.success(
                     request, 
-                    _('Successfully created {count} cases in batch "{batch}"!').format(
+                    _('Successfully created {count} cases in batch "{batch}" (from {min} to {max})!').format(
                         count=cases_created, 
-                        batch=batch_name
+                        batch=batch_name,
+                        min=min_case_number,
+                        max=max_case_number
                     )
                 )
             else:

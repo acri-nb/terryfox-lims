@@ -20,18 +20,22 @@
         <div class="alert alert-info mb-4">
             <i class="fas fa-info-circle me-2"></i> 
             <strong>Batch Creation:</strong> This will create multiple cases with the naming pattern "<strong>BatchName-#</strong>". 
-            For example, if you enter "Lung" as the batch name and 3 for the number of cases, cases named "Lung-1", "Lung-2", and "Lung-3" will be created.
+            For example, if you enter "Lung" as the batch name, 5 for the first case number, and 7 for the last case number, cases named "Lung-5", "Lung-6", and "Lung-7" will be created.
+            At least 2 cases must be created in a batch.
         </div>
         
         <form method="post">
             {% csrf_token %}
             
             <div class="row mb-4">
-                <div class="col-md-6">
+                <div class="col-md-4">
                     {{ form.batch_name|as_crispy_field }}
                 </div>
-                <div class="col-md-6">
-                    {{ form.batch_size|as_crispy_field }}
+                <div class="col-md-4">
+                    {{ form.min_case_number|as_crispy_field }}
+                </div>
+                <div class="col-md-4">
+                    {{ form.max_case_number|as_crispy_field }}
                 </div>
             </div>
             

@@ -153,13 +153,14 @@ The system provides search and filter capabilities to help you quickly find what
 The system allows users with CRUD permissions (Bioinformaticians and Administrators) to add multiple cases to a project at once:
 
 - Access the batch creation by clicking "Add Cases in Batch" on the project detail page
-- Specify the **number of cases** to create (minimum 2)
-- Enter a **batch name** that will be used as a prefix for all case names
+- Specify the **batch name** that will be used as a prefix for all case names
+- Set the **first case number** (where the numbering will start)
+- Set the **last case number** (where the numbering will end)
 - Set the **default values** that will be applied to all cases in the batch (status, coverage values)
 
-Cases are created with names following the pattern `{batch_name}-{number}`. For example, if you enter "Lung" as the batch name and 3 for the number of cases, the system will create cases named "Lung-1", "Lung-2", and "Lung-3".
+Cases are created with names following the pattern `{batch_name}-{number}`. For example, if you enter "Lung" as the batch name, 5 as the first case number, and 7 as the last case number, the system will create cases named "Lung-5", "Lung-6", and "Lung-7".
 
-This feature is particularly useful when processing sample batches from the same experiment or tissue type.
+At least 2 cases must be created in a batch. This feature is particularly useful when processing sample batches from the same experiment or tissue type.
 
 ### CSV Case Import
 
