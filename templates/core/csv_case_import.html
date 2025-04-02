@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Import Cases from CSV | {{ project.name }} | TerryFox LIMS{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'project_detail' project_id=project.id %}">{{ project.name }}</a></li>
+        <li class="breadcrumb-item active">Import Cases from CSV</li>
+    </ol>
+</nav>
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-file-csv me-2"></i> Import Cases from CSV</h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info mb-4">
+            <i class="fas fa-info-circle me-2"></i> 
+            <strong>CSV Import:</strong> Upload a CSV file with case data following the required format. 
+            <ul class="mb-0 mt-2">
+                <li>The CSV must include the following headers: CaseID, Status, DNAT, DNAN, RNA</li>
+                <li>Existing cases will be updated, new cases will be created</li>
+                <li>Status must be one of: Received, Library Prepped, Transferred to NFL, Bioinfo Analysis, Completed</li>
+                <li>DNAT, DNAN, and RNA values should be numbers or left empty</li>
+            </ul>
+            <div class="mt-2">
+                <a href="/static/csv/template_csv.csv" class="btn btn-sm btn-outline-primary mt-2">
+                    <i class="fas fa-download me-1"></i> Download Template
+                </a>
+            </div>
+        </div>
+        
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form|crispy }}
+            
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{% url 'project_detail' project_id=project.id %}" class="btn btn-secondary">
+                    <i class="fas fa-times me-1"></i> Cancel
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-file-import me-1"></i> Import Cases
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %} 

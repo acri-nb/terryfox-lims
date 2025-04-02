@@ -53,7 +53,7 @@ class Case(models.Model):
     STATUS_COMPLETED = 'completed'
     
     STATUS_CHOICES = [
-        (STATUS_RECEIVED, _('Recieved')),
+        (STATUS_RECEIVED, _('Received')),
         (STATUS_LIBRARY_PREPPED, _('Library Prepped')),
         (STATUS_TRANSFERRED, _('Transferred to NFL')),
         (STATUS_BIOINFO, _('Bioinfo Analysis')),

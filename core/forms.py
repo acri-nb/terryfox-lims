@@ -97,6 +97,14 @@ class BatchCaseForm(forms.Form):
         help_text=_('DNA Normal Coverage in X')
     )
 
+class CSVImportForm(forms.Form):
+    """Form for importing cases from a CSV file."""
+    csv_file = forms.FileField(
+        label=_('CSV File'),
+        help_text=_('Upload a CSV file with case data.'),
+        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': '.csv'})
+    )
+
 class CommentForm(forms.ModelForm):
     """Form for adding comments to a case."""
     

@@ -4,9 +4,11 @@ from django.http import JsonResponse
 from django.contrib import messages
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Count
+import csv
+from io import TextIOWrapper
 
 from .models import Project, Case, Accession, Comment, ProjectLead
-from .forms import ProjectForm, CaseForm, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm
+from .forms import ProjectForm, CaseForm, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, CSVImportForm
 
 @login_required
 def home(request):
@@ -411,3 +413,119 @@ def project_lead_delete(request, lead_id):
         return redirect('project_lead_list')
     
     return render(request, 'core/project_lead_confirm_delete.html', {'lead': lead})
+
+@login_required
+@permission_required('core.add_case', raise_exception=True)
+def csv_case_import(request, project_id):
+    """
+    View for importing cases from a CSV file
+    """
+    project = get_object_or_404(Project, id=project_id)
+    
+    if request.method == 'POST':
+        form = CSVImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            # Get the uploaded file
+            csv_file = request.FILES['csv_file']
+            
+            # Check if it's a CSV file
+            if not csv_file.name.endswith('.csv'):
+                messages.error(request, _('Please upload a CSV file.'))
+                return redirect('csv_case_import', project_id=project.id)
+            
+            # Process the file
+            try:
+                # Read the CSV file
+                csv_data = TextIOWrapper(csv_file.file, encoding='utf-8')
+                reader = csv.DictReader(csv_data)
+                
+                # Validate CSV headers
+                required_headers = ['CaseID', 'Status', 'DNAT', 'DNAN', 'RNA']
+                csv_headers = reader.fieldnames
+                
+                if not all(header in csv_headers for header in required_headers):
+                    messages.error(
+                        request, 
+                        _('CSV file is missing required headers. Please use the template.')
+                    )
+                    return redirect('csv_case_import', project_id=project.id)
+                
+                # Track counts
+                created_count = 0
+                updated_count = 0
+                error_rows = []
+                
+                # Map CSV status to model status
+                status_mapping = {}
+                for status_value, status_display in Case.STATUS_CHOICES:
+                    status_mapping[status_display] = status_value
+                
+                # Process each row
+                for row_num, row in enumerate(reader, start=2):  # Start at 2 to account for header row
+                    case_id = row['CaseID'].strip()
+                    
+                    # Skip empty rows
+                    if not case_id:
+                        continue
+                    
+                    # Map CSV status to model status
+                    status = row['Status'].strip()
+                    if status not in status_mapping:
+                        error_rows.append(f"Row {row_num}: Invalid status '{status}'")
+                        continue
+                    
+                    # Parse coverage values
+                    try:
+                        dna_t = float(row['DNAT']) if row['DNAT'].strip() else None
+                        dna_n = float(row['DNAN']) if row['DNAN'].strip() else None
+                        rna = float(row['RNA']) if row['RNA'].strip() else None
+                    except ValueError:
+                        error_rows.append(f"Row {row_num}: Invalid numeric values")
+                        continue
+                    
+                    # Check if case exists
+                    case, created = Case.objects.get_or_create(
+                        project=project,
+                        name=case_id,
+                        defaults={
+                            'status': status_mapping[status],
+                            'dna_t_coverage': dna_t,
+                            'dna_n_coverage': dna_n,
+                            'rna_coverage': rna
+                        }
+                    )
+                    
+                    if created:
+                        created_count += 1
+                    else:
+                        # Update existing case
+                        case.status = status_mapping[status]
+                        case.dna_t_coverage = dna_t
+                        case.dna_n_coverage = dna_n
+                        case.rna_coverage = rna
+                        case.save()
+                        updated_count += 1
+                
+                # Show success message with counts
+                if error_rows:
+                    messages.warning(
+                        request, 
+                        _('Import completed with some errors: {}').format(', '.join(error_rows))
+                    )
+                
+                messages.success(
+                    request,
+                    _('CSV import complete! Created: {}, Updated: {}').format(created_count, updated_count)
+                )
+                return redirect('project_detail', project_id=project.id)
+                
+            except Exception as e:
+                messages.error(request, _('Error processing CSV file: {}').format(str(e)))
+                return redirect('csv_case_import', project_id=project.id)
+    else:
+        form = CSVImportForm()
+    
+    return render(request, 'core/csv_case_import.html', {
+        'form': form,
+        'project': project,
+    })
