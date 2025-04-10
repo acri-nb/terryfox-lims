@@ -16,6 +16,8 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 - Batch case creation for adding multiple cases at once
 - CSV import for creating and updating cases
 - Beautiful and user-friendly interface
+- Production-ready deployment with Gunicorn
+- Secure authentication flows (login/logout)
 
 ## Overview
 
@@ -26,6 +28,11 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 - Python 3.8+
 - Django 5.0+
 - Conda environment with Django installed
+- Additional packages (see requirements.txt):
+  - django-crispy-forms and crispy-bootstrap5 for enhanced form rendering
+  - gunicorn for production deployment
+  - whitenoise for static file serving
+  - python-decouple for environment variable management
 
 ## Installation
 
@@ -85,6 +92,29 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
      - Create "PI" group (Read-only access)
      - Create "Bioinformatician" group (CRUD access)
      - Assign users to these groups
+
+## Production Deployment
+
+For production deployment, we've included several tools and configuration files:
+
+1. Install production dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. Check production configuration:
+   ```bash
+   python check_production.py
+   ```
+
+3. Start the application in production mode:
+   ```bash
+   ./start_production.sh
+   ```
+
+The application will be available at http://localhost:8000 or http://SERVER_IP:8000.
+
+For more detailed instructions and advanced configuration options, refer to `PRODUCTION.md`.
 
 ## User Roles
 
