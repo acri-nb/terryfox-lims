@@ -62,9 +62,35 @@ For a more robust production setup, consider:
    - Enable the site
 
 3. Setting up HTTPS:
-   - Obtain an SSL certificate
-   - Configure Nginx for HTTPS
-   - Enable the security settings in `settings_prod.py`
+   - **Option A: Using a Domain Name**
+     - Obtain an SSL certificate (Let's Encrypt recommended)
+     - Configure Nginx for HTTPS using the certificate
+     - Enable security settings in `settings_prod.py`
+     
+   - **Option B: Using an IP Address (e.g., 192.168.7.13)**
+     - Run the automated setup script:
+       ```bash
+       sudo ./setup_https_ip.sh
+       ```
+     - The script will:
+       - Generate a self-signed certificate valid for IP addresses
+       - Configure Nginx for HTTPS
+       - Apply appropriate permissions and security headers
+     - Note: Users will need to accept the self-signed certificate in their browsers
+
+   For detailed HTTPS setup instructions, refer to the dedicated `HTTPS.md` file.
+
+## Accessing the Application with HTTPS
+
+After setting up HTTPS, you can access the application at:
+```
+https://SERVER_IP:8000
+```
+
+For IP-based setup, use:
+```
+https://192.168.7.13:8000
+```
 
 ## Troubleshooting
 
@@ -72,8 +98,16 @@ For a more robust production setup, consider:
 - Check the logs output by Gunicorn for any errors
 - Ensure the conda environment has all required packages installed
 
+### HTTPS Troubleshooting
+
+- **Certificate errors**: If using a self-signed certificate, browser warnings are normal. You need to accept the certificate.
+- **Connection refused**: Ensure Nginx is properly configured and running.
+- **Nginx configuration errors**: Check Nginx error logs with `sudo tail -f /var/log/nginx/error.log`.
+- **Mixed content warnings**: Ensure all assets are served over HTTPS.
+
 ## Maintenance
 
 - Regularly back up the SQLite database file
 - Keep track of Django security updates
-- Monitor the application for errors or performance issues 
+- Monitor the application for errors or performance issues
+- For self-signed certificates, note they do not expire automatically but should be renewed periodically (2-3 years) 

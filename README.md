@@ -18,6 +18,7 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 - Beautiful and user-friendly interface
 - Production-ready deployment with Gunicorn
 - Secure authentication flows (login/logout)
+- HTTPS support with both domain names and IP addresses
 
 ## Overview
 
@@ -112,9 +113,19 @@ For production deployment, we've included several tools and configuration files:
    ./start_production.sh
    ```
 
-The application will be available at http://localhost:8000 or http://SERVER_IP:8000.
+4. (Optional) Enable HTTPS:
+   ```bash
+   # For IP-based access (using a self-signed certificate)
+   sudo ./setup_https_ip.sh
+   ```
 
-For more detailed instructions and advanced configuration options, refer to `PRODUCTION.md`.
+The application will be available at:
+- HTTP: http://SERVER_IP:8000
+- HTTPS: https://SERVER_IP:8000 (if HTTPS is configured)
+
+For more detailed instructions and advanced configuration options:
+- Refer to `PRODUCTION.md` for general production setup
+- Refer to `HTTPS.md` for detailed HTTPS configuration instructions
 
 ## User Roles
 
