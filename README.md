@@ -34,6 +34,7 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
   - gunicorn for production deployment
   - whitenoise for static file serving
   - python-decouple for environment variable management
+  - django-extensions, werkzeug, and pyOpenSSL for HTTPS support
 
 ## Installation
 
@@ -101,6 +102,7 @@ For production deployment, we've included several tools and configuration files:
 1. Install production dependencies:
    ```bash
    pip install -r requirements.txt
+   pip install django-extensions werkzeug pyOpenSSL  # For HTTPS support
    ```
 
 2. Check production configuration:
@@ -108,24 +110,31 @@ For production deployment, we've included several tools and configuration files:
    python check_production.py
    ```
 
-3. Start the application in production mode:
+3. Start the application in production mode (now with HTTPS by default):
    ```bash
    ./start_production.sh
    ```
+   
+   This will automatically:
+   - Generate self-signed SSL certificates if they don't exist
+   - Set up Django with secure HTTPS settings
+   - Start the server on port 8443 with SSL enabled
 
-4. (Optional) Enable HTTPS:
+4. (Optional) Alternative HTTPS options:
    ```bash
-   # For IP-based access (using a self-signed certificate)
+   # For Nginx-based HTTPS setup (requires Nginx installed)
    sudo ./setup_https_ip.sh
    ```
 
 The application will be available at:
-- HTTP: http://SERVER_IP:8000
-- HTTPS: https://SERVER_IP:8000 (if HTTPS is configured)
+- HTTPS (Default): https://SERVER_IP:8443
+- Specifically for this setup: https://192.168.7.13:8443
+
+**Note**: When accessing the application, your browser will show a security warning because of the self-signed certificate. This is normal and expected. You can safely proceed by accepting the certificate exception.
 
 For more detailed instructions and advanced configuration options:
 - Refer to `PRODUCTION.md` for general production setup
-- Refer to `HTTPS.md` for detailed HTTPS configuration instructions
+- See "Option C: Direct HTTPS with Django" in PRODUCTION.md for details on the current HTTPS implementation
 
 ## User Roles
 
