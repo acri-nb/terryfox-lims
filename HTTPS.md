@@ -128,9 +128,9 @@ sudo ufw allow 8443/tcp
 sudo ufw status
 ```
 
-### 5. Accepter le certificat auto-signé dans les navigateurs
+### 6. Accepter le certificat auto-signé dans les navigateurs
 
-Lors de la première connexion à `https://192.168.7.13:8000`, votre navigateur affichera un avertissement de sécurité. Pour chaque utilisateur:
+Lors de la première connexion à `https://192.168.7.13:8443`, votre navigateur affichera un avertissement de sécurité. Pour chaque utilisateur:
 
 1. Cliquez sur "Avancé" ou "Détails avancés"
 2. Cliquez sur "Continuer vers le site" ou "Accepter le risque et continuer"
@@ -138,21 +138,135 @@ Lors de la première connexion à `https://192.168.7.13:8000`, votre navigateur 
    - **Chrome/Edge**: Paramètres > Confidentialité et sécurité > Sécurité > Gérer les certificats > Importation
    - **Firefox**: Préférences > Vie privée et sécurité > Certificats > Afficher les certificats > Importation
 
+**Note importante** : L'avertissement de sécurité est normal et attendu lors de l'utilisation de certificats auto-signés. Dans un environnement interne, cette solution est acceptable. Pour un déploiement public, envisagez un certificat délivré par une autorité de certification reconnue comme Let's Encrypt.
+
 Pour une installation plus simple dans un environnement d'entreprise, vous pouvez distribuer le certificat aux utilisateurs:
 
 ```bash
-# Copier le certificat pour distribution
-sudo cp /etc/ssl/certs/terryfox-selfsigned.crt ~/terryfox-cert.crt
+# Créer un fichier .p12 avec le certificat
+openssl pkcs12 -export -out terryfox.p12 -inkey ~/ssl/terryfox.key -in ~/ssl/terryfox.crt
+# Puis distribuer ce fichier terryfox.p12 aux utilisateurs
 ```
 
-### 6. Script de configuration automatique
+Les utilisateurs peuvent alors importer ce fichier .p12 dans leur navigateur pour éviter l'avertissement de sécurité.
 
-Pour simplifier l'installation, un script shell est fourni: `setup_https_ip.sh`
+## Étapes de configuration (Option B - Nginx)
+
+Si vous préférez utiliser Nginx pour gérer HTTPS (recommandé pour les environnements à fort trafic), voici les étapes à suivre:
+
+### 1. Installer Nginx
 
 ```bash
-# Exécuter le script de configuration
-sudo ./setup_https_ip.sh
+sudo apt update
+sudo apt install nginx
 ```
+
+### 2. Générer un certificat dans /etc/ssl/
+
+```bash
+# Créer le fichier de configuration OpenSSL
+sudo mkdir -p /etc/ssl/config
+sudo bash -c 'cat > /etc/ssl/config/openssl-san.cnf << EOL
+[req]
+distinguished_name = req_distinguished_name
+req_extensions = v3_req
+prompt = no
+
+[req_distinguished_name]
+C = CA
+ST = Nova Scotia
+L = Halifax
+O = TerryFox LIMS
+OU = Bioinformatics
+CN = TerryFox LIMS Internal
+
+[v3_req]
+keyUsage = keyEncipherment, dataEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[alt_names]
+IP.1 = 192.168.7.13
+IP.2 = 127.0.0.1
+EOL'
+
+# Générer le certificat
+sudo openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+  -keyout /etc/ssl/private/terryfox-selfsigned.key \
+  -out /etc/ssl/certs/terryfox-selfsigned.crt \
+  -config /etc/ssl/config/openssl-san.cnf
+
+# Définir les permissions
+sudo chmod 400 /etc/ssl/private/terryfox-selfsigned.key
+sudo chmod 444 /etc/ssl/certs/terryfox-selfsigned.crt
+```
+
+### 3. Configurer Nginx
+
+```bash
+# Créer la configuration Nginx
+sudo bash -c 'cat > /etc/nginx/sites-available/terryfox << EOL
+server {
+    listen 443 ssl;
+    server_name 192.168.7.13;
+
+    ssl_certificate /etc/ssl/certs/terryfox-selfsigned.crt;
+    ssl_certificate_key /etc/ssl/private/terryfox-selfsigned.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location /static/ {
+        alias /home/hadriengt/project/lims/terryfox-lims/staticfiles/;
+    }
+}
+
+server {
+    listen 80;
+    server_name 192.168.7.13;
+    return 301 https://\$host\$request_uri;
+}
+EOL'
+
+# Activer le site
+sudo ln -s /etc/nginx/sites-available/terryfox /etc/nginx/sites-enabled/
+
+# Tester la configuration
+sudo nginx -t
+
+# Redémarrer Nginx
+sudo systemctl restart nginx
+```
+
+### 4. Modifier le script start_production.sh
+
+Dans cette configuration, le script `start_production.sh` devrait démarrer Gunicorn sans SSL sur le port 8000, car Nginx gérera HTTPS:
+
+```bash
+# Modifier gunicorn_start.sh pour utiliser Gunicorn sans SSL sur le port 8000
+```
+
+## Conclusion
+
+Vous disposez maintenant de deux options pour configurer HTTPS dans TerryFox LIMS :
+
+1. **Option A (Actuelle)** : Utilisation directe de Django avec django-extensions et runserver_plus sur le port 8443
+   - Plus simple à configurer
+   - Ne nécessite pas d'installation de serveur web supplémentaire
+   - Suffisant pour un environnement de développement ou une utilisation interne avec peu d'utilisateurs
+
+2. **Option B** : Configuration avec Nginx comme reverse proxy
+   - Configuration plus robuste
+   - Meilleure gestion du cache et des fichiers statiques
+   - Recommandée pour les environnements de production avec beaucoup d'utilisateurs
+
+L'option A est actuellement implémentée via le script `start_production.sh` et le système est accessible à l'adresse https://192.168.7.13:8443.
 
 ## Vérification de la configuration
 
