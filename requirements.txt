@@ -4,3 +4,6 @@ crispy-bootstrap5
 gunicorn
 python-decouple
 whitenoise
+django-extensions
+werkzeug
+pyOpenSSL

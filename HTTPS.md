@@ -1,26 +1,44 @@
 # Configuration HTTPS pour TerryFox LIMS avec adresse IP
 
-Ce document explique comment configurer le TerryFox LIMS pour utiliser HTTPS en environnement interne avec une adresse IP (192.168.7.13:8000).
+Ce document explique comment configurer le TerryFox LIMS pour utiliser HTTPS en environnement interne avec une adresse IP (192.168.7.13:8443). La configuration décrite ici utilise Django directement avec extensions SSL sans nécessiter Nginx.
 
 ## Prérequis
 
 - Accès SSH au serveur
-- Droits d'administration (sudo)
-- Nginx installé sur le serveur
+- Environnement Conda "django" configuré
+- Python 3.8+ avec les packages suivants installés:
+  - django-extensions
+  - werkzeug
+  - pyOpenSSL
 - OpenSSL installé sur le serveur
 
-## Étapes de configuration
+## Options de configuration HTTPS
+
+Il existe plusieurs méthodes pour configurer HTTPS avec TerryFox LIMS:
+
+### Option A: Configuration actuellement utilisée - Django avec runserver_plus (recommandée)
+- Solution simple utilisant django-extensions et runserver_plus
+- Ne nécessite pas de serveur web séparé comme Nginx
+- Certificats stockés dans le répertoire utilisateur (~ssl/)
+- Fonctionne sur le port 8443
+
+### Option B: Configuration avec Nginx (pour environnements à fort trafic)
+- Nécessite Nginx installé comme reverse proxy
+- Certificats stockés dans /etc/ssl/
+- Gestion plus robuste pour les environnements de production à fort trafic
+
+## Étapes de configuration (Option A - Django avec runserver_plus)
 
 ### 1. Générer un certificat SSL auto-signé
 
-Comme vous utilisez une adresse IP et non un nom de domaine, nous allons générer un certificat auto-signé:
+Le script `start_production.sh` génère automatiquement un certificat auto-signé s'il n'existe pas déjà. Cependant, vous pouvez également créer manuellement les certificats :
 
 ```bash
-# Créer un répertoire pour stocker les fichiers de configuration
-mkdir -p ~/ssl_config
+# Créer un répertoire pour stocker les certificats
+mkdir -p ~/ssl
 
 # Créer un fichier de configuration OpenSSL pour IP
-cat > ~/ssl_config/openssl-san.cnf << EOL
+cat > ~/ssl/openssl-san.cnf << EOL
 [req]
 distinguished_name = req_distinguished_name
 req_extensions = v3_req
@@ -45,19 +63,21 @@ IP.2 = 127.0.0.1
 EOL
 
 # Générer le certificat auto-signé avec l'extension subjectAltName
-sudo openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-  -keyout /etc/ssl/private/terryfox-selfsigned.key \
-  -out /etc/ssl/certs/terryfox-selfsigned.crt \
-  -config ~/ssl_config/openssl-san.cnf
+openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+  -keyout ~/ssl/terryfox.key \
+  -out ~/ssl/terryfox.crt \
+  -config ~/ssl/openssl-san.cnf
 
 # Définir les permissions appropriées
-sudo chmod 400 /etc/ssl/private/terryfox-selfsigned.key
-sudo chmod 444 /etc/ssl/certs/terryfox-selfsigned.crt
+chmod 600 ~/ssl/terryfox.key
+chmod 644 ~/ssl/terryfox.crt
 ```
+
+**Remarque** : Contrairement à la méthode utilisant Nginx, cette configuration stocke les certificats dans votre répertoire personnel sans nécessiter les droits sudo.
 
 ### 2. Configurer les variables d'environnement
 
-Le fichier `.env` doit inclure l'adresse IP dans ALLOWED_HOSTS et activer les paramètres HTTPS:
+Le fichier `.env` doit inclure l'adresse IP dans ALLOWED_HOSTS et activer les paramètres HTTPS. Ces configurations sont déjà présentes dans le fichier `.env` :
 
 ```
 ALLOWED_HOSTS=localhost,127.0.0.1,192.168.7.13
@@ -66,31 +86,43 @@ SESSION_COOKIE_SECURE=True
 CSRF_COOKIE_SECURE=True
 ```
 
-### 3. Configurer Nginx
+### 3. Configurer Django pour HTTPS avec runserver_plus
 
-Le fichier `terryfox_nginx.conf` doit être configuré pour l'adresse IP et le port 8000:
+Le fichier `settings_prod.py` a été mis à jour pour inclure django-extensions:
 
-```bash
-# Copier le fichier de configuration
-sudo cp terryfox_nginx.conf /etc/nginx/sites-available/terryfox
-
-# Créer un lien symbolique
-sudo ln -s /etc/nginx/sites-available/terryfox /etc/nginx/sites-enabled/
-
-# Vérifier la configuration Nginx
-sudo nginx -t
-
-# Redémarrer Nginx
-sudo systemctl restart nginx
+```python
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    # ...
+    'crispy_forms',
+    'crispy_bootstrap5',
+    'django_extensions',  # Ajouté pour runserver_plus avec SSL
+    # ...
+]
 ```
 
-### 4. Configurer le serveur pour accepter la connexion HTTPS sur le port 8000
+### 4. Démarrer l'application avec HTTPS
+
+Le script `start_production.sh` a été configuré pour lancer automatiquement l'application avec HTTPS:
+
+```bash
+# Démarrer l'application en mode production avec HTTPS
+./start_production.sh
+```
+
+Ce script:
+1. Vérifie et active l'environnement Conda
+2. Vérifie l'existence des certificats SSL et les génère si nécessaire
+3. Collecte les fichiers statiques
+4. Démarre Django avec runserver_plus sur le port 8443 avec SSL
+
+### 5. Configurer le serveur pour accepter la connexion HTTPS sur le port 8443
 
 Si vous utilisez un pare-feu comme UFW:
 
 ```bash
-# Autoriser le trafic HTTPS sur le port 8000
-sudo ufw allow 8000/tcp
+# Autoriser le trafic HTTPS sur le port 8443
+sudo ufw allow 8443/tcp
 
 # Vérifier les règles du pare-feu
 sudo ufw status
