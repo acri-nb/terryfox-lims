@@ -1,53 +1,85 @@
 # TerryFox LIMS - Production Setup
 
-This document provides instructions for running TerryFox LIMS in production mode.
+Ce document fournit les instructions pour exécuter TerryFox LIMS en mode production.
 
-## Prerequisites
+## Prérequis
 
-- Python 3.8+ (via Conda environment)
-- Django and required packages
-- Additional packages for HTTPS: django-extensions, werkzeug, pyOpenSSL
+- Python 3.8+ (via environnement Conda)
+- Django et packages requis
+- Packages supplémentaires pour HTTPS : django-extensions, werkzeug, pyOpenSSL
+- Nginx (pour l'accès multi-utilisateurs)
 
-## Quick Start
+## Options de déploiement
 
-To start the application in production mode:
+Vous avez deux options pour déployer TerryFox LIMS en production :
+
+### Option 1 : Déploiement simple (accès limité)
+
+Pour un démarrage rapide avec accès limité :
 
 ```bash
 ./start_production.sh
 ```
 
-This will:
-1. Start Django with HTTPS support via django-extensions
-2. Serve the application securely on port 8443
-3. Use production settings from `terryfox_lims/settings_prod.py`
-4. Generate self-signed SSL certificates if they don't exist
+Cette méthode :
+1. Démarre Django avec support HTTPS via django-extensions
+2. Sert l'application de façon sécurisée sur le port 8443
+3. Utilise les paramètres de production de `terryfox_lims/settings_prod.py`
+4. Génère des certificats SSL auto-signés si nécessaire
 
-Access the application at:
-- https://localhost:8443 (if accessing locally)
-- https://SERVER_IP:8443 (if accessing from another computer)
+Accès à l'application :
+- https://localhost:8443 (accès local uniquement)
+- https://SERVER_IP:8443 (peut ne pas fonctionner sur tous les navigateurs)
 
-## Manual Startup
+### Option 2 : Déploiement avec Nginx (recommandé pour multi-utilisateurs)
 
-If you prefer to start the application manually:
+Pour un accès multi-utilisateurs fiable via l'IP de la VM :
 
-1. Activate the conda environment:
+```bash
+# Étape 1 : Configuration de Nginx (une seule fois)
+sudo ./setup_nginx_production.sh
+
+# Étape 2 : Démarrage du backend LIMS
+./start_lims_backend.sh
+```
+
+Cette méthode :
+1. Configure Nginx comme proxy inverse sécurisé
+2. Démarre Django en mode backend sur localhost:8443
+3. Rend l'application accessible via HTTPS sur l'adresse IP de la VM
+
+Accès à l'application :
+- https://10.220.115.67 (accessible à tous les utilisateurs du réseau)
+
+## Configuration manuelle
+
+Si vous préférez configurer manuellement :
+
+1. Activer l'environnement conda :
    ```bash
    source /home/hadriengt/miniconda/etc/profile.d/conda.sh
    conda activate django
    ```
 
-2. Generate SSL certificates if needed:
+2. Générer les certificats SSL si nécessaire :
    ```bash
    mkdir -p ~/ssl
    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
      -keyout ~/ssl/terryfox.key -out ~/ssl/terryfox.crt \
      -subj "/C=CA/ST=Quebec/L=Local/O=TerryFox/OU=LIMS/CN=localhost" \
-     -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:192.168.7.13"
+     -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:10.220.115.67,IP:192.168.7.13"
    ```
 
-3. Start the application with HTTPS:
+3. Configurer Nginx :
    ```bash
-   ./gunicorn_start.sh
+   sudo cp terryfox_nginx_prod.conf /etc/nginx/sites-available/terryfox
+   sudo ln -sf /etc/nginx/sites-available/terryfox /etc/nginx/sites-enabled/
+   sudo nginx -t && sudo systemctl restart nginx
+   ```
+
+4. Démarrer l'application avec HTTPS :
+   ```bash
+   ./start_lims_backend.sh
    ```
 
 ## Configuration
