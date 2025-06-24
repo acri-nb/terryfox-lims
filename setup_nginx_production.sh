@@ -52,8 +52,8 @@ if [ ! -f "$CERTFILE" ] || [ ! -f "$KEYFILE" ]; then
     mkdir -p $SSL_DIR
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
       -keyout $KEYFILE -out $CERTFILE \
-      -subj "/C=CA/ST=Quebec/L=Local/O=TerryFox/OU=LIMS/CN=10.220.115.67" \
-      -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:10.220.115.67,IP:192.168.7.13"
+      -subj "/C=CA/ST=Quebec/L=Local/O=TerryFox/OU=LIMS/CN=candig.cair.mun.ca" \
+      -addext "subjectAltName=DNS:candig.cair.mun.ca,DNS:localhost,IP:127.0.0.1,IP:10.220.115.67,IP:192.168.7.13"
     
     # Ajuster les permissions
     chown -R hadriengt:hadriengt $SSL_DIR
@@ -64,6 +64,6 @@ echo ""
 echo "=== Configuration terminée ==="
 echo "Pour démarrer le LIMS en production avec Nginx:"
 echo "1. Exécutez: $PROJECT_PATH/start_lims_backend.sh"
-echo "2. Accédez au LIMS via: https://10.220.115.67"
+echo "2. Accédez au LIMS via: https://candig.cair.mun.ca"
 echo ""
 echo "Note: Vous devrez peut-être accepter le certificat auto-signé dans votre navigateur."

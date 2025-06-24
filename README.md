@@ -18,7 +18,7 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 - Beautiful and user-friendly interface
 - Production-ready deployment with Gunicorn
 - Secure authentication flows (login/logout)
-- HTTPS support with both domain names and IP addresses
+- HTTPS support with fully qualified domain name (FQDN) candig.cair.mun.ca
 
 ## Overview
 
@@ -112,23 +112,24 @@ For production deployment, we've included several tools and configuration files:
 
 3. Start the application in production mode (now with HTTPS by default):
    ```bash
-   ./start_production.sh
+   sudo ./start_production_debug.sh
    ```
    
    This will automatically:
-   - Generate self-signed SSL certificates if they don't exist
+   - Generate self-signed SSL certificates if they don't exist (including for FQDN candig.cair.mun.ca)
    - Set up Django with secure HTTPS settings
-   - Start the server on port 8443 with SSL enabled
+   - Start the server on port 443 (standard HTTPS port) with SSL enabled
+   - Requires root privileges (sudo) because it uses port 443
 
 4. (Optional) Alternative HTTPS options:
    ```bash
    # For Nginx-based HTTPS setup (requires Nginx installed)
-   sudo ./setup_https_ip.sh
+   sudo ./setup_nginx_production.sh
    ```
 
 The application will be available at:
-- HTTPS (Default): https://SERVER_IP:8443
-- Specifically for this setup: https://192.168.7.13:8443
+- HTTPS (Default): https://candig.cair.mun.ca
+- Or locally: https://localhost
 
 **Note**: When accessing the application, your browser will show a security warning because of the self-signed certificate. This is normal and expected. You can safely proceed by accepting the certificate exception.
 

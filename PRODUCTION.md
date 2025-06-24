@@ -1,39 +1,43 @@
 # TerryFox LIMS - Production Setup
 
-Ce document fournit les instructions pour exécuter TerryFox LIMS en mode production.
+Ce document fournit les instructions pour exécuter TerryFox LIMS en mode production avec HTTPS sur le nom de domaine candig.cair.mun.ca.
 
 ## Prérequis
 
 - Python 3.8+ (via environnement Conda)
 - Django et packages requis
 - Packages supplémentaires pour HTTPS : django-extensions, werkzeug, pyOpenSSL
-- Nginx (pour l'accès multi-utilisateurs)
+- Nginx (optionnel, pour l'accès multi-utilisateurs)
+- Accès root (sudo) pour utiliser le port 443
+- Configuration DNS pour le nom de domaine candig.cair.mun.ca
 
 ## Options de déploiement
 
 Vous avez deux options pour déployer TerryFox LIMS en production :
 
-### Option 1 : Déploiement simple (accès limité)
+### Option 1 : Déploiement simple (accès direct)
 
-Pour un démarrage rapide avec accès limité :
+Pour un démarrage rapide avec accès direct :
 
 ```bash
-./start_production.sh
+sudo ./start_production_debug.sh
 ```
 
 Cette méthode :
 1. Démarre Django avec support HTTPS via django-extensions
-2. Sert l'application de façon sécurisée sur le port 8443
+2. Sert l'application de façon sécurisée sur le port 443 (port HTTPS standard)
 3. Utilise les paramètres de production de `terryfox_lims/settings_prod.py`
-4. Génère des certificats SSL auto-signés si nécessaire
+4. Génère des certificats SSL auto-signés incluant le FQDN candig.cair.mun.ca
 
 Accès à l'application :
-- https://localhost:8443 (accès local uniquement)
-- https://SERVER_IP:8443 (peut ne pas fonctionner sur tous les navigateurs)
+- https://candig.cair.mun.ca (accès via le nom de domaine)
+- https://localhost (accès local uniquement)
+
+**Note** : Les privilèges root (sudo) sont nécessaires car l'application utilise le port 443.
 
 ### Option 2 : Déploiement avec Nginx (recommandé pour multi-utilisateurs)
 
-Pour un accès multi-utilisateurs fiable via l'IP de la VM :
+Pour un accès multi-utilisateurs fiable via le FQDN :
 
 ```bash
 # Étape 1 : Configuration de Nginx (une seule fois)
@@ -46,10 +50,47 @@ sudo ./setup_nginx_production.sh
 Cette méthode :
 1. Configure Nginx comme proxy inverse sécurisé
 2. Démarre Django en mode backend sur localhost:8443
-3. Rend l'application accessible via HTTPS sur l'adresse IP de la VM
+3. Rend l'application accessible via HTTPS sur le FQDN
 
 Accès à l'application :
-- https://10.220.115.67 (accessible à tous les utilisateurs du réseau)
+- https://candig.cair.mun.ca (accessible à tous les utilisateurs du réseau)
+
+**Note** : Cette configuration est recommandée pour les environnements avec plus de 10 utilisateurs simultanés.
+
+## Dépannage
+
+### Erreur "Bad Request (400)" avec le nom de domaine
+
+Si vous obtenez une erreur 400 (Bad Request) lorsque vous accédez à l'application via le nom de domaine, vérifiez les points suivants :
+
+1. **Résolution DNS** : Assurez-vous que le nom de domaine `candig.cair.mun.ca` est correctement configuré dans votre DNS ou dans le fichier `/etc/hosts` :
+   ```bash
+   # Vérifier la résolution DNS
+   nslookup candig.cair.mun.ca
+   
+   # Ou ajouter manuellement au fichier hosts
+   echo "10.220.115.67 candig.cair.mun.ca" | sudo tee -a /etc/hosts
+   ```
+
+2. **Configuration Django** : Vérifiez que le nom de domaine est inclus dans `ALLOWED_HOSTS` dans `settings_prod.py`.
+
+3. **Certificats SSL** : Vérifiez que les certificats SSL incluent le nom de domaine dans le Subject Alternative Name (SAN) :
+   ```bash
+   sudo openssl x509 -in ~/ssl/terryfox.crt -text -noout | grep -A1 "Subject Alternative Name"
+   ```
+
+### Problèmes de certificat SSL
+
+Si vous rencontrez des avertissements de sécurité dans le navigateur :
+
+1. C'est normal avec des certificats auto-signés. Vous pouvez accepter le risque pour accéder à l'application.
+
+2. Pour une solution plus sécurisée, envisagez d'utiliser Let's Encrypt pour obtenir un certificat SSL valide :
+   ```bash
+   sudo apt-get install certbot
+   sudo certbot certonly --standalone -d candig.cair.mun.ca
+   ```
+   Puis utilisez les certificats générés dans votre configuration.
 
 ## Configuration manuelle
 
