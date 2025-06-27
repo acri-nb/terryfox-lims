@@ -127,6 +127,46 @@ For production deployment, we've included several tools and configuration files:
    sudo ./setup_nginx_production.sh
    ```
 
+5. (Recommended) Configure as a systemd service for permanent operation:
+   ```bash
+   # Create a systemd service file
+   sudo nano /etc/systemd/system/terryfox-lims.service
+   ```
+   
+   Add the following content to the file:
+   ```ini
+   [Unit]
+   Description=TerryFox LIMS Service
+   After=network.target
+   
+   [Service]
+   User=root
+   Group=root
+   WorkingDirectory=/home/hadriengt/project/lims/terryfox-lims
+   ExecStart=/home/hadriengt/project/lims/terryfox-lims/start_production_debug.sh
+   Restart=always
+   RestartSec=10
+   StandardOutput=journal
+   StandardError=journal
+   SyslogIdentifier=terryfox-lims
+   
+   [Install]
+   WantedBy=multi-user.target
+   ```
+   
+   Then enable and start the service:
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable terryfox-lims.service
+   sudo systemctl start terryfox-lims.service
+   ```
+   
+   This ensures the LIMS will:
+   - Run continuously in the background
+   - Restart automatically if it crashes
+   - Start automatically when the server boots
+   - Be manageable via systemctl commands
+
 The application will be available at:
 - HTTPS (Default): https://candig.cair.mun.ca
 - Or locally: https://localhost

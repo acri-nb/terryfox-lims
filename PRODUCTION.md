@@ -57,6 +57,70 @@ Accès à l'application :
 
 **Note** : Cette configuration est recommandée pour les environnements avec plus de 10 utilisateurs simultanés.
 
+### Option 3 : Configuration en tant que service systemd (recommandé pour une exécution permanente)
+
+Pour garantir que le LIMS reste actif en permanence, même après déconnexion ou redémarrage du serveur :
+
+```bash
+# Étape 1 : Créer un fichier de service systemd
+sudo nano /etc/systemd/system/terryfox-lims.service
+```
+
+Ajoutez le contenu suivant au fichier :
+```ini
+[Unit]
+Description=TerryFox LIMS Service
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/home/hadriengt/project/lims/terryfox-lims
+ExecStart=/home/hadriengt/project/lims/terryfox-lims/start_production_debug.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=terryfox-lims
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Puis activez et démarrez le service :
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable terryfox-lims.service
+sudo systemctl start terryfox-lims.service
+```
+
+Cette configuration assure que :
+1. Le LIMS s'exécute en continu en arrière-plan
+2. Il redémarre automatiquement en cas de plantage
+3. Il démarre automatiquement au démarrage du serveur
+4. Il peut être géré facilement via les commandes systemd
+
+#### Gestion du service
+
+Commandes principales pour gérer le service LIMS :
+
+```bash
+# Vérifier l'état du service
+sudo systemctl status terryfox-lims.service
+
+# Arrêter le service
+sudo systemctl stop terryfox-lims.service
+
+# Redémarrer le service
+sudo systemctl restart terryfox-lims.service
+
+# Consulter les logs du service
+sudo journalctl -u terryfox-lims.service
+
+# Voir les logs en temps réel
+sudo journalctl -u terryfox-lims.service -f
+```
+
 ## Dépannage
 
 ### Erreur "Bad Request (400)" avec le nom de domaine
