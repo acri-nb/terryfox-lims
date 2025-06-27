@@ -1,6 +1,6 @@
 # TerryFox LIMS - Production Setup
 
-Ce document fournit les instructions pour exécuter TerryFox LIMS en mode production avec HTTPS sur le nom de domaine candig.cair.mun.ca.
+Ce document fournit les instructions pour exécuter TerryFox LIMS en mode production avec HTTPS sur l'adresse IP 10.220.115.67.
 
 ## Prérequis
 
@@ -9,7 +9,7 @@ Ce document fournit les instructions pour exécuter TerryFox LIMS en mode produc
 - Packages supplémentaires pour HTTPS : django-extensions, werkzeug, pyOpenSSL
 - Nginx (optionnel, pour l'accès multi-utilisateurs)
 - Accès root (sudo) pour utiliser le port 443
-- Configuration DNS pour le nom de domaine candig.cair.mun.ca
+- Configuration réseau pour l'adresse IP 10.220.115.67
 
 ## Options de déploiement
 
@@ -27,17 +27,17 @@ Cette méthode :
 1. Démarre Django avec support HTTPS via django-extensions
 2. Sert l'application de façon sécurisée sur le port 443 (port HTTPS standard)
 3. Utilise les paramètres de production de `terryfox_lims/settings_prod.py`
-4. Génère des certificats SSL auto-signés incluant le FQDN candig.cair.mun.ca
+4. Génère des certificats SSL auto-signés incluant l'IP 10.220.115.67
 
 Accès à l'application :
-- https://candig.cair.mun.ca (accès via le nom de domaine)
+- https://10.220.115.67 (accès via l'adresse IP)
 - https://localhost (accès local uniquement)
 
 **Note** : Les privilèges root (sudo) sont nécessaires car l'application utilise le port 443.
 
 ### Option 2 : Déploiement avec Nginx (recommandé pour multi-utilisateurs)
 
-Pour un accès multi-utilisateurs fiable via le FQDN :
+Pour un accès multi-utilisateurs fiable via l'IP :
 
 ```bash
 # Étape 1 : Configuration de Nginx (une seule fois)
@@ -50,10 +50,10 @@ sudo ./setup_nginx_production.sh
 Cette méthode :
 1. Configure Nginx comme proxy inverse sécurisé
 2. Démarre Django en mode backend sur localhost:8443
-3. Rend l'application accessible via HTTPS sur le FQDN
+3. Rend l'application accessible via HTTPS sur l'IP
 
 Accès à l'application :
-- https://candig.cair.mun.ca (accessible à tous les utilisateurs du réseau)
+- https://10.220.115.67 (accessible à tous les utilisateurs du réseau)
 
 **Note** : Cette configuration est recommandée pour les environnements avec plus de 10 utilisateurs simultanés.
 
@@ -123,22 +123,18 @@ sudo journalctl -u terryfox-lims.service -f
 
 ## Dépannage
 
-### Erreur "Bad Request (400)" avec le nom de domaine
+### Erreur "Bad Request (400)" avec l'IP
 
-Si vous obtenez une erreur 400 (Bad Request) lorsque vous accédez à l'application via le nom de domaine, vérifiez les points suivants :
+Si vous obtenez une erreur 400 (Bad Request) lorsque vous accédez à l'application via l'IP, vérifiez les points suivants :
 
-1. **Résolution DNS** : Assurez-vous que le nom de domaine `candig.cair.mun.ca` est correctement configuré dans votre DNS ou dans le fichier `/etc/hosts` :
+1. **Résolution réseau** : Assurez-vous que l'adresse IP `10.220.115.67` est accessible depuis votre réseau :
    ```bash
-   # Vérifier la résolution DNS
-   nslookup candig.cair.mun.ca
-   
-   # Ou ajouter manuellement au fichier hosts
-   echo "10.220.115.67 candig.cair.mun.ca" | sudo tee -a /etc/hosts
+   ping 10.220.115.67
    ```
 
-2. **Configuration Django** : Vérifiez que le nom de domaine est inclus dans `ALLOWED_HOSTS` dans `settings_prod.py`.
+2. **Configuration Django** : Vérifiez que l'IP est incluse dans `ALLOWED_HOSTS` dans `settings_prod.py`.
 
-3. **Certificats SSL** : Vérifiez que les certificats SSL incluent le nom de domaine dans le Subject Alternative Name (SAN) :
+3. **Certificats SSL** : Vérifiez que les certificats SSL incluent l'IP dans le Subject Alternative Name (SAN) :
    ```bash
    sudo openssl x509 -in ~/ssl/terryfox.crt -text -noout | grep -A1 "Subject Alternative Name"
    ```
@@ -152,7 +148,7 @@ Si vous rencontrez des avertissements de sécurité dans le navigateur :
 2. Pour une solution plus sécurisée, envisagez d'utiliser Let's Encrypt pour obtenir un certificat SSL valide :
    ```bash
    sudo apt-get install certbot
-   sudo certbot certonly --standalone -d candig.cair.mun.ca
+   sudo certbot certonly --standalone -d 10.220.115.67
    ```
    Puis utilisez les certificats générés dans votre configuration.
 
@@ -212,22 +208,12 @@ For a more robust production setup, consider:
    - Enable the site
 
 3. Setting up HTTPS:
-   - **Option A: Using a Domain Name with Nginx (recommended for production)**
+   - **Option A: Using an IP Address with Nginx (recommended for production)**
      - Obtain an SSL certificate (Let's Encrypt recommended)
      - Configure Nginx for HTTPS using the certificate
      - Enable security settings in `settings_prod.py`
      
-   - **Option B: Using an IP Address with Nginx**
-     - Run the automated setup script (requires Nginx):
-       ```bash
-       sudo ./setup_https_ip.sh
-       ```
-     - The script will:
-       - Generate a self-signed certificate valid for IP addresses
-       - Configure Nginx for HTTPS
-       - Apply appropriate permissions and security headers
-     
-   - **Option C: Direct HTTPS with Django (current setup)**
+   - **Option B: Direct HTTPS with Django (current setup)**
      - Uses Django's runserver_plus for direct SSL support
      - Self-signed certificates stored in user directory
      - Simple configuration without requiring Nginx
@@ -240,12 +226,7 @@ For a more robust production setup, consider:
 
 After setting up HTTPS with the current configuration, you can access the application at:
 ```
-https://SERVER_IP:8443
-```
-
-For the current IP-based setup, use:
-```
-https://192.168.7.13:8443
+https://10.220.115.67:8443
 ```
 
 ## Troubleshooting

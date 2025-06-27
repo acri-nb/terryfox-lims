@@ -18,7 +18,7 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 - Beautiful and user-friendly interface
 - Production-ready deployment with Gunicorn
 - Secure authentication flows (login/logout)
-- HTTPS support with fully qualified domain name (FQDN) candig.cair.mun.ca
+- HTTPS support with IP address (10.220.115.67) and localhost access
 
 ## Overview
 
@@ -116,7 +116,7 @@ For production deployment, we've included several tools and configuration files:
    ```
    
    This will automatically:
-   - Generate self-signed SSL certificates if they don't exist (including for FQDN candig.cair.mun.ca)
+   - Generate self-signed SSL certificates if they don't exist (including for IP 10.220.115.67)
    - Set up Django with secure HTTPS settings
    - Start the server on port 443 (standard HTTPS port) with SSL enabled
    - Requires root privileges (sudo) because it uses port 443
@@ -168,8 +168,7 @@ For production deployment, we've included several tools and configuration files:
    - Be manageable via systemctl commands
 
 The application will be available at:
-- HTTPS (Default): https://candig.cair.mun.ca
-- Or locally: https://localhost
+- HTTPS (Default): https://10.220.115.67:443 or https://localhost:443
 
 **Note**: When accessing the application, your browser will show a security warning because of the self-signed certificate. This is normal and expected. You can safely proceed by accepting the certificate exception.
 
@@ -285,7 +284,7 @@ This project follows standard Django application architecture:
 
 ## License
 
-© ACRI - Atlantic Cancer Research Institute
+ACRI - Atlantic Cancer Research Institute
 
 ## Contact
 

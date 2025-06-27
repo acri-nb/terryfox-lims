@@ -1,6 +1,6 @@
 # Déploiement de TerryFox LIMS avec Nginx
 
-Ce document explique comment déployer TerryFox LIMS avec Nginx pour permettre un accès multi-utilisateurs via le nom de domaine complet (FQDN) candig.cair.mun.ca.
+Ce document explique comment déployer TerryFox LIMS avec Nginx pour permettre un accès multi-utilisateurs via l'adresse IP 10.220.115.67.
 
 ## Pourquoi utiliser Nginx ?
 
@@ -24,7 +24,7 @@ sudo ./setup_nginx_production.sh
 ```
 
 Une fois ces commandes exécutées, le LIMS sera accessible à l'adresse :
-- **https://candig.cair.mun.ca**
+- **https://10.220.115.67**
 
 ## Comment ça fonctionne
 
@@ -36,7 +36,7 @@ L'architecture mise en place est la suivante :
    - N'est pas directement exposé au réseau
 
 2. **Nginx** :
-   - Écoute sur le FQDN `candig.cair.mun.ca` (ports 80 et 443)
+   - Écoute sur l'IP `10.220.115.67` (ports 80 et 443)
    - Redirige automatiquement HTTP vers HTTPS
    - Transfère les requêtes HTTPS vers le backend Django
    - Sert les fichiers statiques directement pour de meilleures performances
