@@ -16,7 +16,11 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 - Batch case creation for adding multiple cases at once
 - CSV import for creating and updating cases
 - Beautiful and user-friendly interface
-- Production-ready deployment with Gunicorn
+- **🚀 Robust production deployment** with Gunicorn + systemd
+- **🔍 Automatic monitoring** with watchdog system
+- **📊 Centralized logging** infrastructure
+- **🔒 Secure HTTPS** with SSL certificates
+- **⚡ High availability** with automatic restart capabilities
 - Secure authentication flows (login/logout)
 - HTTPS support with IP address (10.220.115.67) and localhost access
 
@@ -29,12 +33,19 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 - Python 3.8+
 - Django 5.0+
 - Conda environment with Django installed
+- **Gunicorn** for robust production deployment
 - Additional packages (see requirements.txt):
   - django-crispy-forms and crispy-bootstrap5 for enhanced form rendering
-  - gunicorn for production deployment
+  - **gunicorn** for production WSGI server
   - whitenoise for static file serving
   - python-decouple for environment variable management
-  - django-extensions, werkzeug, and pyOpenSSL for HTTPS support
+  - django-extensions, werkzeug, and pyOpenSSL for development HTTPS support
+
+### Production Requirements
+- **systemd** for service management
+- **SSL certificates** in `/root/ssl/` (terryfox.crt, terryfox.key)
+- **Root access** for port 443 and service management
+- **Logging directory** `/var/log/terryfox-lims/` with proper permissions
 
 ## Installation
 
@@ -95,86 +106,50 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
      - Create "Bioinformatician" group (CRUD access)
      - Assign users to these groups
 
-## Production Deployment
+## Production Deployment (Robust)
 
-For production deployment, we've included several tools and configuration files:
+### 🚀 Quick Start
 
-1. Install production dependencies:
-   ```bash
-   pip install -r requirements.txt
-   pip install django-extensions werkzeug pyOpenSSL  # For HTTPS support
-   ```
+For robust production deployment with automatic monitoring:
 
-2. Check production configuration:
-   ```bash
-   python check_production.py
-   ```
+```bash
+# Start the robust production service
+sudo systemctl start terryfox-lims.service
 
-3. Start the application in production mode (now with HTTPS by default):
-   ```bash
-   sudo ./start_production_debug.sh
-   ```
-   
-   This will automatically:
-   - Generate self-signed SSL certificates if they don't exist (including for IP 10.220.115.67)
-   - Set up Django with secure HTTPS settings
-   - Start the server on port 443 (standard HTTPS port) with SSL enabled
-   - Requires root privileges (sudo) because it uses port 443
+# Activate monitoring system
+sudo systemctl enable --now terryfox-lims-watchdog.timer
+```
 
-4. (Optional) Alternative HTTPS options:
-   ```bash
-   # For Nginx-based HTTPS setup (requires Nginx installed)
-   sudo ./setup_nginx_production.sh
-   ```
+### 📊 Service Management
 
-5. (Recommended) Configure as a systemd service for permanent operation:
-   ```bash
-   # Create a systemd service file
-   sudo nano /etc/systemd/system/terryfox-lims.service
-   ```
-   
-   Add the following content to the file:
-   ```ini
-   [Unit]
-   Description=TerryFox LIMS Service
-   After=network.target
-   
-   [Service]
-   User=root
-   Group=root
-   WorkingDirectory=/home/hadriengt/project/lims/terryfox-lims
-   ExecStart=/home/hadriengt/project/lims/terryfox-lims/start_production_debug.sh
-   Restart=always
-   RestartSec=10
-   StandardOutput=journal
-   StandardError=journal
-   SyslogIdentifier=terryfox-lims
-   
-   [Install]
-   WantedBy=multi-user.target
-   ```
-   
-   Then enable and start the service:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable terryfox-lims.service
-   sudo systemctl start terryfox-lims.service
-   ```
-   
-   This ensures the LIMS will:
-   - Run continuously in the background
-   - Restart automatically if it crashes
-   - Start automatically when the server boots
-   - Be manageable via systemctl commands
+```bash
+# Check service status
+sudo systemctl status terryfox-lims.service
+
+# View logs in real-time
+sudo journalctl -u terryfox-lims.service -f
+
+# Restart if needed
+sudo systemctl restart terryfox-lims.service
+```
+
+### 🌐 Access Points
 
 The application will be available at:
-- HTTPS (Default): https://10.220.115.67:443 or https://localhost:443
+- **https://10.220.115.67** (network access)
+- **https://localhost** (local access)
 
-**Note**: When accessing the application, your browser will show a security warning because of the self-signed certificate. This is normal and expected. You can safely proceed by accepting the certificate exception.
+**Note**: Your browser will show a security warning due to the self-signed certificate. This is normal - you can safely accept the certificate exception.
 
-For more detailed instructions and advanced configuration options:
-- Refer to `PRODUCTION.md` for general production setup
-- See "Option C: Direct HTTPS with Django" in PRODUCTION.md for details on the current HTTPS implementation
+### 🔍 Monitoring & Logs
+
+- **Automatic monitoring**: Watchdog checks every 5 minutes
+- **Centralized logs**: `/var/log/terryfox-lims/`
+- **Auto-recovery**: Service restarts automatically on failure
+
+For detailed setup instructions, see `PRODUCTION.md`.
+
+
 
 ## User Roles
 

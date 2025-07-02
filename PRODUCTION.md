@@ -1,252 +1,228 @@
-# TerryFox LIMS - Production Setup
+# TerryFox LIMS - Production Setup (Robust)
 
-Ce document fournit les instructions pour exécuter TerryFox LIMS en mode production avec HTTPS sur l'adresse IP 10.220.115.67.
+This document provides instructions for deploying TerryFox LIMS in robust production mode with Gunicorn, systemd, and automatic monitoring.
 
-## Prérequis
+## 🚀 Robust Production Architecture
 
-- Python 3.8+ (via environnement Conda)
-- Django et packages requis
-- Packages supplémentaires pour HTTPS : django-extensions, werkzeug, pyOpenSSL
-- Nginx (optionnel, pour l'accès multi-utilisateurs)
-- Accès root (sudo) pour utiliser le port 443
-- Configuration réseau pour l'adresse IP 10.220.115.67
+The production system now uses:
+- **Gunicorn**: Stable and performant production WSGI server
+- **systemd**: Service management with automatic restart
+- **Watchdog**: Automatic monitoring and error recovery
+- **Centralized logging**: Complete logging infrastructure
+- **Native SSL**: Integrated HTTPS support with certificates
 
-## Options de déploiement
+## Prerequisites
 
-Vous avez deux options pour déployer TerryFox LIMS en production :
+- Python 3.8+ (via Conda environment `django`)
+- Django and required packages (see requirements.txt)
+- **Gunicorn** installed in the Conda environment
+- Root access (sudo) for:
+  - Using port 443 (HTTPS)
+  - Managing systemd services
+  - Creating log directories
+- SSL certificates in `/root/ssl/`:
+  - `/root/ssl/terryfox.crt`
+  - `/root/ssl/terryfox.key`
 
-### Option 1 : Déploiement simple (accès direct)
+## 🔧 Installation and Configuration
 
-Pour un démarrage rapide avec accès direct :
-
-```bash
-sudo ./start_production_debug.sh
-```
-
-Cette méthode :
-1. Démarre Django avec support HTTPS via django-extensions
-2. Sert l'application de façon sécurisée sur le port 443 (port HTTPS standard)
-3. Utilise les paramètres de production de `terryfox_lims/settings_prod.py`
-4. Génère des certificats SSL auto-signés incluant l'IP 10.220.115.67
-
-Accès à l'application :
-- https://10.220.115.67 (accès via l'adresse IP)
-- https://localhost (accès local uniquement)
-
-**Note** : Les privilèges root (sudo) sont nécessaires car l'application utilise le port 443.
-
-### Option 2 : Déploiement avec Nginx (recommandé pour multi-utilisateurs)
-
-Pour un accès multi-utilisateurs fiable via l'IP :
+### 1. Gunicorn Installation
 
 ```bash
-# Étape 1 : Configuration de Nginx (une seule fois)
-sudo ./setup_nginx_production.sh
+# Activate Conda environment
+source /home/hadriengt/miniconda/etc/profile.d/conda.sh
+conda activate django
 
-# Étape 2 : Démarrage du backend LIMS
-./start_lims_backend.sh
+# Install Gunicorn
+pip install gunicorn
 ```
 
-Cette méthode :
-1. Configure Nginx comme proxy inverse sécurisé
-2. Démarre Django en mode backend sur localhost:8443
-3. Rend l'application accessible via HTTPS sur l'IP
-
-Accès à l'application :
-- https://10.220.115.67 (accessible à tous les utilisateurs du réseau)
-
-**Note** : Cette configuration est recommandée pour les environnements avec plus de 10 utilisateurs simultanés.
-
-### Option 3 : Configuration en tant que service systemd (recommandé pour une exécution permanente)
-
-Pour garantir que le LIMS reste actif en permanence, même après déconnexion ou redémarrage du serveur :
+### 2. SSL Certificate Verification
 
 ```bash
-# Étape 1 : Créer un fichier de service systemd
-sudo nano /etc/systemd/system/terryfox-lims.service
+# Verify that certificates exist
+sudo ls -la /root/ssl/
+# Should contain: terryfox.crt and terryfox.key
 ```
 
-Ajoutez le contenu suivant au fichier :
-```ini
-[Unit]
-Description=TerryFox LIMS Service
-After=network.target
+### 3. systemd Service Configuration
 
-[Service]
-User=root
-Group=root
-WorkingDirectory=/home/hadriengt/project/lims/terryfox-lims
-ExecStart=/home/hadriengt/project/lims/terryfox-lims/start_production_debug.sh
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=terryfox-lims
+The systemd service is already configured with:
+- Automatic restart on failure
+- Resource limits (2GB RAM, 90% CPU)
+- Timeout management
+- Logging to journald
 
-[Install]
-WantedBy=multi-user.target
-```
+## 🚀 Service Startup
 
-Puis activez et démarrez le service :
+### Initial Startup
+
 ```bash
-sudo systemctl daemon-reload
+# Start the service
+sudo systemctl start terryfox-lims.service
+
+# Check status
+sudo systemctl status terryfox-lims.service
+
+# Enable automatic startup
 sudo systemctl enable terryfox-lims.service
+```
+
+### Monitoring System Activation
+
+```bash
+# Enable watchdog (automatic monitoring)
+sudo systemctl enable --now terryfox-lims-watchdog.timer
+
+# Verify that the timer is active
+sudo systemctl list-timers terryfox-lims-watchdog.timer
+```
+
+## 📊 Application Access
+
+Once the service is started, the application is accessible via:
+- **https://10.220.115.67** (access via IP address)
+- **https://localhost** (local access only)
+
+**Note**: Your browser will display a security warning due to the self-signed certificate. This is normal and expected - you can safely accept the certificate exception.
+
+## 🔍 Monitoring and Maintenance
+
+### Watchdog System
+
+The monitoring system automatically:
+- Checks Gunicorn processes every 5 minutes
+- Performs HTTP health checks
+- Monitors memory usage
+- Restarts the service on failure
+
+### Log Monitoring
+
+```bash
+# View real-time service logs
+sudo journalctl -u terryfox-lims.service -f
+
+# View watchdog logs
+tail -f /var/log/terryfox-lims/watchdog.log
+
+# View access logs
+tail -f /var/log/terryfox-lims/access.log
+
+# View error logs
+tail -f /var/log/terryfox-lims/error.log
+```
+
+### Service Management
+
+Main commands to manage the LIMS service:
+
+```bash
+# Check service status
+sudo systemctl status terryfox-lims.service
+
+# Restart the service
+sudo systemctl restart terryfox-lims.service
+
+# Stop the service
+sudo systemctl stop terryfox-lims.service
+
+# Reset the service
+sudo systemctl reset-failed terryfox-lims.service
 sudo systemctl start terryfox-lims.service
 ```
 
-Cette configuration assure que :
-1. Le LIMS s'exécute en continu en arrière-plan
-2. Il redémarre automatiquement en cas de plantage
-3. Il démarre automatiquement au démarrage du serveur
-4. Il peut être géré facilement via les commandes systemd
+## 🔒 Security and Best Practices
 
-#### Gestion du service
+### Security Configuration
+- ✅ HTTPS mandatory (port 443)
+- ✅ SSL certificates configured
+- ✅ Security headers enabled
+- ✅ Resource limits applied
+- ✅ Process isolation
 
-Commandes principales pour gérer le service LIMS :
+### Recommendations
+1. **Monitor regularly** error logs
+2. **Backup** the database regularly
+3. **Update** SSL certificates before expiration
+4. **Test** recovery procedures
+5. **Document** any configuration changes
 
+## 📈 Architecture Advantages
+
+| Aspect | Legacy System | New Robust System |
+|--------|---------------|-------------------|
+| Server | runserver_plus (dev) | Gunicorn (production) |
+| Supervision | Basic bash script | systemd + watchdog |
+| Recovery | Manual | Automatic |
+| Logs | Scattered | Centralized |
+| Monitoring | None | Continuous monitoring |
+| Stability | Unstable | High availability |
+
+## 🆘 Support and Contact
+
+In case of persistent issues:
+1. Check detailed logs
+2. Review troubleshooting documentation
+3. Contact the development team with:
+   - Complete error logs
+   - Commands executed
+   - Problem context
+
+---
+
+**Note**: This configuration completely replaces the old system based on `start_production_debug.sh`. The new system is more robust, more secure, and requires less manual maintenance.
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+#### Service Won't Start
 ```bash
-# Vérifier l'état du service
+# Check service status
 sudo systemctl status terryfox-lims.service
 
-# Arrêter le service
-sudo systemctl stop terryfox-lims.service
+# View detailed logs
+sudo journalctl -u terryfox-lims.service --no-pager
 
-# Redémarrer le service
+# Check SSL certificates
+sudo ls -la /root/ssl/
+```
+
+#### Connection Issues
+```bash
+# Test local connection
+curl -k -I https://localhost:443/
+
+# Test network connection
+curl -k -I https://10.220.115.67:443/
+
+# Check if port is listening
+sudo netstat -tlnp | grep :443
+```
+
+#### High Memory Usage
+```bash
+# Check memory usage
+ps aux | grep gunicorn
+
+# Restart service if needed
 sudo systemctl restart terryfox-lims.service
-
-# Consulter les logs du service
-sudo journalctl -u terryfox-lims.service
-
-# Voir les logs en temps réel
-sudo journalctl -u terryfox-lims.service -f
 ```
 
-## Dépannage
+### Log Locations
+- **Service logs**: `sudo journalctl -u terryfox-lims.service`
+- **Access logs**: `/var/log/terryfox-lims/access.log`
+- **Error logs**: `/var/log/terryfox-lims/error.log`
+- **Watchdog logs**: `/var/log/terryfox-lims/watchdog.log`
 
-### Erreur "Bad Request (400)" avec l'IP
+### Emergency Recovery
+```bash
+# Stop all services
+sudo systemctl stop terryfox-lims.service
+sudo systemctl stop terryfox-lims-watchdog.timer
 
-Si vous obtenez une erreur 400 (Bad Request) lorsque vous accédez à l'application via l'IP, vérifiez les points suivants :
-
-1. **Résolution réseau** : Assurez-vous que l'adresse IP `10.220.115.67` est accessible depuis votre réseau :
-   ```bash
-   ping 10.220.115.67
-   ```
-
-2. **Configuration Django** : Vérifiez que l'IP est incluse dans `ALLOWED_HOSTS` dans `settings_prod.py`.
-
-3. **Certificats SSL** : Vérifiez que les certificats SSL incluent l'IP dans le Subject Alternative Name (SAN) :
-   ```bash
-   sudo openssl x509 -in ~/ssl/terryfox.crt -text -noout | grep -A1 "Subject Alternative Name"
-   ```
-
-### Problèmes de certificat SSL
-
-Si vous rencontrez des avertissements de sécurité dans le navigateur :
-
-1. C'est normal avec des certificats auto-signés. Vous pouvez accepter le risque pour accéder à l'application.
-
-2. Pour une solution plus sécurisée, envisagez d'utiliser Let's Encrypt pour obtenir un certificat SSL valide :
-   ```bash
-   sudo apt-get install certbot
-   sudo certbot certonly --standalone -d 10.220.115.67
-   ```
-   Puis utilisez les certificats générés dans votre configuration.
-
-## Configuration manuelle
-
-Si vous préférez configurer manuellement :
-
-1. Activer l'environnement conda :
-   ```bash
-   source /home/hadriengt/miniconda/etc/profile.d/conda.sh
-   conda activate django
-   ```
-
-2. Générer les certificats SSL si nécessaire :
-   ```bash
-   mkdir -p ~/ssl
-   openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-     -keyout ~/ssl/terryfox.key -out ~/ssl/terryfox.crt \
-     -subj "/C=CA/ST=Quebec/L=Local/O=TerryFox/OU=LIMS/CN=localhost" \
-     -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:10.220.115.67,IP:192.168.7.13"
-   ```
-
-3. Configurer Nginx :
-   ```bash
-   sudo cp terryfox_nginx_prod.conf /etc/nginx/sites-available/terryfox
-   sudo ln -sf /etc/nginx/sites-available/terryfox /etc/nginx/sites-enabled/
-   sudo nginx -t && sudo systemctl restart nginx
-   ```
-
-4. Démarrer l'application avec HTTPS :
-   ```bash
-   ./start_lims_backend.sh
-   ```
-
-## Configuration
-
-You can modify the following configuration files:
-
-- `.env` - Environment variables (SECRET_KEY, ALLOWED_HOSTS, etc.)
-- `terryfox_lims/settings_prod.py` - Production settings (includes HTTPS settings)
-- `gunicorn_start.sh` - Server configuration with SSL certificates
-- `start_production.sh` - Main production startup script with SSL setup
-
-## Advanced Setup Options
-
-For a more robust production setup, consider:
-
-1. Using PostgreSQL instead of SQLite:
-   - Install PostgreSQL
-   - Update database settings in `settings_prod.py`
-   - Migrate data using Django's `dumpdata` and `loaddata` commands
-
-2. Setting up Nginx as a reverse proxy:
-   - Install Nginx
-   - Use the provided `terryfox_nginx.conf` configuration
-   - Link it to Nginx's sites-available directory
-   - Enable the site
-
-3. Setting up HTTPS:
-   - **Option A: Using an IP Address with Nginx (recommended for production)**
-     - Obtain an SSL certificate (Let's Encrypt recommended)
-     - Configure Nginx for HTTPS using the certificate
-     - Enable security settings in `settings_prod.py`
-     
-   - **Option B: Direct HTTPS with Django (current setup)**
-     - Uses Django's runserver_plus for direct SSL support
-     - Self-signed certificates stored in user directory
-     - Simple configuration without requiring Nginx
-     - Suitable for development or simple production environments
-     - Note: This is the approach currently implemented in the startup scripts
-
-   For detailed HTTPS setup instructions, refer to the dedicated `HTTPS.md` file.
-
-## Accessing the Application with HTTPS
-
-After setting up HTTPS with the current configuration, you can access the application at:
-```
-https://10.220.115.67:8443
-```
-
-## Troubleshooting
-
-- If you can't access the application, check that port 8000 is not blocked by a firewall
-- Check the logs output by Gunicorn for any errors
-- Ensure the conda environment has all required packages installed
-
-### HTTPS Troubleshooting
-
-- **Certificate errors**: If using a self-signed certificate, browser warnings are normal. You need to accept the certificate.
-- **Connection refused**: Ensure the application is running and the port is accessible.
-- **SSL certificate problems**: Verify the certificates exist in ~/ssl/ directory.
-- **Mixed content warnings**: Ensure all assets are served over HTTPS.
-- **Django Extensions errors**: Make sure django-extensions is in INSTALLED_APPS in settings_prod.py
-- **Port already in use**: Check for and kill existing processes with `pkill -f "runserver_plus"` or `pkill -f gunicorn`
-
-## Maintenance
-
-- Regularly back up the SQLite database file
-- Keep track of Django security updates
-- Monitor the application for errors or performance issues
-- For self-signed certificates, note they do not expire automatically but should be renewed periodically (2-3 years) 
+# Reset and restart
+sudo systemctl reset-failed terryfox-lims.service
+sudo systemctl start terryfox-lims.service
+sudo systemctl start terryfox-lims-watchdog.timer
+``` 

@@ -16,16 +16,26 @@ Ce document explique comment configurer le TerryFox LIMS pour utiliser HTTPS en 
 
 Il existe plusieurs méthodes pour configurer HTTPS avec TerryFox LIMS:
 
-### Option A: Configuration actuellement utilisée - Django avec runserver_plus (recommandée)
+### Option A: Configuration Django avec runserver_plus (développement)
 - Solution simple utilisant django-extensions et runserver_plus
 - Ne nécessite pas de serveur web séparé comme Nginx
 - Certificats stockés dans le répertoire utilisateur (~ssl/)
 - Fonctionne sur le port 8443
+- **⚠️ Non recommandée pour la production**
 
 ### Option B: Configuration avec Nginx (pour environnements à fort trafic)
 - Nécessite Nginx installé comme reverse proxy
 - Certificats stockés dans /etc/ssl/
 - Gestion plus robuste pour les environnements de production à fort trafic
+
+### Option C: Configuration Gunicorn avec SSL (🚀 RECOMMANDÉE POUR LA PRODUCTION)
+- **Serveur WSGI robuste** adapté à la production
+- **SSL natif** intégré dans Gunicorn
+- **Certificats stockés** dans `/root/ssl/`
+- **Port 443** (port HTTPS standard)
+- **Surveillance automatique** avec systemd + watchdog
+- **Logs centralisés** dans `/var/log/terryfox-lims/`
+- **Redémarrage automatique** en cas de problème
 
 ## Étapes de configuration (Option A - Django avec runserver_plus)
 
@@ -34,11 +44,14 @@ Il existe plusieurs méthodes pour configurer HTTPS avec TerryFox LIMS:
 Le script `start_production.sh` génère automatiquement un certificat auto-signé s'il n'existe pas déjà. Cependant, vous pouvez également créer manuellement les certificats :
 
 ```bash
-# Créer un répertoire pour stocker les certificats
+# Créer un répertoire pour stocker les certificats (Option C - Production)
+sudo mkdir -p /root/ssl
+
+# Ou pour développement (Options A/B)
 mkdir -p ~/ssl
 
 # Créer un fichier de configuration OpenSSL pour IP
-cat > ~/ssl/openssl-san.cnf << EOL
+cat > /tmp/openssl-san.cnf << EOL
 [req]
 distinguished_name = req_distinguished_name
 req_extensions = v3_req
@@ -266,13 +279,82 @@ Vous disposez maintenant de deux options pour configurer HTTPS dans TerryFox LIM
    - Meilleure gestion du cache et des fichiers statiques
    - Recommandée pour les environnements de production avec beaucoup d'utilisateurs
 
-L'option A est actuellement implémentée via le script `start_production.sh` et le système est accessible à l'adresse https://192.168.7.13:8443.
+**L'option C (Gunicorn) est maintenant la configuration recommandée** et est accessible à l'adresse https://10.220.115.67:443.
+
+## Étapes de configuration (Option C - Gunicorn avec SSL) 🚀
+
+**Cette option est maintenant la configuration recommandée pour la production.**
+
+### 1. Générer les certificats SSL pour la production
+
+```bash
+# Créer le répertoire des certificats
+sudo mkdir -p /root/ssl
+
+# Générer le certificat auto-signé avec IP 10.220.115.67
+sudo openssl req -x509 -newkey rsa:4096 \
+  -keyout /root/ssl/terryfox.key \
+  -out /root/ssl/terryfox.crt \
+  -days 365 -nodes \
+  -subj "/C=CA/ST=Nova Scotia/L=Halifax/O=TerryFox/CN=10.220.115.67" \
+  -addext "subjectAltName=IP:10.220.115.67,DNS:localhost"
+
+# Définir les permissions appropriées
+sudo chmod 600 /root/ssl/terryfox.key
+sudo chmod 644 /root/ssl/terryfox.crt
+```
+
+### 2. Démarrer le service robuste
+
+```bash
+# Démarrer le service systemd
+sudo systemctl start terryfox-lims.service
+
+# Activer le démarrage automatique
+sudo systemctl enable terryfox-lims.service
+
+# Activer la surveillance automatique
+sudo systemctl enable --now terryfox-lims-watchdog.timer
+```
+
+### 3. Vérifier le fonctionnement
+
+```bash
+# Vérifier le statut du service
+sudo systemctl status terryfox-lims.service
+
+# Tester la connectivité HTTPS
+curl -k -I https://localhost:443/
+curl -k -I https://10.220.115.67:443/
+
+# Voir les logs en temps réel
+sudo journalctl -u terryfox-lims.service -f
+```
+
+### 4. Accès à l'application
+
+L'application sera accessible via :
+- **https://10.220.115.67** (accès réseau)
+- **https://localhost** (accès local)
+
+### 5. Surveillance et maintenance
+
+```bash
+# Vérifier les logs centralisés
+tail -f /var/log/terryfox-lims/access.log
+tail -f /var/log/terryfox-lims/error.log
+tail -f /var/log/terryfox-lims/watchdog.log
+
+# Redémarrer si nécessaire
+sudo systemctl restart terryfox-lims.service
+```
 
 ## Vérification de la configuration
 
 Testez l'accès à l'application via:
 ```
-https://192.168.7.13:8000
+https://10.220.115.67
+https://localhost
 ```
 
 ## Résolution des problèmes courants
@@ -287,9 +369,21 @@ Vérifiez:
 
 ### Erreur "connection refused"
 
-Vérifiez:
-1. Que le serveur Django/Gunicorn est en cours d'exécution sur le port 8000
-2. Que le paramètre proxy_pass dans la configuration Nginx est correct
+**Pour l'Option C (Gunicorn) :**
+```bash
+# Vérifier que Gunicorn écoute sur le port 443
+sudo netstat -tlnp | grep :443
+
+# Vérifier les processus Gunicorn
+ps aux | grep gunicorn
+
+# Vérifier les logs d'erreur
+tail /var/log/terryfox-lims/error.log
+```
+
+**Pour les autres options :**
+1. Que le serveur Django/Gunicorn est en cours d'exécution sur le port approprié
+2. Que la configuration réseau est correcte
 
 ### Erreur "NET::ERR_CERT_INVALID" dans le navigateur
 
@@ -297,11 +391,43 @@ C'est normal pour un certificat auto-signé. Vous devez:
 1. Accepter le risque temporairement
 2. Installer le certificat dans votre navigateur pour éviter l'avertissement à l'avenir
 
+## Comparaison des options
+
+| Aspect | Option A (runserver_plus) | Option B (Nginx) | Option C (Gunicorn) |
+|--------|---------------------------|------------------|---------------------|
+| **Usage** | Développement | Production haute charge | **Production recommandée** |
+| **Port** | 8443 | 443 (via proxy) | **443 (direct)** |
+| **Certificats** | ~/ssl/ | /etc/ssl/ | **/root/ssl/** |
+| **Supervision** | Manuelle | systemd + Nginx | **systemd + watchdog** |
+| **Logs** | Console | Nginx + Django | **Centralisés** |
+| **Robustesse** | Faible | Moyenne | **Élevée** |
+| **Maintenance** | Élevée | Moyenne | **Faible** |
+
 ## Sécurité supplémentaire
 
 Pour renforcer la sécurité, considérez:
 
-1. Ajouter une authentification à deux facteurs
-2. Configurer le Content Security Policy (CSP)
-3. Mettre à jour régulièrement tous les composants du système
-4. Effectuer des audits de sécurité périodiques
+1. **Certificats Let's Encrypt** pour éviter les avertissements de navigateur
+2. **Pare-feu** configuré pour limiter l'accès aux ports nécessaires
+3. **Mises à jour régulières** de tous les composants du système
+4. **Surveillance des logs** pour détecter les activités suspectes
+5. **Sauvegardes régulières** de la base de données et des certificats
+
+### Configuration Let's Encrypt (optionnel)
+
+```bash
+# Installer certbot
+sudo apt-get install certbot
+
+# Obtenir un certificat pour l'IP (nécessite un domaine)
+# Note: Let's Encrypt ne supporte pas les certificats pour IP
+# Utilisez un nom de domaine si possible
+sudo certbot certonly --standalone -d votre-domaine.com
+
+# Copier les certificats vers /root/ssl/
+sudo cp /etc/letsencrypt/live/votre-domaine.com/fullchain.pem /root/ssl/terryfox.crt
+sudo cp /etc/letsencrypt/live/votre-domaine.com/privkey.pem /root/ssl/terryfox.key
+
+# Redémarrer le service
+sudo systemctl restart terryfox-lims.service
+```

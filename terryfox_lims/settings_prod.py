@@ -16,7 +16,7 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-this-should-be-a-long
 DEBUG = False
 
 # Activer les paramètres HTTPS
-SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = False  # Géré au niveau du serveur
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 SECURE_HSTS_SECONDS = 31536000  # 1 année
@@ -24,22 +24,13 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# Assurez-vous que le ALLOWED_HOSTS est correctement configuré
-# Accepter tous les hôtes pour résoudre le problème de Bad Request
-ALLOWED_HOSTS = ['*']
+# Configuration des hôtes autorisés - seulement les IPs/domaines nécessaires
+ALLOWED_HOSTS = ['10.220.115.67', 'localhost', '127.0.0.1', 'candig.cair.mun.ca']
 
 # Configuration pour résoudre le problème de Bad Request avec le nom de domaine
 USE_X_FORWARDED_HOST = True
 
-# Désactiver la redirection SSL car nous gérons déjà HTTPS au niveau du serveur
-SECURE_SSL_REDIRECT = False
-
 # Paramètres de sécurité supplémentaires pour HTTPS
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SECURE_HSTS_SECONDS = 31536000  # 1 an
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
 

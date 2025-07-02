@@ -60,30 +60,9 @@ openssl x509 -in $CERTFILE -text -noout | grep -A 5 "Subject Alternative Name"
 # Collecte des fichiers statiques
 python manage.py collectstatic --noinput --settings=terryfox_lims.settings_prod
 
-# OPTION 1: Démarrage sur localhost uniquement (pour test)
+# Démarrage du serveur Django avec SSL
 echo ""
-echo "=== OPTION 1: DÉMARRAGE SUR LOCALHOST (SÉCURISÉ) ==="
-echo "Lancement Django avec SSL sur localhost:443..."
-python manage.py runserver_plus 127.0.0.1:443 --settings=terryfox_lims.settings_prod \
-  --cert-file=$CERTFILE --key-file=$KEYFILE &
-
-LOCALHOST_PID=$!
-sleep 2
-
-# Test de connectivité localhost
-if curl -k -s -o /dev/null https://localhost:443/; then
-    echo "✅ https://localhost:443 - ACCESSIBLE"
-else
-    echo "❌ https://localhost:443 - NON ACCESSIBLE"
-fi
-
-# Arrêter le processus localhost
-kill $LOCALHOST_PID 2>/dev/null
-sleep 1
-
-# OPTION 2: Démarrage sur toutes les interfaces
-echo ""
-echo "=== OPTION 2: DÉMARRAGE SUR TOUTES LES INTERFACES ==="
+echo "=== DÉMARRAGE DU SERVEUR LIMS ==="
 echo "Lancement Django avec SSL sur 0.0.0.0:443..."
 python manage.py runserver_plus 0.0.0.0:443 --settings=terryfox_lims.settings_prod \
   --cert-file=$CERTFILE --key-file=$KEYFILE &
