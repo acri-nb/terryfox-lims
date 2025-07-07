@@ -21,10 +21,13 @@
             {% csrf_token %}
             
             <div class="row">
-                <div class="col-md-6">
+                <div class="col-md-4">
                     {{ form.name|as_crispy_field }}
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-4">
+                    {{ form.other_id|as_crispy_field }}
+                </div>
+                <div class="col-md-4">
                     {{ form.status|as_crispy_field }}
                 </div>
             </div>
