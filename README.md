@@ -5,7 +5,8 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 ## Features
 
 - Project management with dedicated Project Lead tracking and management
-- Case tracking with status monitoring
+- Case tracking with enhanced status monitoring (9 status options including Created, Incomplete, Unknown, Sequenced)
+- Optional alternative ID field for cases (Other_ID) for external reference tracking
 - Coverage information (RNA, DNA-T, DNA-N)
 - Tier classification (A, B, FAIL)
 - Accession number management
@@ -14,7 +15,7 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 - Role-based permissions (Admin, PI, Bioinformatician)
 - Comprehensive statistics at global and project levels
 - Batch case creation for adding multiple cases at once
-- CSV import for creating and updating cases
+- Enhanced CSV import for creating and updating cases with Other_ID support
 - Beautiful and user-friendly interface
 - **🚀 Robust production deployment** with Gunicorn + systemd
 - **🔍 Automatic monitoring** with watchdog system
@@ -245,6 +246,14 @@ The system allows users with CRUD permissions (Bioinformaticians and Administrat
   - Display a summary of how many cases were created and updated
 
 A template CSV file is available for download on the import page to help users get started. This feature is particularly useful for importing data from other systems or for bulk updates to existing cases.
+
+**New in v1.1**: The CSV import now supports the optional `Other_ID` field, allowing you to import alternative identifiers alongside the main case ID. The CSV format is now:
+```csv
+CaseID,Other_ID,Status,DNAT,DNAN,RNA
+ACC-0123,,Received,,,
+ACC-0124,EXT-456,Received,92,31,81
+ACC-0125,,Received,,,
+```
 
 ## Development
 
