@@ -165,7 +165,7 @@ The LIMS provides detailed statistics at two levels:
    - Total number of projects
    - Projects by Project Lead
    - Total number of cases
-   - Cases by status (Received, Library Prepped, Transferred to NFL, Bioinfo Analysis, Completed)
+   - Cases by status (Created, Received, Incomplete, Unknown, Library Prepped, Sequenced, Transferred to NFL, Bioinfo Analysis, Completed)
    - Cases by tier (A, B, FAIL)
 
 2. **Project-specific statistics** (Project detail page):
@@ -209,7 +209,7 @@ The system provides search and filter capabilities to help you quickly find what
 
 ### Case Filtering (Project Detail Page)
 - **Case Name**: Search for cases by entering part of their name
-- **Status**: Filter cases by their current status (Received, Library Prepped, Transferred to NFL, etc.)
+- **Status**: Filter cases by their current status (Created, Received, Incomplete, Unknown, Library Prepped, Sequenced, Transferred to NFL, Bioinfo Analysis, Completed)
 - **Tier**: Filter cases by their tier classification (A, B, FAIL)
 - Visual indicators show when filters are active and how many results match
 
@@ -234,7 +234,8 @@ The system allows users with CRUD permissions (Bioinformaticians and Administrat
 - Access the CSV import by clicking "Add Cases with CSV" on the project detail page
 - Upload a CSV file following the required format with these headers:
   - **CaseID**: The unique identifier for the case
-  - **Status**: The status of the case (must match system values)
+  - **Other_ID**: Optional alternative identifier for the case
+  - **Status**: The status of the case (must match system values: Created, Received, Incomplete, Unknown, Library Prepped, Sequenced, Transferred to NFL, Bioinfo Analysis, Completed)
   - **DNAT**: DNA Tumor Coverage value
   - **DNAN**: DNA Normal Coverage value
   - **RNA**: RNA Coverage value

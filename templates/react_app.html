@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TerryFox LIMS - Modern Interface</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        #root {
+            min-height: 100vh;
+        }
+        
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: white;
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            font-size: 18px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div id="root">
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Loading TerryFox LIMS...</div>
+        </div>
+    </div>
+
+    <!-- React Development Server -->
+    <script>
+        // Try to load React from development server
+        const script = document.createElement('script');
+        script.src = 'http://localhost:3000/static/js/bundle.js';
+        script.onerror = function() {
+            // If development server is not available, show message
+            document.getElementById('root').innerHTML = `
+                <div class="loading-container">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 20px; color: #ffd700;"></i>
+                    <div class="loading-text">React Development Server Not Running</div>
+                    <div style="margin-top: 10px; font-size: 14px; opacity: 0.8; text-align: center; max-width: 600px;">
+                        To start the React development server:<br>
+                        1. Open a new terminal<br>
+                        2. Navigate to the frontend directory: <code style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px;">cd frontend</code><br>
+                        3. Run: <code style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px;">npm start</code>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <a href="/" style="color: white; text-decoration: underline; font-weight: bold;">Return to Classic Interface</a>
+                    </div>
+                    <div style="margin-top: 10px; font-size: 12px; opacity: 0.7;">
+                        The classic Django interface is fully functional and can be used while setting up React.
+                    </div>
+                </div>
+            `;
+        };
+        document.head.appendChild(script);
+        
+        // Additional fallback check
+        setTimeout(() => {
+            if (!window.React && document.getElementById('root').innerHTML.includes('Loading TerryFox LIMS')) {
+                script.onerror();
+            }
+        }, 5000);
+    </script>
+</body>
+</html> 

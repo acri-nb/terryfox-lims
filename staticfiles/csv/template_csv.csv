@@ -1,4 +1,4 @@
-CaseID,Status,DNAT,DNAN,RNA
-ACC-0123,Received,,,
-ACC-0124,Received,92,31,81
-ACC-0125,Received,,,
+CaseID,Other_ID,Status,DNAT,DNAN,RNA
+ACC-0123,,Received,,,
+ACC-0124,,Received,92,31,81
+ACC-0125,,Received,,,

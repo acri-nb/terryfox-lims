@@ -46,15 +46,23 @@ class Case(models.Model):
     """Model representing a case within a project."""
     
     # Status options
+    STATUS_CREATED = 'created'
     STATUS_RECEIVED = 'received'
+    STATUS_INCOMPLETE = 'incomplete'
+    STATUS_UNKNOWN = 'unknown'
     STATUS_LIBRARY_PREPPED = 'library_prepped'
+    STATUS_SEQUENCED = 'sequenced'
     STATUS_TRANSFERRED = 'transferred_to_nfl'
     STATUS_BIOINFO = 'bioinfo_analysis'
     STATUS_COMPLETED = 'completed'
     
     STATUS_CHOICES = [
+        (STATUS_CREATED, _('Created')),
         (STATUS_RECEIVED, _('Received')),
+        (STATUS_INCOMPLETE, _('Incomplete')),
+        (STATUS_UNKNOWN, _('Unknown')),
         (STATUS_LIBRARY_PREPPED, _('Library Prepped')),
+        (STATUS_SEQUENCED, _('Sequenced')),
         (STATUS_TRANSFERRED, _('Transferred to NFL')),
         (STATUS_BIOINFO, _('Bioinfo Analysis')),
         (STATUS_COMPLETED, _('Completed')),
@@ -73,6 +81,7 @@ class Case(models.Model):
     
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='cases')
     name = models.CharField(max_length=255)
+    other_id = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Other ID'))
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default=STATUS_RECEIVED)
     
     # Coverage values

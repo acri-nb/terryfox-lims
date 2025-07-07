@@ -37,9 +37,10 @@ class CaseForm(forms.ModelForm):
     
     class Meta:
         model = Case
-        fields = ['name', 'status', 'rna_coverage', 'dna_t_coverage', 'dna_n_coverage', 'tier']
+        fields = ['name', 'other_id', 'status', 'rna_coverage', 'dna_t_coverage', 'dna_n_coverage', 'tier']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'other_id': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Other ID (optional)'}),
             'status': forms.Select(attrs={'class': 'form-select'}),
             'rna_coverage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'RNA Coverage in M'}),
             'dna_t_coverage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'DNA (T) Coverage in X'}),
@@ -47,6 +48,7 @@ class CaseForm(forms.ModelForm):
             'tier': forms.Select(attrs={'class': 'form-select', 'disabled': 'disabled'}),
         }
         help_texts = {
+            'other_id': _('Optional alternative identifier for this case'),
             'rna_coverage': _('RNA Coverage in million reads (M)'),
             'dna_t_coverage': _('DNA Tumor Coverage in X'),
             'dna_n_coverage': _('DNA Normal Coverage in X'),

@@ -443,7 +443,7 @@ def csv_case_import(request, project_id):
                 reader = csv.DictReader(csv_data)
                 
                 # Validate CSV headers
-                required_headers = ['CaseID', 'Status', 'DNAT', 'DNAN', 'RNA']
+                required_headers = ['CaseID', 'Other_ID', 'Status', 'DNAT', 'DNAN', 'RNA']
                 csv_headers = reader.fieldnames
                 
                 if not all(header in csv_headers for header in required_headers):
@@ -471,6 +471,9 @@ def csv_case_import(request, project_id):
                     if not case_id:
                         continue
                     
+                    # Get Other_ID (optional field)
+                    other_id = row['Other_ID'].strip() if row['Other_ID'].strip() else None
+                    
                     # Map CSV status to model status
                     status = row['Status'].strip()
                     if status not in status_mapping:
@@ -491,6 +494,7 @@ def csv_case_import(request, project_id):
                         project=project,
                         name=case_id,
                         defaults={
+                            'other_id': other_id,
                             'status': status_mapping[status],
                             'dna_t_coverage': dna_t,
                             'dna_n_coverage': dna_n,
@@ -502,6 +506,7 @@ def csv_case_import(request, project_id):
                         created_count += 1
                     else:
                         # Update existing case
+                        case.other_id = other_id
                         case.status = status_mapping[status]
                         case.dna_t_coverage = dna_t
                         case.dna_n_coverage = dna_n

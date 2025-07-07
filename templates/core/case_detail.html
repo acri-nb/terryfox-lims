@@ -39,10 +39,13 @@
                     {% csrf_token %}
                     <input type="hidden" name="case_update" value="1">
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             {{ case_form.name|as_crispy_field }}
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
+                            {{ case_form.other_id|as_crispy_field }}
+                        </div>
+                        <div class="col-md-4">
                             {{ case_form.status|as_crispy_field }}
                         </div>
                     </div>
@@ -73,6 +76,7 @@
                     <div class="col-md-6">
                         <p class="mb-2"><strong>Project:</strong> {{ case.project.name }}</p>
                         <p class="mb-2"><strong>Status:</strong> <span class="badge badge-{{ case.status }}">{{ case.get_status_display }}</span></p>
+                        <p class="mb-2"><strong>Other ID:</strong> {{ case.other_id|default:"--" }}</p>
                         <p class="mb-0"><strong>Tier:</strong> <span class="badge badge-{{ case.tier }}">{{ case.tier }}</span></p>
                     </div>
                     <div class="col-md-6">

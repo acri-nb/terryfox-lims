@@ -19,9 +19,9 @@ class CaseInline(admin.TabularInline):
 
 @admin.register(Case)
 class CaseAdmin(admin.ModelAdmin):
-    list_display = ('name', 'project', 'status', 'tier', 'created_at', 'updated_at')
+    list_display = ('name', 'other_id', 'project', 'status', 'tier', 'created_at', 'updated_at')
     list_filter = ('status', 'tier', 'project')
-    search_fields = ('name', 'project__name')
+    search_fields = ('name', 'other_id', 'project__name')
     readonly_fields = ('created_at', 'updated_at')
     date_hierarchy = 'created_at'
     inlines = [AccessionInline, CommentInline]
