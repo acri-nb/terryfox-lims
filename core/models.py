@@ -100,9 +100,9 @@ class Case(models.Model):
     
     def calculate_tier(self):
         """Calculate tier based on coverage values."""
-        # Return default tier if any coverage value is missing
+        # Return FAIL if any coverage value is missing
         if any(value is None for value in [self.rna_coverage, self.dna_t_coverage, self.dna_n_coverage]):
-            return self.tier
+            return self.TIER_FA
         
         # Tier A: DNA(T) >= 80X, DNA(N) >= 30X, RNA >= 100M reads
         if self.dna_t_coverage >= 80 and self.dna_n_coverage >= 30 and self.rna_coverage >= 100:
