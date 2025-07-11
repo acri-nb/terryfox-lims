@@ -1,11 +1,12 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, permission_required
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Count
 import csv
 from io import TextIOWrapper
+from datetime import datetime
 
 from .models import Project, Case, Accession, Comment, ProjectLead
 from .forms import ProjectForm, CaseForm, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, CSVImportForm
@@ -444,6 +445,7 @@ def csv_case_import(request, project_id):
                 
                 # Validate CSV headers
                 required_headers = ['CaseID', 'Other_ID', 'Status', 'DNAT', 'DNAN', 'RNA']
+                optional_headers = ['source_other_comments']
                 csv_headers = reader.fieldnames
                 
                 if not all(header in csv_headers for header in required_headers):
@@ -473,6 +475,9 @@ def csv_case_import(request, project_id):
                     
                     # Get Other_ID (optional field)
                     other_id = row['Other_ID'].strip() if row['Other_ID'].strip() else None
+                    
+                    # Get source_other_comments (optional field)
+                    source_comment = row.get('source_other_comments', '').strip() if 'source_other_comments' in row else None
                     
                     # Map CSV status to model status
                     status = row['Status'].strip()
@@ -513,6 +518,15 @@ def csv_case_import(request, project_id):
                         case.rna_coverage = rna
                         case.save()
                         updated_count += 1
+                    
+                    # Add comment if source_other_comments is provided
+                    if source_comment:
+                        # Store only the comment text, timestamp and user info are handled by the model
+                        Comment.objects.create(
+                            case=case,
+                            text=source_comment,
+                            user=request.user
+                        )
                 
                 # Show success message with counts
                 if error_rows:
@@ -537,3 +551,52 @@ def csv_case_import(request, project_id):
         'form': form,
         'project': project,
     })
+
+@login_required
+def csv_case_export(request, project_id):
+    """
+    View for exporting all cases from a project to a CSV file
+    """
+    project = get_object_or_404(Project, id=project_id)
+    
+    # Create the HttpResponse object with CSV header
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    # Clean project name and project lead name for filename
+    project_name_clean = project.name.replace(' ', '_').replace('/', '_')
+    project_lead_clean = ""
+    if project.project_lead:
+        project_lead_clean = f"_{project.project_lead.name.replace(' ', '_').replace('/', '_')}"
+    
+    filename = f"{project_name_clean}{project_lead_clean}_cases_{timestamp}.csv"
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    # Create CSV writer
+    writer = csv.writer(response)
+    
+    # Write header
+    writer.writerow(['CaseID', 'Other_ID', 'Status', 'DNAT', 'DNAN', 'RNA', 'Tier', 'Created_Date', 'Updated_Date'])
+    
+    # Write case data
+    for case in project.cases.all().order_by('name'):
+        # Convert status to display value
+        status_display = case.get_status_display()
+        
+        # Format dates
+        created_date = case.created_at.strftime('%Y-%m-%d %H:%M:%S') if case.created_at else ''
+        updated_date = case.updated_at.strftime('%Y-%m-%d %H:%M:%S') if case.updated_at else ''
+        
+        writer.writerow([
+            case.name,
+            case.other_id or '',
+            status_display,
+            case.dna_t_coverage or '',
+            case.dna_n_coverage or '',
+            case.rna_coverage or '',
+            case.tier,
+            created_date,
+            updated_date
+        ])
+    
+    return response
