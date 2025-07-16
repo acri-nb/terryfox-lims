@@ -201,10 +201,10 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         # Add user groups information
         user_data['groups'] = [group.name for group in request.user.groups.all()]
         user_data['permissions'] = {
-            'can_edit': request.user.groups.filter(name='Bioinformatician').exists() or request.user.is_superuser,
+            'can_edit': request.user.groups.filter(name='editor').exists() or request.user.is_superuser,
             'is_admin': request.user.is_superuser,
-            'is_pi': request.user.groups.filter(name='PI').exists(),
-            'is_bioinformatician': request.user.groups.filter(name='Bioinformatician').exists(),
+            'is_viewer': request.user.groups.filter(name='viewer').exists(),
+            'is_editor': request.user.groups.filter(name='editor').exists(),
         }
         
         return Response(user_data) 

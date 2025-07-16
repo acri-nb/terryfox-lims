@@ -91,8 +91,8 @@ def project_detail(request, project_id):
     cases_by_status = all_cases.values('status').annotate(count=Count('id'))
     cases_by_tier = all_cases.values('tier').annotate(count=Count('id'))
     
-    # Check if user is part of Bioinformatician group for edit permissions (previously PI)
-    can_edit = request.user.groups.filter(name='Bioinformatician').exists() or request.user.is_superuser
+    # Vérifie si l'utilisateur fait partie du groupe 'editor' pour les permissions d'édition
+    can_edit = request.user.groups.filter(name='editor').exists() or request.user.is_superuser
     
     return render(request, 'core/project_detail.html', {
         'project': project,
@@ -113,8 +113,8 @@ def case_detail(request, case_id):
     comments = case.comments.all().order_by('-created_at')
     accessions = case.accessions.all()
     
-    # Check if user is part of Bioinformatician group for edit permissions (previously PI)
-    can_edit = request.user.groups.filter(name='Bioinformatician').exists() or request.user.is_superuser
+    # Vérifie si l'utilisateur fait partie du groupe 'editor' pour les permissions d'édition
+    can_edit = request.user.groups.filter(name='editor').exists() or request.user.is_superuser
     
     # Initialize forms
     comment_form = None
@@ -166,7 +166,7 @@ def case_detail(request, case_id):
         'accession_formset': accession_formset,
     })
 
-# CRUD operations for Projects, only for Bioinformatician users (previously PI)
+# Opérations CRUD pour les Projets, uniquement pour les utilisateurs 'editor'
 @login_required
 @permission_required('core.add_project', raise_exception=True)
 def project_create(request):
@@ -224,7 +224,7 @@ def project_delete(request, project_id):
     
     return render(request, 'core/project_confirm_delete.html', {'project': project})
 
-# CRUD operations for Cases, only for Bioinformatician users (previously PI)
+# Opérations CRUD pour les Cases, uniquement pour les utilisateurs 'editor'
 @login_required
 @permission_required('core.add_case', raise_exception=True)
 def case_create(request, project_id):
@@ -332,7 +332,7 @@ def case_delete(request, case_id):
     
     return render(request, 'core/case_confirm_delete.html', {'case': case})
 
-# CRUD operations for Project Leads, only for Bioinformatician users
+# Opérations CRUD pour les Project Leads, uniquement pour les utilisateurs 'editor'
 @login_required
 @permission_required('core.view_projectlead', raise_exception=True)
 def project_lead_list(request):

@@ -12,7 +12,7 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 - Accession number management
 - Comment system for cases
 - Search and filter functionality for projects and cases
-- Role-based permissions (Admin, PI, Bioinformatician)
+- Role-based permissions (Admin, viewer, editor)
 - Comprehensive statistics at global and project levels
 - Batch case creation for adding multiple cases at once
 - Enhanced CSV import for creating and updating cases with Other_ID support
@@ -103,8 +103,8 @@ A custom Laboratory Information Management System (LIMS) for the TerryFox projec
 6. Visit `http://127.0.0.1:8000/` to access the application
    - For admin access, go to `http://127.0.0.1:8000/admin/`
    - Use the admin panel to create required user groups:
-     - Create "PI" group (Read-only access)
-     - Create "Bioinformatician" group (CRUD access)
+     - Create "viewer" group (Read-only access)
+     - Create "editor" group (CRUD access)
      - Assign users to these groups
 
 ## Production Deployment (Robust)
@@ -155,8 +155,8 @@ For detailed setup instructions, see `PRODUCTION.md`.
 ## User Roles
 
 - **Superuser/Admin**: Full access to all features and admin panel
-- **PI (Principal Investigator)**: Read-only access to view projects, project leads, and cases
-- **Bioinformatician**: Full CRUD permissions on projects, project leads, and cases
+- **viewer**: Read-only access to view projects, project leads, and cases
+- **editor**: Full CRUD permissions on projects, project leads, and cases
 
 ## Project Statistics
 
@@ -184,8 +184,8 @@ The LIMS provides detailed statistics at two levels:
 5. Click on a project to view its details, statistics, and associated cases
 6. Use the search and filter options to find specific cases by name, status, or tier
 7. Click on a case to view its details, including status, coverage information, and accession numbers
-8. Bioinformaticians can create, edit, and delete projects, project leads, and cases
-9. PIs can view all information but cannot make changes
+8. editors can create, edit, and delete projects, project leads, and cases
+9. viewers can view all information but cannot make changes
 
 ## Project Lead Management
 
@@ -216,7 +216,7 @@ The system provides search and filter capabilities to help you quickly find what
 
 ### Batch Case Creation
 
-The system allows users with CRUD permissions (Bioinformaticians and Administrators) to add multiple cases to a project at once:
+The system allows users with CRUD permissions (editors and Administrators) to add multiple cases to a project at once:
 
 - Access the batch creation by clicking "Add Cases in Batch" on the project detail page
 - Specify the **batch name** that will be used as a prefix for all case names
@@ -230,7 +230,7 @@ At least 2 cases must be created in a batch. This feature is particularly useful
 
 ### CSV Case Import
 
-The system allows users with CRUD permissions (Bioinformaticians and Administrators) to import multiple cases from a CSV file:
+The system allows users with CRUD permissions (editors and Administrators) to import multiple cases from a CSV file:
 
 - Access the CSV import by clicking "Add Cases with CSV" on the project detail page
 - Upload a CSV file following the required format with these headers:

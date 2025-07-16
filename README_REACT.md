@@ -129,7 +129,7 @@ L'application React utilise automatiquement :
 - **HTTPS** : Le serveur Django utilise HTTPS avec certificats auto-signés
 - **JWT** : Authentification sécurisée avec tokens
 - **CORS** : Configuration CORS pour permettre les requêtes cross-origin
-- **Permissions** : Respect des permissions Django (PI, Bioinformatician, Admin)
+- **Permissions** : Respect des permissions Django (viewer, editor, Admin)
 
 ## Troubleshooting
 

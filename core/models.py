@@ -145,9 +145,9 @@ class Comment(models.Model):
 
 # Create groups for different user roles
 def create_groups():
-    """Create PI and Bioinformatician groups if they don't exist."""
-    Group.objects.get_or_create(name='PI')
-    Group.objects.get_or_create(name='Bioinformatician')
+    """Create viewer and editor groups if they don't exist."""
+    Group.objects.get_or_create(name='viewer')
+    Group.objects.get_or_create(name='editor')
 
 # Create a signal to automatically create groups when Django starts
 from django.db.models.signals import post_migrate
