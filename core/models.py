@@ -100,19 +100,26 @@ class Case(models.Model):
     
     def calculate_tier(self):
         """Calculate tier based on coverage values."""
-        # Return FAIL if any coverage value is missing
-        if any(value is None for value in [self.rna_coverage, self.dna_t_coverage, self.dna_n_coverage]):
+        # Return FAIL if DNA coverage values are missing or below thresholds
+        if self.dna_t_coverage is None or self.dna_n_coverage is None:
+            return self.TIER_FA
+            
+        # Tier FAIL: DNA(T) < 30X OR DNA(N) < 30X
+        if self.dna_t_coverage < 30 or self.dna_n_coverage < 30:
             return self.TIER_FA
         
         # Tier A: DNA(T) >= 80X, DNA(N) >= 30X, RNA >= 100M reads
-        if self.dna_t_coverage >= 80 and self.dna_n_coverage >= 30 and self.rna_coverage >= 100:
+        if self.dna_t_coverage >= 80 and self.dna_n_coverage >= 30 and self.rna_coverage is not None and self.rna_coverage >= 100:
             return self.TIER_A
         
-        # Tier B: 30X <= DNA(T) < 80X, DNA(N) >= 30X, RNA >= 100M reads
-        if (30 <= self.dna_t_coverage < 80) and self.dna_n_coverage >= 30 and self.rna_coverage >= 100:
+        # Tier B: Deux cas possibles
+        # 1. 30X <= DNA(T) <= 80X, DNA(N) >= 30X, tout ce qui concerne RNA (y compris l'absence de valeur)
+        # 2. DNA(T) >= 80X, DNA(N) >= 30X, pas de valeur de RNA
+        if ((30 <= self.dna_t_coverage <= 80 and self.dna_n_coverage >= 30) or 
+            (self.dna_t_coverage >= 80 and self.dna_n_coverage >= 30 and self.rna_coverage is None)):
             return self.TIER_B
         
-        # FAIL: DNA(T) < 30X OR DNA(N) < 30X OR RNA < 100M reads
+        # Default to FAIL for any other case
         return self.TIER_FA
     
     def __str__(self):
