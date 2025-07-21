@@ -10,7 +10,6 @@ from django.contrib.auth.models import User, Group
 
 # Liste des utilisateurs (Nom Complet)
 users = [
-
     "Tom Belbin",
     "Flora Machovsky",
     "Juanni Liu",
