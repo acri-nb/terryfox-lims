@@ -10,33 +10,22 @@ from django.contrib.auth.models import User, Group
 
 # Liste des utilisateurs (Nom Complet)
 users = [
-    "Adrienne Weeks",
-    "Jeremy Roy",
-    "Paola Marcato",
-    "Amy Trottier",
-    "Jeanette Boudreau",
-    "Victor Martinez",
-    "Graham Dellaire",
-    "Thomas Pulinilkunnil",
-    "Touati Benoukraf",
-    "Sevtap Savas",
-    "Sherri Christian",
-    "Tony Reiman",
-    "Pat Murphy",
-    "John Thoms",
-    "Robert Foulem",
-    "Robert Cormier",
+
+    "Tom Belbin",
+    "Flora Machovsky",
+    "Juanni Liu",
+    "Jorge Pinzon",
+    "Riley Arseneau",
+    "Louisa Larissa",
+    "Daniel Loos",
 ]
 
 def username_from_name(fullname):
     parts = fullname.strip().split()
     if len(parts) == 1:
         return parts[0].lower()
-    elif parts[0].lower() == 'robert':
-        # Cas spécial pour les deux Robert
-        return f"robert{parts[1][0].lower()}"
     else:
-        return parts[0].lower()
+        return f"{parts[0].lower()}{parts[1][0].lower()}"
 
 def random_password(length=12):
     chars = string.ascii_letters + string.digits
