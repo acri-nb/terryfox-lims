@@ -91,7 +91,7 @@ def project_detail(request, project_id):
     cases_by_status = all_cases.values('status').annotate(count=Count('id'))
     cases_by_tier = all_cases.values('tier').annotate(count=Count('id'))
     
-    # Vérifie si l'utilisateur fait partie du groupe 'editor' pour les permissions d'édition
+    # Check if user is part of the 'editor' group for editing permissions
     can_edit = request.user.groups.filter(name='editor').exists() or request.user.is_superuser
     
     return render(request, 'core/project_detail.html', {
@@ -113,7 +113,7 @@ def case_detail(request, case_id):
     comments = case.comments.all().order_by('-created_at')
     accessions = case.accessions.all()
     
-    # Vérifie si l'utilisateur fait partie du groupe 'editor' pour les permissions d'édition
+    # Check if user is part of the 'editor' group for editing permissions
     can_edit = request.user.groups.filter(name='editor').exists() or request.user.is_superuser
     
     # Initialize forms
