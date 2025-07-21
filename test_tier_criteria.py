@@ -20,14 +20,14 @@ def test_tier_criteria():
     # Test cases avec différents scénarios
     test_cases = [
         # (dna_t, dna_n, rna, expected_tier, description)
-        (85, 35, 120, 'A', 'Tier A: DNA(T)>=80, DNA(N)>=30, RNA>=100'),
-        (80, 30, 100, 'A', 'Tier A: limites exactes'),
+        (85, 35, 120, 'A', 'Tier A: DNA(T)>=80, DNA(N)>=30, RNA>=80'),
+        (80, 30, 80, 'A', 'Tier A: limites exactes'),
         (75, 35, None, 'B', 'Tier B: DNA(T) entre 30-80, DNA(N)>=30, pas de RNA'),
         (50, 40, 50, 'B', 'Tier B: DNA(T) entre 30-80, DNA(N)>=30, RNA<100'),
         (30, 30, None, 'B', 'Tier B: limites inférieures'),
         (85, 35, None, 'B', 'Tier B: DNA(T)>=80, DNA(N)>=30, pas de RNA (NOUVEAU)'),
         (120, 45, None, 'B', 'Tier B: DNA(T) élevé, DNA(N)>=30, pas de RNA (NOUVEAU)'),
-        (85, 35, 80, 'FAIL', 'Tier FAIL: DNA(T)>=80, DNA(N)>=30, RNA<100 (pas Tier A)'),
+        (85, 35, 79, 'B', 'Tier B: DNA(T)>=80, DNA(N)>=30, RNA<80 (pas Tier A, devient B)'),
         (25, 35, 120, 'FAIL', 'Tier FAIL: DNA(T)<30'),
         (85, 25, 120, 'FAIL', 'Tier FAIL: DNA(N)<30'),
         (None, 35, 120, 'FAIL', 'Tier FAIL: DNA(T) manquant'),

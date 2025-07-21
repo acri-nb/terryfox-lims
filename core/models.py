@@ -108,15 +108,17 @@ class Case(models.Model):
         if self.dna_t_coverage < 30 or self.dna_n_coverage < 30:
             return self.TIER_FA
         
-        # Tier A: DNA(T) >= 80X, DNA(N) >= 30X, RNA >= 100M reads
-        if self.dna_t_coverage >= 80 and self.dna_n_coverage >= 30 and self.rna_coverage is not None and self.rna_coverage >= 100:
+        # Tier A: DNA(T) >= 80X, DNA(N) >= 30X, RNA >= 80M reads
+        if self.dna_t_coverage >= 80 and self.dna_n_coverage >= 30 and self.rna_coverage is not None and self.rna_coverage >= 80:
             return self.TIER_A
         
-        # Tier B: Deux cas possibles
+        # Tier B: Trois cas possibles
         # 1. 30X <= DNA(T) <= 80X, DNA(N) >= 30X, tout ce qui concerne RNA (y compris l'absence de valeur)
         # 2. DNA(T) >= 80X, DNA(N) >= 30X, pas de valeur de RNA
+        # 3. DNA(T) >= 80X, DNA(N) >= 30X, RNA < 80M (pas assez pour Tier A)
         if ((30 <= self.dna_t_coverage <= 80 and self.dna_n_coverage >= 30) or 
-            (self.dna_t_coverage >= 80 and self.dna_n_coverage >= 30 and self.rna_coverage is None)):
+            (self.dna_t_coverage >= 80 and self.dna_n_coverage >= 30 and self.rna_coverage is None) or
+            (self.dna_t_coverage >= 80 and self.dna_n_coverage >= 30 and self.rna_coverage is not None and self.rna_coverage < 80)):
             return self.TIER_B
         
         # Default to FAIL for any other case

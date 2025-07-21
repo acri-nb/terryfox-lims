@@ -113,9 +113,9 @@
                                 <h6>Tier: <span class="badge badge-{{ case.tier }}">{{ case.tier }}</span></h6>
                                 <small class="text-muted">
                                     <i class="fas fa-info-circle me-1"></i> Tier is automatically calculated based on coverage values:<br>
-                                    - Tier A: DNA(T) ≥ 80X, DNA(N) ≥ 30X, RNA ≥ 100M<br>
-                                    - Tier B: 30X ≤ DNA(T) < 80X, DNA(N) ≥ 30X, RNA ≥ 100M<br>
-                                    - FAIL: DNA(T) < 30X or DNA(N) < 30X or RNA < 100M
+                                    - Tier A: DNA(T) ≥ 80X, DNA(N) ≥ 30X, RNA ≥ 80M<br>
+                                    - Tier B: 30X ≤ DNA(T) ≤ 80X, DNA(N) ≥ 30X (any RNA) OR DNA(T) ≥ 80X, DNA(N) ≥ 30X, no RNA<br>
+                                    - FAIL: DNA(T) < 30X OR DNA(N) < 30X
                                 </small>
                             </div>
                         </div>
