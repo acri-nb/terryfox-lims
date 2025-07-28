@@ -27,6 +27,7 @@
                     <tr>
                         <th><i class="fas fa-user me-1"></i> Username</th>
                         <th><i class="fas fa-id-card me-1"></i> Full Name</th>
+                        <th><i class="fas fa-toggle-on me-1"></i> Status</th>
                         <th><i class="fas fa-shield-alt me-1"></i> Role</th>
                         <th><i class="fas fa-calendar me-1"></i> Last Login</th>
                         <th><i class="fas fa-calendar-plus me-1"></i> Date Joined</th>
@@ -38,17 +39,19 @@
                     <tr>
                         <td>
                             <strong>{{ user_info.user.username }}</strong>
-                            {% if user_info.user.is_active %}
-                                <span class="badge bg-success ms-1">Active</span>
-                            {% else %}
-                                <span class="badge bg-secondary ms-1">Inactive</span>
-                            {% endif %}
                         </td>
                         <td>
                             {% if user_info.user.first_name or user_info.user.last_name %}
                                 {{ user_info.user.first_name }} {{ user_info.user.last_name }}
                             {% else %}
                                 <em class="text-muted">No name provided</em>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user_info.user.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
                             {% endif %}
                         </td>
                         <td>
@@ -64,9 +67,15 @@
                         <td>{{ user_info.user.date_joined|date:"M d, Y" }}</td>
                         <td class="text-center">
                             {% if user_info.user != user %}
+                            <a href="{% url 'user_update' user_info.user.id %}" 
+                               class="btn btn-sm btn-outline-primary me-1"
+                               title="Edit user">
+                                <i class="fas fa-edit"></i>
+                            </a>
                             <a href="{% url 'user_delete' user_info.user.id %}" 
                                class="btn btn-sm btn-outline-danger"
-                               onclick="return confirm('Are you sure you want to delete user {{ user_info.user.username }}?')">
+                               onclick="return confirm('Are you sure you want to delete user {{ user_info.user.username }}?')"
+                               title="Delete user">
                                 <i class="fas fa-trash"></i>
                             </a>
                             {% else %}

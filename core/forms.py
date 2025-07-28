@@ -357,4 +357,83 @@ class BatchUserCreateForm(forms.Form):
     def _generate_password(self, length=12):
         """Generate a random password."""
         chars = string.ascii_letters + string.digits
+        return ''.join(random.choices(chars, k=length))
+
+class UserUpdateForm(forms.ModelForm):
+    """Form for updating an existing user."""
+    
+    USER_ROLE_CHOICES = [
+        ('viewer', _('Viewer (Read Only)')),
+        ('editor', _('Editor (CRUD)')),
+        ('admin', _('Admin (Full Access)')),
+    ]
+    
+    first_name = forms.CharField(
+        max_length=30,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('First Name')}),
+        label=_('First Name')
+    )
+    last_name = forms.CharField(
+        max_length=30,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('Last Name')}),
+        label=_('Last Name')
+    )
+    role = forms.ChoiceField(
+        choices=USER_ROLE_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label=_('User Role')
+    )
+    is_active = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        label=_('Active User'),
+        help_text=_('Inactive users cannot log in to the system')
+    )
+    reset_password = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        label=_('Reset Password'),
+        help_text=_('Generate a new temporary password for this user')
+    )
+    
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name', 'is_active']
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['first_name'].required = True
+        self.fields['last_name'].required = True
+        
+        # Set initial role based on user's current role
+        if self.instance:
+            if self.instance.is_superuser:
+                self.fields['role'].initial = 'admin'
+            elif self.instance.groups.filter(name='editor').exists():
+                self.fields['role'].initial = 'editor'
+            elif self.instance.groups.filter(name='viewer').exists():
+                self.fields['role'].initial = 'viewer'
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        first_name = cleaned_data.get('first_name')
+        last_name = cleaned_data.get('last_name')
+        
+        if first_name and last_name and self.instance:
+            # Generate new username
+            new_username = f"{first_name.lower()}{last_name[0].lower()}"
+            
+            # Check if username already exists (excluding current user)
+            if User.objects.filter(username=new_username).exclude(id=self.instance.id).exists():
+                raise forms.ValidationError(
+                    _('A user with username "{}" already exists. Please use different names.').format(new_username)
+                )
+            
+            cleaned_data['username'] = new_username
+        
+        return cleaned_data
+    
+    def _generate_password(self, length=12):
+        """Generate a random password."""
+        chars = string.ascii_letters + string.digits
         return ''.join(random.choices(chars, k=length)) 

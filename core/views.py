@@ -12,7 +12,7 @@ import string
 import random
 
 from .models import Project, Case, Accession, Comment, ProjectLead
-from .forms import ProjectForm, CaseForm, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, CSVImportForm, UserCreateForm, BatchUserCreateForm
+from .forms import ProjectForm, CaseForm, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, CSVImportForm, UserCreateForm, BatchUserCreateForm, UserUpdateForm
 
 @login_required
 def home(request):
@@ -777,4 +777,59 @@ def user_delete(request, user_id):
     
     return render(request, 'core/user_delete.html', {
         'user_to_delete': user_to_delete,
+    })
+
+@login_required
+def user_update(request, user_id):
+    """
+    Update a user - Admin only
+    """
+    if not request.user.is_superuser:
+        messages.error(request, _('You do not have permission to update users.'))
+        return redirect('home')
+    
+    user_to_update = get_object_or_404(User, id=user_id)
+    
+    if request.method == 'POST':
+        form = UserUpdateForm(request.POST, instance=user_to_update)
+        if form.is_valid():
+            # Update basic user information
+            user = form.save(commit=False)
+            
+            # Update username if names changed
+            if 'username' in form.cleaned_data:
+                user.username = form.cleaned_data['username']
+            
+            user.save()
+            
+            # Update role
+            role = form.cleaned_data['role']
+            _assign_user_role(user, role)
+            
+            # Reset password if requested
+            new_password = None
+            if form.cleaned_data.get('reset_password'):
+                new_password = _generate_password()
+                user.set_password(new_password)
+                user.save()
+            
+            # Success message
+            if new_password:
+                messages.success(request, _(
+                    'User "{}" updated successfully! New password: {} '
+                    '(Please save this password as it will not be shown again)'
+                ).format(user.get_full_name() or user.username, new_password))
+            else:
+                messages.success(request, _(
+                    'User "{}" updated successfully!'
+                ).format(user.get_full_name() or user.username))
+            
+            return redirect('user_list')
+    else:
+        form = UserUpdateForm(instance=user_to_update)
+    
+    return render(request, 'core/user_update.html', {
+        'form': form,
+        'user_to_update': user_to_update,
+        'title': _('Update User'),
     })
