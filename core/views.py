@@ -640,8 +640,16 @@ def user_list(request):
             'role_class': role_class
         })
     
+    # Calculate statistics
+    total_admins = User.objects.filter(is_superuser=True).count()
+    total_editors = User.objects.filter(groups__name='editor').count()
+    total_viewers = User.objects.filter(groups__name='viewer').count()
+    
     return render(request, 'core/user_list.html', {
         'users_with_roles': users_with_roles,
+        'total_admins': total_admins,
+        'total_editors': total_editors,
+        'total_viewers': total_viewers,
     })
 
 @login_required
