@@ -4,12 +4,15 @@ from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Count
+from django.contrib.auth.models import User, Group
 import csv
 from io import TextIOWrapper
 from datetime import datetime
+import string
+import random
 
 from .models import Project, Case, Accession, Comment, ProjectLead
-from .forms import ProjectForm, CaseForm, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, CSVImportForm
+from .forms import ProjectForm, CaseForm, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, CSVImportForm, UserCreateForm, BatchUserCreateForm
 
 @login_required
 def home(request):
@@ -555,48 +558,223 @@ def csv_case_import(request, project_id):
 @login_required
 def csv_case_export(request, project_id):
     """
-    View for exporting all cases from a project to a CSV file
+    Export all cases of a project to CSV
     """
     project = get_object_or_404(Project, id=project_id)
     
-    # Create the HttpResponse object with CSV header
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    
-    # Clean project name and project lead name for filename
-    project_name_clean = project.name.replace(' ', '_').replace('/', '_')
-    project_lead_clean = ""
-    if project.project_lead:
-        project_lead_clean = f"_{project.project_lead.name.replace(' ', '_').replace('/', '_')}"
-    
-    filename = f"{project_name_clean}{project_lead_clean}_cases_{timestamp}.csv"
+    # Create the HttpResponse object with the appropriate CSV header.
     response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response['Content-Disposition'] = f'attachment; filename="cases_{project.name}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
     
-    # Create CSV writer
     writer = csv.writer(response)
+    writer.writerow(['CaseID', 'Other_ID', 'Status', 'DNAT', 'DNAN', 'RNA', 'Tier'])
     
-    # Write header
-    writer.writerow(['CaseID', 'Other_ID', 'Status', 'DNAT', 'DNAN', 'RNA', 'Tier', 'Created_Date', 'Updated_Date'])
-    
-    # Write case data
-    for case in project.cases.all().order_by('name'):
-        # Convert status to display value
-        status_display = case.get_status_display()
-        
-        # Format dates
-        created_date = case.created_at.strftime('%Y-%m-%d %H:%M:%S') if case.created_at else ''
-        updated_date = case.updated_at.strftime('%Y-%m-%d %H:%M:%S') if case.updated_at else ''
-        
+    for case in project.cases.all():
         writer.writerow([
             case.name,
             case.other_id or '',
-            status_display,
+            case.status,
             case.dna_t_coverage or '',
             case.dna_n_coverage or '',
             case.rna_coverage or '',
-            case.tier,
-            created_date,
-            updated_date
+            case.tier
         ])
     
     return response
+
+# User Management Views (Admin Only)
+
+def _generate_password(length=12):
+    """Generate a random password."""
+    chars = string.ascii_letters + string.digits
+    return ''.join(random.choices(chars, k=length))
+
+def _assign_user_role(user, role):
+    """Assign role to user by adding to appropriate group."""
+    # Clear existing groups
+    user.groups.clear()
+    
+    if role == 'admin':
+        user.is_superuser = True
+        user.is_staff = True
+        user.save()
+    else:
+        user.is_superuser = False
+        user.is_staff = False
+        user.save()
+        
+        # Add to appropriate group
+        group, created = Group.objects.get_or_create(name=role)
+        user.groups.add(group)
+
+@login_required
+def user_list(request):
+    """
+    List all users - Admin only
+    """
+    if not request.user.is_superuser:
+        messages.error(request, _('You do not have permission to access user management.'))
+        return redirect('home')
+    
+    users = User.objects.all().order_by('username')
+    
+    # Add role information to each user
+    users_with_roles = []
+    for user in users:
+        if user.is_superuser:
+            role = 'Admin'
+            role_class = 'danger'
+        elif user.groups.filter(name='editor').exists():
+            role = 'Editor'
+            role_class = 'success'
+        elif user.groups.filter(name='viewer').exists():
+            role = 'Viewer'
+            role_class = 'primary'
+        else:
+            role = 'No Role'
+            role_class = 'secondary'
+        
+        users_with_roles.append({
+            'user': user,
+            'role': role,
+            'role_class': role_class
+        })
+    
+    return render(request, 'core/user_list.html', {
+        'users_with_roles': users_with_roles,
+    })
+
+@login_required
+def user_create(request):
+    """
+    Create a single user - Admin only
+    """
+    if not request.user.is_superuser:
+        messages.error(request, _('You do not have permission to create users.'))
+        return redirect('home')
+    
+    if request.method == 'POST':
+        form = UserCreateForm(request.POST)
+        if form.is_valid():
+            # Create user
+            user = User(
+                username=form.cleaned_data['username'],
+                first_name=form.cleaned_data['first_name'],
+                last_name=form.cleaned_data['last_name'],
+                email=''  # Email is optional
+            )
+            
+            # Generate password
+            password = _generate_password()
+            user.set_password(password)
+            user.save()
+            
+            # Assign role
+            role = form.cleaned_data['role']
+            _assign_user_role(user, role)
+            
+            # Store credentials for display
+            credentials = f"{user.username}:{password}"
+            
+            messages.success(request, _(
+                'User "{}" created successfully! Username: {} | Password: {} '
+                '(Please save these credentials as they will not be shown again)'
+            ).format(user.get_full_name(), user.username, password))
+            
+            return redirect('user_list')
+    else:
+        form = UserCreateForm()
+    
+    return render(request, 'core/user_create.html', {
+        'form': form,
+        'title': _('Create User'),
+    })
+
+@login_required
+def batch_user_create(request):
+    """
+    Create multiple users at once - Admin only
+    """
+    if not request.user.is_superuser:
+        messages.error(request, _('You do not have permission to create users.'))
+        return redirect('home')
+    
+    if request.method == 'POST':
+        form = BatchUserCreateForm(request.POST)
+        if form.is_valid():
+            users_data = form.cleaned_data['users_data']
+            role = form.cleaned_data['role']
+            
+            created_users = []
+            credentials = []
+            
+            for user_data in users_data:
+                # Create user
+                user = User(
+                    username=user_data['username'],
+                    first_name=user_data['first_name'],
+                    last_name=user_data['last_name'],
+                    email=''  # Email is optional
+                )
+                
+                # Generate password
+                password = _generate_password()
+                user.set_password(password)
+                user.save()
+                
+                # Assign role
+                _assign_user_role(user, role)
+                
+                created_users.append(user)
+                credentials.append(f"{user.username}:{password}")
+            
+            # Create downloadable credentials file
+            response = HttpResponse(content_type='text/plain')
+            response['Content-Disposition'] = f'attachment; filename="user_credentials_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt"'
+            
+            response.write("# User Credentials - TerryFox LIMS\n")
+            response.write(f"# Created on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            response.write(f"# Total users created: {len(created_users)}\n")
+            response.write("# Format: username:password\n\n")
+            
+            for credential in credentials:
+                response.write(credential + '\n')
+            
+            messages.success(request, _(
+                '{} users created successfully! Credentials file will be downloaded automatically.'
+            ).format(len(created_users)))
+            
+            return response
+    else:
+        form = BatchUserCreateForm()
+    
+    return render(request, 'core/batch_user_create.html', {
+        'form': form,
+        'title': _('Create Multiple Users'),
+    })
+
+@login_required
+def user_delete(request, user_id):
+    """
+    Delete a user - Admin only
+    """
+    if not request.user.is_superuser:
+        messages.error(request, _('You do not have permission to delete users.'))
+        return redirect('home')
+    
+    user_to_delete = get_object_or_404(User, id=user_id)
+    
+    # Prevent self-deletion
+    if user_to_delete == request.user:
+        messages.error(request, _('You cannot delete your own account.'))
+        return redirect('user_list')
+    
+    if request.method == 'POST':
+        username = user_to_delete.username
+        user_to_delete.delete()
+        messages.success(request, _('User "{}" has been deleted successfully.').format(username))
+        return redirect('user_list')
+    
+    return render(request, 'core/user_delete.html', {
+        'user_to_delete': user_to_delete,
+    })

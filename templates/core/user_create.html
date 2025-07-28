@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ title }} | TerryFox LIMS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0"><i class="fas fa-user-plus me-2"></i> {{ title }}</h1>
+    <a href="{% url 'user_list' %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i> Back to User List
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-user me-2"></i> User Information</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.first_name.id_for_label }}" class="form-label">
+                                    <i class="fas fa-user me-1"></i> {{ form.first_name.label }}
+                                </label>
+                                {{ form.first_name }}
+                                {% if form.first_name.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {{ form.first_name.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.last_name.id_for_label }}" class="form-label">
+                                    <i class="fas fa-user me-1"></i> {{ form.last_name.label }}
+                                </label>
+                                {{ form.last_name }}
+                                {% if form.last_name.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {{ form.last_name.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.role.id_for_label }}" class="form-label">
+                            <i class="fas fa-shield-alt me-1"></i> {{ form.role.label }}
+                        </label>
+                        {{ form.role }}
+                        {% if form.role.errors %}
+                            <div class="text-danger small mt-1">
+                                {{ form.role.errors }}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">
+                            <small>
+                                <strong>Viewer:</strong> Read-only access to all information<br>
+                                <strong>Editor:</strong> Full CRUD access to projects, cases, and project leads<br>
+                                <strong>Admin:</strong> Full system access including user management
+                            </small>
+                        </div>
+                    </div>
+                    
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
+                    
+                    <div class="d-flex justify-content-end">
+                        <a href="{% url 'user_list' %}" class="btn btn-secondary me-2">
+                            <i class="fas fa-times me-1"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i> Create User
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card bg-light">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i> Information</h6>
+            </div>
+            <div class="card-body">
+                <h6><i class="fas fa-user me-1"></i> Username Generation</h6>
+                <p class="small text-muted">
+                    The username will be automatically generated from the first name + first letter of the last name.
+                </p>
+                <p class="small">
+                    <strong>Example:</strong><br>
+                    First Name: Alex<br>
+                    Last Name: Brousseau<br>
+                    <strong>Username:</strong> alexb
+                </p>
+                
+                <hr>
+                
+                <h6><i class="fas fa-key me-1"></i> Password</h6>
+                <p class="small text-muted">
+                    A temporary password will be automatically generated and displayed after user creation.
+                </p>
+                
+                <hr>
+                
+                <h6><i class="fas fa-shield-alt me-1"></i> User Roles</h6>
+                <div class="small">
+                    <div class="mb-2">
+                        <span class="badge bg-primary">Viewer</span>
+                        <div class="text-muted">Read-only access</div>
+                    </div>
+                    <div class="mb-2">
+                        <span class="badge bg-success">Editor</span>
+                        <div class="text-muted">CRUD operations</div>
+                    </div>
+                    <div class="mb-2">
+                        <span class="badge bg-danger">Admin</span>
+                        <div class="text-muted">Full system access</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -1,6 +1,9 @@
 from django import forms
 from django.forms import inlineformset_factory
 from django.utils.translation import gettext_lazy as _
+from django.contrib.auth.models import User, Group
+import string
+import random
 
 from .models import Project, Case, Comment, Accession, ProjectLead
 
@@ -202,4 +205,156 @@ class CaseFilterForm(forms.Form):
         choices=[('', _('All Tiers'))] + Case.TIER_CHOICES,
         required=False,
         widget=forms.Select(attrs={'class': 'form-select'})
-    ) 
+    )
+
+class UserCreateForm(forms.ModelForm):
+    """Form for creating a single user."""
+    
+    USER_ROLE_CHOICES = [
+        ('viewer', _('Viewer (Read Only)')),
+        ('editor', _('Editor (CRUD)')),
+        ('admin', _('Admin (Full Access)')),
+    ]
+    
+    first_name = forms.CharField(
+        max_length=30,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('First Name')}),
+        label=_('First Name')
+    )
+    last_name = forms.CharField(
+        max_length=30,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('Last Name')}),
+        label=_('Last Name')
+    )
+    role = forms.ChoiceField(
+        choices=USER_ROLE_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label=_('User Role'),
+        initial='viewer'
+    )
+    
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name']
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['first_name'].required = True
+        self.fields['last_name'].required = True
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        first_name = cleaned_data.get('first_name')
+        last_name = cleaned_data.get('last_name')
+        
+        if first_name and last_name:
+            # Generate username
+            username = self._generate_username(first_name, last_name)
+            
+            # Check if username already exists
+            if User.objects.filter(username=username).exists():
+                raise forms.ValidationError(
+                    _('A user with username "{}" already exists. Please use different names.').format(username)
+                )
+            
+            cleaned_data['username'] = username
+        
+        return cleaned_data
+    
+    def _generate_username(self, first_name, last_name):
+        """Generate username from first name + first letter of last name."""
+        return f"{first_name.lower()}{last_name[0].lower()}"
+    
+    def _generate_password(self, length=12):
+        """Generate a random password."""
+        chars = string.ascii_letters + string.digits
+        return ''.join(random.choices(chars, k=length))
+
+class BatchUserCreateForm(forms.Form):
+    """Form for creating multiple users at once."""
+    
+    USER_ROLE_CHOICES = [
+        ('viewer', _('Viewer (Read Only)')),
+        ('editor', _('Editor (CRUD)')),
+        ('admin', _('Admin (Full Access)')),
+    ]
+    
+    users_data = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control', 
+            'rows': 10,
+            'placeholder': _('Enter users data, one per line:\nFirst Name, Last Name\nExample:\nAlex, Brousseau\nMarie, Dupont\nJohn, Smith')
+        }),
+        label=_('Users Data'),
+        help_text=_('Enter one user per line in the format: First Name, Last Name')
+    )
+    
+    role = forms.ChoiceField(
+        choices=USER_ROLE_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label=_('User Role (for all users)'),
+        initial='viewer',
+        help_text=_('All users will be assigned this role')
+    )
+    
+    def clean_users_data(self):
+        users_data = self.cleaned_data['users_data']
+        parsed_users = []
+        existing_usernames = []
+        
+        lines = [line.strip() for line in users_data.split('\n') if line.strip()]
+        
+        if not lines:
+            raise forms.ValidationError(_('Please enter at least one user.'))
+        
+        for i, line in enumerate(lines, 1):
+            try:
+                parts = [part.strip() for part in line.split(',')]
+                if len(parts) != 2:
+                    raise forms.ValidationError(
+                        _('Line {}: Invalid format. Expected "First Name, Last Name"').format(i)
+                    )
+                
+                first_name, last_name = parts
+                
+                if not first_name or not last_name:
+                    raise forms.ValidationError(
+                        _('Line {}: First name and last name cannot be empty').format(i)
+                    )
+                
+                # Generate username
+                username = f"{first_name.lower()}{last_name[0].lower()}"
+                
+                # Check for duplicates in the current batch
+                if username in [user['username'] for user in parsed_users]:
+                    raise forms.ValidationError(
+                        _('Line {}: Duplicate username "{}" in the batch').format(i, username)
+                    )
+                
+                # Check if username already exists in database
+                if User.objects.filter(username=username).exists():
+                    existing_usernames.append(username)
+                
+                parsed_users.append({
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'username': username,
+                    'line_number': i
+                })
+                
+            except ValueError:
+                raise forms.ValidationError(
+                    _('Line {}: Invalid format. Expected "First Name, Last Name"').format(i)
+                )
+        
+        if existing_usernames:
+            raise forms.ValidationError(
+                _('The following usernames already exist: {}').format(', '.join(existing_usernames))
+            )
+        
+        return parsed_users
+    
+    def _generate_password(self, length=12):
+        """Generate a random password."""
+        chars = string.ascii_letters + string.digits
+        return ''.join(random.choices(chars, k=length)) 

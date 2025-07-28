@@ -24,4 +24,10 @@ urlpatterns = [
     path('project-leads/create/', views.project_lead_create, name='project_lead_create'),
     path('project-leads/<int:lead_id>/update/', views.project_lead_update, name='project_lead_update'),
     path('project-leads/<int:lead_id>/delete/', views.project_lead_delete, name='project_lead_delete'),
+    
+    # User Management URLs (Admin only)
+    path('users/', views.user_list, name='user_list'),
+    path('users/create/', views.user_create, name='user_create'),
+    path('users/batch-create/', views.batch_user_create, name='batch_user_create'),
+    path('users/<int:user_id>/delete/', views.user_delete, name='user_delete'),
 ] 

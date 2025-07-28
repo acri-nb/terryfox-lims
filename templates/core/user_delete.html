@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete User | TerryFox LIMS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0"><i class="fas fa-user-times me-2 text-danger"></i> Delete User</h1>
+    <a href="{% url 'user_list' %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i> Back to User List
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i> Confirm User Deletion</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Warning:</strong> This action cannot be undone. The user will be permanently removed from the system.
+                </div>
+                
+                <p class="mb-4">Are you sure you want to delete the following user?</p>
+                
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-user me-1"></i> Username:</h6>
+                                <p class="mb-2"><strong>{{ user_to_delete.username }}</strong></p>
+                                
+                                <h6><i class="fas fa-id-card me-1"></i> Full Name:</h6>
+                                <p class="mb-2">
+                                    {% if user_to_delete.first_name or user_to_delete.last_name %}
+                                        {{ user_to_delete.first_name }} {{ user_to_delete.last_name }}
+                                    {% else %}
+                                        <em class="text-muted">No name provided</em>
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-shield-alt me-1"></i> Role:</h6>
+                                <p class="mb-2">
+                                    {% if user_to_delete.is_superuser %}
+                                        <span class="badge bg-danger">Admin</span>
+                                    {% elif user_to_delete.groups.all.0.name == 'editor' %}
+                                        <span class="badge bg-success">Editor</span>
+                                    {% elif user_to_delete.groups.all.0.name == 'viewer' %}
+                                        <span class="badge bg-primary">Viewer</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">No Role</span>
+                                    {% endif %}
+                                </p>
+                                
+                                <h6><i class="fas fa-calendar-plus me-1"></i> Date Joined:</h6>
+                                <p class="mb-2">{{ user_to_delete.date_joined|date:"M d, Y" }}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-12">
+                                <h6><i class="fas fa-calendar me-1"></i> Last Login:</h6>
+                                <p class="mb-0">
+                                    {% if user_to_delete.last_login %}
+                                        {{ user_to_delete.last_login|date:"M d, Y H:i" }}
+                                    {% else %}
+                                        <em class="text-muted">Never logged in</em>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <form method="post" class="mt-4">
+                    {% csrf_token %}
+                    <div class="d-flex justify-content-end">
+                        <a href="{% url 'user_list' %}" class="btn btn-secondary me-2">
+                            <i class="fas fa-times me-1"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash me-1"></i> Delete User
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
