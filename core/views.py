@@ -47,7 +47,17 @@ def home(request):
     projects_by_lead = Project.objects.values('project_lead__name').annotate(count=Count('id')).order_by('-count')
     
     # Cases by status and tier
-    cases_by_status = Case.objects.values('status').annotate(count=Count('id')).order_by('-count')
+    # Get status statistics with proper display names
+    cases_by_status_raw = Case.objects.values('status').annotate(count=Count('id')).order_by('-count')
+    cases_by_status = []
+    status_choices_dict = dict(Case.STATUS_CHOICES)
+    for stat in cases_by_status_raw:
+        cases_by_status.append({
+            'status': stat['status'],
+            'status_display': status_choices_dict.get(stat['status'], stat['status']),
+            'count': stat['count']
+        })
+    
     cases_by_tier = Case.objects.values('tier').annotate(count=Count('id')).order_by('-count')
     
     return render(request, 'core/home.html', {
@@ -91,7 +101,18 @@ def project_detail(request, project_id):
     # Project statistics - always based on all cases
     all_cases = project.cases.all()
     total_cases = all_cases.count()
-    cases_by_status = all_cases.values('status').annotate(count=Count('id'))
+    
+    # Get status statistics with proper display names
+    cases_by_status_raw = all_cases.values('status').annotate(count=Count('id'))
+    cases_by_status = []
+    status_choices_dict = dict(Case.STATUS_CHOICES)
+    for stat in cases_by_status_raw:
+        cases_by_status.append({
+            'status': stat['status'],
+            'status_display': status_choices_dict.get(stat['status'], stat['status']),
+            'count': stat['count']
+        })
+    
     cases_by_tier = all_cases.values('tier').annotate(count=Count('id'))
     
     # Check if user is part of the 'editor' group for editing permissions
@@ -464,9 +485,11 @@ def csv_case_import(request, project_id):
                 error_rows = []
                 
                 # Map CSV status to model status
+                # Accept both lowercase (from export) and display values (legacy)
                 status_mapping = {}
                 for status_value, status_display in Case.STATUS_CHOICES:
-                    status_mapping[status_display] = status_value
+                    status_mapping[status_display] = status_value  # Accept display values (e.g., "Completed")
+                    status_mapping[status_value] = status_value    # Accept storage values (e.g., "completed")
                 
                 # Process each row
                 for row_num, row in enumerate(reader, start=2):  # Start at 2 to account for header row

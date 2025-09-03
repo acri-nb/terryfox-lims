@@ -1,4 +1,4 @@
 CaseID,Other_ID,Status,DNAT,DNAN,RNA,source_other_comments
-ACC-0123,,Received,,,,Initial sample received from lab
-ACC-0124,,Received,92,31,81,High quality sample with good coverage
-ACC-0125,,Received,,,,Sample needs reprocessing
+ACC-0123,,received,,,,Initial sample received from lab
+ACC-0124,,received,92,31,81,High quality sample with good coverage
+ACC-0125,,received,,,,Sample needs reprocessing

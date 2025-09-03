@@ -62,7 +62,7 @@
                 <h6 class="border-bottom pb-2 mt-4">Cases by Status</h6>
                 {% for status_stat in cases_by_status %}
                     <div class="d-flex justify-content-between mb-2">
-                        <span>{{ status_stat.status|title }}</span>
+                        <span>{{ status_stat.status_display }}</span>
                         <span class="badge badge-{{ status_stat.status }} rounded-pill">{{ status_stat.count }}</span>
                     </div>
                 {% empty %}
