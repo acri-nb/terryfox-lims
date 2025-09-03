@@ -156,15 +156,7 @@
                         <span class="badge bg-secondary">Inactive</span>
                     {% endif %}<br>
                     <strong>Role:</strong> 
-                    {% if user_to_update.is_superuser %}
-                        <span class="badge bg-danger">Admin</span>
-                    {% elif user_to_update.groups.filter.name == 'editor' %}
-                        <span class="badge bg-success">Editor</span>
-                    {% elif user_to_update.groups.filter.name == 'viewer' %}
-                        <span class="badge bg-primary">Viewer</span>
-                    {% else %}
-                        <span class="badge bg-secondary">No Role</span>
-                    {% endif %}
+                    <span class="badge bg-{{ current_role_class }}">{{ current_role }}</span>
                 </div>
                 
                 <hr>

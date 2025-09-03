@@ -836,8 +836,24 @@ def user_update(request, user_id):
     else:
         form = UserUpdateForm(instance=user_to_update)
     
+    # Get current role information from database
+    if user_to_update.is_superuser:
+        current_role = 'Admin'
+        current_role_class = 'danger'
+    elif user_to_update.groups.filter(name='editor').exists():
+        current_role = 'Editor'
+        current_role_class = 'success'
+    elif user_to_update.groups.filter(name='viewer').exists():
+        current_role = 'Viewer'
+        current_role_class = 'primary'
+    else:
+        current_role = 'No Role'
+        current_role_class = 'secondary'
+    
     return render(request, 'core/user_update.html', {
         'form': form,
         'user_to_update': user_to_update,
+        'current_role': current_role,
+        'current_role_class': current_role_class,
         'title': _('Update User'),
     })
