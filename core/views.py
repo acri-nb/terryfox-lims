@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
 from django.utils.translation import gettext_lazy as _
+from django.core.paginator import Paginator
 from django.db.models import Count
 from django.contrib.auth.models import User, Group
 import csv
@@ -12,7 +13,13 @@ import string
 import random
 
 from .models import Project, Case, Accession, Comment, ProjectLead
+
 from .forms import ProjectForm, CaseForm, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, CSVImportForm, UserCreateForm, BatchUserCreateForm, UserUpdateForm
+
+# Nombre de cas affiches par page. Le plus gros projet en compte 256 ; a 100 par
+# page la recherche et les filtres restent le chemin principal pour retrouver un
+# cas, la pagination n'etant qu'un garde-fou sur le poids de la page.
+CASES_PER_PAGE = 100
 
 @login_required
 def home(request):
@@ -98,6 +105,27 @@ def project_detail(request, project_id):
         if case_tier:
             cases = cases.filter(tier=case_tier)
     
+    # Les compteurs affiches sur chaque carte ({{ case.accessions.count }} et
+    # {{ case.comments.count }}) declenchaient une requete chacun, par cas :
+    # 522 requetes et 1,1 s sur P06 et ses 256 cas. Deux annotations suffisent.
+    cases = cases.annotate(
+        accessions_count=Count('accessions', distinct=True),
+        comments_count=Count('comments', distinct=True),
+    ).order_by('name')
+
+    # Pagination : la page renvoyait jusqu'a 926 Ko de HTML d'un coup.
+    paginator = Paginator(cases, CASES_PER_PAGE)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    # get_elided_page_range insere des points de suspension si le nombre de pages
+    # grandit, plutot que d'aligner cinquante numeros.
+    page_range = paginator.get_elided_page_range(page_obj.number, on_each_side=2, on_ends=1)
+
+    # Les liens de pagination doivent conserver les filtres en cours, sinon
+    # passer a la page 2 fait perdre la recherche.
+    params = request.GET.copy()
+    params.pop('page', None)
+    querystring = params.urlencode()
+
     # Project statistics - always based on all cases
     all_cases = project.cases.all()
     total_cases = all_cases.count()
@@ -120,7 +148,13 @@ def project_detail(request, project_id):
     
     return render(request, 'core/project_detail.html', {
         'project': project,
-        'cases': cases,
+        'cases': page_obj,          # iterable comme avant : le template ne change pas
+        'page_obj': page_obj,
+        'paginator': paginator,
+        'page_range': page_range,
+        'page_ellipsis': Paginator.ELLIPSIS,
+        'querystring': querystring,
+        'filtered_count': paginator.count,
         'total_cases': total_cases,
         'cases_by_status': cases_by_status,
         'cases_by_tier': cases_by_tier,

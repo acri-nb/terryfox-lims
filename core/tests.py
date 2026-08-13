@@ -13,8 +13,11 @@ des donnees : le calcul du tier, la suppression douce, et l'import CSV.
 
 from django.contrib.auth.models import Group, Permission, User
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
 from django.test import Client, TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+from django.utils import timezone
 
 from .models import Case, Comment, Project, ProjectLead
 
@@ -182,6 +185,91 @@ class CsvImportTests(TestCase):
         new = Case.objects.get(name="ACC-9999")
         self.assertIsNone(new.dna_t_coverage)
         self.assertEqual(new.tier, "FAIL")
+
+
+class ProjectListingTests(TestCase):
+    """Pagination et absence de N+1 sur la page projet.
+
+    Avant correction : 522 requetes, 1,1 s et 926 Ko pour les 256 cas de P06,
+    parce que chaque carte appelait case.accessions.count et case.comments.count.
+    """
+
+    PAGE_SIZE = 100
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("admin2", password="x")
+        self.project = Project.objects.create(name="P gros", created_by=self.admin)
+        for i in range(250):
+            case = Case.objects.create(
+                project=self.project, name=f"ACC-{i:04d}",
+                status=Case.STATUS_COMPLETED,
+                dna_t_coverage=85, dna_n_coverage=35, rna_coverage=100,
+            )
+            if i < 10:
+                Comment.objects.create(case=case, text="note", user=self.admin)
+        self.client = Client()
+        self.client.force_login(self.admin)
+        self.url = reverse("project_detail", kwargs={"project_id": self.project.id})
+
+    def test_query_count_does_not_grow_with_case_count(self):
+        """L'invariant qui compte n'est pas un chiffre absolu, c'est l'absence de N+1.
+
+        On compare un petit projet a un gros : le nombre de requetes doit etre
+        identique. Avec l'ancien code il valait 2xN+10, soit 522 pour 256 cas.
+        """
+        small = Project.objects.create(name="P petit", created_by=self.admin)
+        for i in range(3):
+            case = Case.objects.create(project=small, name=f"ACC-9{i:03d}")
+            Comment.objects.create(case=case, text="note", user=self.admin)
+
+        small_url = reverse("project_detail", kwargs={"project_id": small.id})
+        with CaptureQueriesContext(connection) as few:
+            self.client.get(small_url)
+        with CaptureQueriesContext(connection) as many:
+            self.client.get(self.url)
+
+        self.assertEqual(
+            len(few.captured_queries), len(many.captured_queries),
+            f"3 cas -> {len(few.captured_queries)} requetes, "
+            f"250 cas -> {len(many.captured_queries)} : le nombre de requetes "
+            f"depend du nombre de cas, le N+1 est de retour",
+        )
+        self.assertLess(len(many.captured_queries), 20)
+
+    def test_pages_cover_every_case_exactly_once(self):
+        seen = []
+        for page in (1, 2, 3):
+            response = self.client.get(self.url, {"page": page})
+            seen += [c.name for c in response.context["cases"]]
+        self.assertEqual(len(seen), 250)
+        self.assertEqual(len(set(seen)), 250, "un cas apparait sur deux pages")
+
+    def test_out_of_range_and_invalid_pages_do_not_500(self):
+        for page in ("0", "999", "abc", "-1", ""):
+            with self.subTest(page=page):
+                self.assertEqual(self.client.get(self.url, {"page": page}).status_code, 200)
+
+    def test_filters_survive_pagination(self):
+        response = self.client.get(self.url, {"status": Case.STATUS_COMPLETED, "page": 2})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("status=completed", response.context["querystring"])
+
+    def test_statistics_cover_all_cases_not_just_the_page(self):
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.context["cases"]), self.PAGE_SIZE)
+        self.assertEqual(response.context["total_cases"], 250)
+
+    def test_annotated_counts_match_reality(self):
+        response = self.client.get(self.url)
+        for case in list(response.context["cases"])[:15]:
+            with self.subTest(case=case.name):
+                self.assertEqual(case.comments_count, case.comments.count())
+                self.assertEqual(case.accessions_count, case.accessions.count())
+
+    def test_deleted_cases_never_appear(self):
+        Case.objects.filter(name__lt="ACC-0010").update(deleted_at=timezone.now())
+        response = self.client.get(self.url)
+        self.assertEqual(response.context["filtered_count"], 240)
 
 
 class SmokeTests(TestCase):

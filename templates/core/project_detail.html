@@ -197,10 +197,10 @@
                     <div class="card-footer bg-transparent d-flex justify-content-between align-items-center">
                         <div>
                             <span class="badge bg-light text-dark">
-                                <i class="fas fa-list me-1"></i> {{ case.accessions.count }} ACC
+                                <i class="fas fa-list me-1"></i> {{ case.accessions_count }} ACC
                             </span>
                             <span class="badge bg-light text-dark">
-                                <i class="fas fa-comments me-1"></i> {{ case.comments.count }}
+                                <i class="fas fa-comments me-1"></i> {{ case.comments_count }}
                             </span>
                         </div>
                         <div>
@@ -218,6 +218,44 @@
             </div>
         {% endfor %}
     </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+    <nav aria-label="Case pages" class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <span class="text-muted small">
+            Showing {{ page_obj.start_index }}&ndash;{{ page_obj.end_index }} of {{ filtered_count }} case{{ filtered_count|pluralize }}
+        </span>
+        <ul class="pagination mb-0">
+            <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+                {% if page_obj.has_previous %}
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if querystring %}&amp;{{ querystring }}{% endif %}" aria-label="Previous">
+                        <i class="fas fa-chevron-left"></i>
+                    </a>
+                {% else %}
+                    <span class="page-link"><i class="fas fa-chevron-left"></i></span>
+                {% endif %}
+            </li>
+            {% for num in page_range %}
+                {% if num == page_ellipsis %}
+                    <li class="page-item disabled"><span class="page-link">{{ num }}</span></li>
+                {% elif num == page_obj.number %}
+                    <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
+                {% else %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}{% if querystring %}&amp;{{ querystring }}{% endif %}">{{ num }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+            <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+                {% if page_obj.has_next %}
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if querystring %}&amp;{{ querystring }}{% endif %}" aria-label="Next">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                {% else %}
+                    <span class="page-link"><i class="fas fa-chevron-right"></i></span>
+                {% endif %}
+            </li>
+        </ul>
+    </nav>
+    {% endif %}
 {% else %}
     <div class="alert alert-info" role="alert">
         <i class="fas fa-info-circle me-2"></i> No cases available for this project yet.
