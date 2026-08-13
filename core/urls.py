@@ -5,6 +5,9 @@ urlpatterns = [
     # Home page
     path('', views.home, name='home'),
     
+    # Recherche transverse (ACC ou Biobank ID)
+    path('search/', views.case_search, name='case_search'),
+
     # Project URLs
     path('projects/<int:project_id>/', views.project_detail, name='project_detail'),
     path('projects/create/', views.project_create, name='project_create'),

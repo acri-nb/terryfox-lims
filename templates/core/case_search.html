@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block title %}Search | TerryFox LIMS{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+        <li class="breadcrumb-item active">Search</li>
+    </ol>
+</nav>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-8">
+                <label for="q" class="form-label">Search every project by ACC or Biobank ID</label>
+                <input type="search" class="form-control" id="q" name="q" value="{{ query }}"
+                       placeholder="e.g. ACC-0142 or N-BBN 440" autocomplete="off" autofocus>
+            </div>
+            <div class="col-md-auto">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-search me-1"></i> Search
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if query %}
+    {% if results %}
+        <p class="text-muted">
+            {{ total }} case{{ total|pluralize }} matching &laquo;&nbsp;{{ query }}&nbsp;&raquo;
+            {% if truncated %}<span class="text-warning">— showing the first {{ limit }}, narrow your search to see the rest</span>{% endif %}
+        </p>
+
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ACC</th>
+                            <th>Biobank ID</th>
+                            <th>Project</th>
+                            <th>Status</th>
+                            <th>Tier</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for case in results %}
+                        <tr>
+                            <td class="font-monospace">
+                                <a href="{% url 'case_detail' case_id=case.id %}">{{ case.name }}</a>
+                            </td>
+                            <td class="font-monospace">{{ case.biobank_id|default:"--" }}</td>
+                            <td>
+                                <a href="{% url 'project_detail' project_id=case.project.id %}"
+                                   class="text-decoration-none">{{ case.project.name }}</a>
+                            </td>
+                            <td><span class="badge badge-{{ case.status }} rounded-pill">{{ case.get_status_display }}</span></td>
+                            <td><span class="badge badge-{{ case.tier }} rounded-pill">{{ case.tier }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            No case matches &laquo;&nbsp;{{ query }}&nbsp;&raquo;. The search looks at both the ACC
+            and the Biobank ID, anywhere in the value.
+        </div>
+    {% endif %}
+{% endif %}
+{% endblock %}

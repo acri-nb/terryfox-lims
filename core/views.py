@@ -4,7 +4,8 @@ from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
 from django.utils.translation import gettext_lazy as _
 from django.core.paginator import Paginator
-from django.db.models import Count
+from django.db import transaction
+from django.db.models import Count, Q
 from django.contrib.auth.models import User, Group
 import csv
 from io import TextIOWrapper
@@ -12,7 +13,7 @@ from datetime import datetime
 import string
 import random
 
-from .models import Project, Case, Accession, Comment, ProjectLead
+from .models import Project, Case, Accession, Comment, ProjectLead, IdentifierSequence
 
 from .forms import ProjectForm, CaseForm, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, CSVImportForm, UserCreateForm, BatchUserCreateForm, UserUpdateForm
 
@@ -77,6 +78,41 @@ def home(request):
         'filter_form': filter_form,
     })
 
+SEARCH_LIMIT = 200
+
+
+@login_required
+def case_search(request):
+    """Recherche d'un cas dans tous les projets, par ACC ou par Biobank ID.
+
+    L'application n'avait aucune recherche transverse : retrouver un cas dont on
+    ignore le projet obligeait a ouvrir les projets un par un. C'est pourtant le
+    geste le plus courant quand on arrive avec un identifiant de biobanque en
+    main.
+    """
+    query = (request.GET.get('q') or '').strip()
+    results = []
+    total = 0
+
+    if query:
+        matches = (
+            Case.objects
+            .filter(Q(name__icontains=query) | Q(biobank_id__icontains=query))
+            .select_related('project')
+            .order_by('name')
+        )
+        total = matches.count()
+        results = matches[:SEARCH_LIMIT]
+
+    return render(request, 'core/case_search.html', {
+        'query': query,
+        'results': results,
+        'total': total,
+        'truncated': total > SEARCH_LIMIT,
+        'limit': SEARCH_LIMIT,
+    })
+
+
 @login_required
 def project_detail(request, project_id):
     """
@@ -97,8 +133,12 @@ def project_detail(request, project_id):
         case_tier = filter_form.cleaned_data.get('tier')
         
         if case_name:
-            cases = cases.filter(name__icontains=case_name)
-        
+            # Un seul champ, deux identifiants : personne ne doit avoir a savoir
+            # dans lequel des deux chercher.
+            cases = cases.filter(
+                Q(name__icontains=case_name) | Q(biobank_id__icontains=case_name)
+            )
+
         if case_status:
             cases = cases.filter(status=case_status)
             
@@ -331,67 +371,46 @@ def case_create(request, project_id):
 @login_required
 @permission_required('core.add_case', raise_exception=True)
 def batch_case_create(request, project_id):
-    """
-    View for creating multiple cases in a batch within a project
-    """
+    """Cree un lot de cas a partir d'une liste de Biobank ID collee."""
     project = get_object_or_404(Project, id=project_id)
-    
+
     if request.method == 'POST':
         form = BatchCaseForm(request.POST)
         if form.is_valid():
-            min_case_number = form.cleaned_data['min_case_number']
-            max_case_number = form.cleaned_data['max_case_number']
-            batch_name = form.cleaned_data['batch_name']
-            status = form.cleaned_data['status']
-            rna_coverage = form.cleaned_data['rna_coverage']
-            dna_t_coverage = form.cleaned_data['dna_t_coverage']
-            dna_n_coverage = form.cleaned_data['dna_n_coverage']
-            
-            cases_created = 0
-            
-            # Create cases with numbers from min to max (inclusive)
-            for i in range(min_case_number, max_case_number + 1):
-                case_name = f"{batch_name}-{i}"
-                
-                # Check if a case with this name already exists in the project
-                if Case.objects.filter(project=project, name=case_name).exists():
-                    continue
-                
-                case = Case(
-                    project=project,
-                    name=case_name,
-                    status=status,
-                    rna_coverage=rna_coverage,
-                    dna_t_coverage=dna_t_coverage,
-                    dna_n_coverage=dna_n_coverage
-                )
-                case.save()
-                cases_created += 1
-            
-            if cases_created > 0:
-                messages.success(
-                    request, 
-                    _('Successfully created {count} cases in batch "{batch}" (from {min} to {max})!').format(
-                        count=cases_created, 
-                        batch=batch_name,
-                        min=min_case_number,
-                        max=max_case_number
+            identifiants = form.cleaned_data['biobank_ids']
+
+            # Les ACC sont reserves en une seule fois : un seul aller-retour avec
+            # le compteur, et des numeros consecutifs pour tout le lot.
+            numeros = IdentifierSequence.allocate(len(identifiants))
+
+            with transaction.atomic():
+                cases = []
+                for numero, biobank_id in zip(numeros, identifiants):
+                    case = Case(
+                        project=project,
+                        acc_number=numero,
+                        biobank_id=biobank_id,
+                        status=form.cleaned_data['status'],
+                        rna_coverage=form.cleaned_data['rna_coverage'],
+                        dna_t_coverage=form.cleaned_data['dna_t_coverage'],
+                        dna_n_coverage=form.cleaned_data['dna_n_coverage'],
                     )
+                    case.save()
+                    cases.append(case)
+
+            messages.success(
+                request,
+                _('Created {count} cases: {first} to {last}.').format(
+                    count=len(cases), first=cases[0].name, last=cases[-1].name,
                 )
-            else:
-                messages.warning(
-                    request, 
-                    _('No new cases were created. Cases with these names may already exist.')
-                )
-                
+            )
             return redirect('project_detail', project_id=project.id)
     else:
         form = BatchCaseForm()
-    
+
     return render(request, 'core/batch_case_form.html', {
-        'form': form, 
+        'form': form,
         'project': project,
-        'title': _('Create Cases in Batch')
     })
 
 @login_required
@@ -527,11 +546,18 @@ def csv_case_import(request, project_id):
                 reader = csv.DictReader(csv_data)
                 
                 # Validate CSV headers
-                required_headers = ['CaseID', 'Other_ID', 'Status', 'DNAT', 'DNAN', 'RNA']
+                # Biobank_ID est le nouveau nom de la colonne. Other_ID reste
+                # accepte : les equipes ont des fichiers existants a ce format,
+                # et rien ne justifie de les invalider.
+                required_headers = ['CaseID', 'Status', 'DNAT', 'DNAN', 'RNA']
+                biobank_header = next(
+                    (h for h in ('Biobank_ID', 'Other_ID') if h in (reader.fieldnames or [])),
+                    None,
+                )
                 optional_headers = ['source_other_comments']
                 csv_headers = reader.fieldnames
                 
-                if not all(header in csv_headers for header in required_headers):
+                if not all(header in csv_headers for header in required_headers) or biobank_header is None:
                     messages.error(
                         request, 
                         _('CSV file is missing required headers. Please use the template.')
@@ -559,8 +585,8 @@ def csv_case_import(request, project_id):
                     if not case_id:
                         continue
                     
-                    # Get Other_ID (optional field)
-                    other_id = row['Other_ID'].strip() if row['Other_ID'].strip() else None
+                    # Biobank ID (facultatif)
+                    biobank_id = (row.get(biobank_header) or '').strip() or None
                     
                     # Get source_other_comments (optional field)
                     source_comment = row.get('source_other_comments', '').strip() if 'source_other_comments' in row else None
@@ -585,7 +611,7 @@ def csv_case_import(request, project_id):
                         project=project,
                         name=case_id,
                         defaults={
-                            'other_id': other_id,
+                            'biobank_id': biobank_id,
                             'status': status_mapping[status],
                             'dna_t_coverage': dna_t,
                             'dna_n_coverage': dna_n,
@@ -606,8 +632,8 @@ def csv_case_import(request, project_id):
                         # Effacer une valeur doit rester un geste explicite, fait
                         # depuis le formulaire du cas.
                         case.status = status_mapping[status]
-                        if other_id is not None:
-                            case.other_id = other_id
+                        if biobank_id is not None:
+                            case.biobank_id = biobank_id
                         if dna_t is not None:
                             case.dna_t_coverage = dna_t
                         if dna_n is not None:
@@ -616,7 +642,7 @@ def csv_case_import(request, project_id):
                             case.rna_coverage = rna
 
                         for field, incoming in (
-                            ('other_id', other_id),
+                            ('biobank_id', biobank_id),
                             ('dna_t_coverage', dna_t),
                             ('dna_n_coverage', dna_n),
                             ('rna_coverage', rna),
@@ -680,12 +706,12 @@ def csv_case_export(request, project_id):
     response['Content-Disposition'] = f'attachment; filename="cases_{project.name}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
     
     writer = csv.writer(response)
-    writer.writerow(['CaseID', 'Other_ID', 'Status', 'DNAT', 'DNAN', 'RNA', 'Tier'])
+    writer.writerow(['CaseID', 'Biobank_ID', 'Status', 'DNAT', 'DNAN', 'RNA', 'Tier'])
     
     for case in project.cases.all():
         writer.writerow([
             case.name,
-            case.other_id or '',
+            case.biobank_id or '',
             case.status,
             case.dna_t_coverage or '',
             case.dna_n_coverage or '',

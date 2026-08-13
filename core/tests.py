@@ -19,7 +19,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Case, Comment, Project, ProjectLead
+from .models import Case, Comment, IdentifierSequence, Project, ProjectLead, format_acc
 
 
 def make_editor(username="editor1"):
@@ -148,7 +148,7 @@ class CsvImportTests(TestCase):
         self.editor = make_editor("editor2")
         self.project = Project.objects.create(name="P CSV", created_by=self.editor)
         self.case = Case.objects.create(
-            project=self.project, name="ACC-0042", other_id="N-BBN 440",
+            project=self.project, name="ACC-0042", biobank_id="N-BBN 440",
             dna_t_coverage=82.46, dna_n_coverage=34.22, rna_coverage=136.3,
         )
         self.client = Client()
@@ -169,7 +169,7 @@ class CsvImportTests(TestCase):
         self.assertEqual(self.case.dna_t_coverage, 82.46)
         self.assertEqual(self.case.dna_n_coverage, 34.22)
         self.assertEqual(self.case.rna_coverage, 136.3)
-        self.assertEqual(self.case.other_id, "N-BBN 440")
+        self.assertEqual(self.case.biobank_id, "N-BBN 440")
         self.assertEqual(self.case.tier, "A", "le tier ne doit pas basculer en FAIL")
 
     def test_supplied_values_still_overwrite(self):
@@ -178,6 +178,17 @@ class CsvImportTests(TestCase):
         self.case.refresh_from_db()
         self.assertEqual(self.case.dna_t_coverage, 123.4)
         self.assertEqual(self.case.dna_n_coverage, 34.22, "les cellules vides restent inchangees")
+
+    def test_both_biobank_headers_are_accepted(self):
+        """Les equipes ont des fichiers au format Other_ID : ils doivent marcher."""
+        for header in ("Biobank_ID", "Other_ID"):
+            with self.subTest(header=header):
+                self._import(
+                    f"CaseID,{header},Status,DNAT,DNAN,RNA\n"
+                    f"ACC-0042,VIA-{header},Completed,,,\n"
+                )
+                self.case.refresh_from_db()
+                self.assertEqual(self.case.biobank_id, f"VIA-{header}")
 
     def test_new_case_is_created_with_blanks_as_null(self):
         self._import("CaseID,Other_ID,Status,DNAT,DNAN,RNA\nACC-9999,,Received,,,\n")
@@ -270,6 +281,98 @@ class ProjectListingTests(TestCase):
         Case.objects.filter(name__lt="ACC-0010").update(deleted_at=timezone.now())
         response = self.client.get(self.url)
         self.assertEqual(response.context["filtered_count"], 240)
+
+
+class IdentifierTests(TestCase):
+    """L'ACC est genere par le LIMS ; le Biobank ID est ce par quoi on cherche."""
+
+    def setUp(self):
+        self.editor = make_editor("editor4")
+        self.project = Project.objects.create(name="P ids", created_by=self.editor)
+        self.client = Client()
+        self.client.force_login(self.editor)
+
+    def test_acc_is_assigned_and_formatted(self):
+        case = Case.objects.create(project=self.project, biobank_id="N-BBN 1")
+        self.assertIsNotNone(case.acc_number)
+        self.assertEqual(case.name, format_acc(case.acc_number))
+
+    def test_acc_numbers_never_repeat(self):
+        numbers = {Case.objects.create(project=self.project).acc_number for _ in range(20)}
+        self.assertEqual(len(numbers), 20)
+
+    def test_allocation_is_monotonic_and_skips_no_gaps_backwards(self):
+        first = IdentifierSequence.allocate(3)
+        second = IdentifierSequence.allocate(2)
+        self.assertEqual(first, list(range(first[0], first[0] + 3)))
+        self.assertGreater(second[0], first[-1], "le compteur ne doit jamais revenir en arriere")
+
+    def test_deleting_a_case_does_not_free_its_number_for_reuse(self):
+        case = Case.objects.create(project=self.project)
+        taken = case.acc_number
+        case.soft_delete()
+        self.assertGreater(Case.objects.create(project=self.project).acc_number, taken)
+
+    def test_duplicate_acc_is_refused(self):
+        from django.db.utils import IntegrityError
+        case = Case.objects.create(project=self.project)
+        with self.assertRaises(IntegrityError):
+            Case.objects.create(project=self.project, acc_number=case.acc_number)
+
+    def test_biobank_id_is_normalised(self):
+        case = Case.objects.create(project=self.project, biobank_id="   N-BBN 9   ")
+        self.assertEqual(case.biobank_id, "N-BBN 9")
+        self.assertIsNone(Case.objects.create(project=self.project, biobank_id="   ").biobank_id)
+
+    def test_duplicate_biobank_id_names_the_conflicting_case(self):
+        existing = Case.objects.create(project=self.project, biobank_id="N-BBN 42")
+        response = self.client.post(
+            reverse("case_create", kwargs={"project_id": self.project.id}),
+            {"biobank_id": "n-bbn 42", "status": Case.STATUS_CREATED},
+        )
+        body = response.content.decode()
+        self.assertIn(existing.name, body, "le message doit nommer le cas en conflit")
+        self.assertIn(self.project.name, body, "et son projet")
+
+    def test_duplicate_biobank_id_can_be_forced(self):
+        Case.objects.create(project=self.project, biobank_id="N-BBN 43")
+        self.client.post(
+            reverse("case_create", kwargs={"project_id": self.project.id}),
+            {"biobank_id": "N-BBN 43", "status": Case.STATUS_CREATED, "confirm_duplicate": "1"},
+        )
+        self.assertEqual(Case.objects.filter(biobank_id="N-BBN 43").count(), 2)
+
+    def test_project_search_finds_by_acc_and_by_biobank_id(self):
+        case = Case.objects.create(project=self.project, biobank_id="N-BBN 77")
+        url = reverse("project_detail", kwargs={"project_id": self.project.id})
+        for term in (case.name, "N-BBN 77", "bbn 77"):
+            with self.subTest(term=term):
+                found = [c.name for c in self.client.get(url, {"name": term}).context["cases"]]
+                self.assertIn(case.name, found)
+
+    def test_global_search_spans_projects(self):
+        other = Project.objects.create(name="P autre", created_by=self.editor)
+        here = Case.objects.create(project=self.project, biobank_id="SHARED-1")
+        there = Case.objects.create(project=other, biobank_id="SHARED-2")
+        results = self.client.get(reverse("case_search"), {"q": "SHARED"}).context["results"]
+        self.assertEqual({c.name for c in results}, {here.name, there.name})
+
+    def test_batch_paste_creates_one_case_per_line(self):
+        self.client.post(
+            reverse("batch_case_create", kwargs={"project_id": self.project.id}),
+            {"biobank_ids": "L-1\nL-2\n\n  L-3  ", "status": Case.STATUS_CREATED},
+        )
+        created = Case.objects.filter(biobank_id__startswith="L-").order_by("acc_number")
+        self.assertEqual([c.biobank_id for c in created], ["L-1", "L-2", "L-3"])
+        numbers = [c.acc_number for c in created]
+        self.assertEqual(numbers, list(range(numbers[0], numbers[0] + 3)))
+
+    def test_batch_refuses_a_list_repeating_itself(self):
+        self.client.post(
+            reverse("batch_case_create", kwargs={"project_id": self.project.id}),
+            {"biobank_ids": "D-1\nD-2\nD-1", "status": Case.STATUS_CREATED},
+        )
+        self.assertEqual(Case.objects.count(), 0, "aucun cas ne doit etre cree")
 
 
 class SmokeTests(TestCase):

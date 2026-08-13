@@ -40,10 +40,13 @@ class CaseForm(forms.ModelForm):
     
     class Meta:
         model = Case
-        fields = ['name', 'other_id', 'status', 'rna_coverage', 'dna_t_coverage', 'dna_n_coverage', 'tier']
+        # 'name' (l'ACC) n'est plus saisissable : le LIMS l'attribue.
+        fields = ['biobank_id', 'status', 'rna_coverage', 'dna_t_coverage', 'dna_n_coverage', 'tier']
         widgets = {
-            'name': forms.TextInput(attrs={'class': 'form-control'}),
-            'other_id': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Other ID (optional)'}),
+            'biobank_id': forms.TextInput(attrs={
+                'class': 'form-control', 'placeholder': 'e.g. N-BBN 440',
+                'autocomplete': 'off', 'autocapitalize': 'off', 'spellcheck': 'false',
+            }),
             'status': forms.Select(attrs={'class': 'form-select'}),
             'rna_coverage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'RNA Coverage in M'}),
             'dna_t_coverage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'DNA (T) Coverage in X'}),
@@ -51,77 +54,150 @@ class CaseForm(forms.ModelForm):
             'tier': forms.Select(attrs={'class': 'form-select', 'disabled': 'disabled'}),
         }
         help_texts = {
-            'other_id': _('Optional alternative identifier for this case'),
+            'biobank_id': _('The identifier the biobank uses. This is what people search by.'),
             'rna_coverage': _('RNA Coverage in million reads (M)'),
             'dna_t_coverage': _('DNA Tumor Coverage in X'),
             'dna_n_coverage': _('DNA Normal Coverage in X'),
             'tier': _('Tier will be calculated automatically based on coverage values'),
         }
     
+    # Case a cocher posee par le bouton "Create anyway" du modele : elle permet
+    # de passer outre le controle souple de doublon de Biobank ID.
+    confirm_duplicate = forms.BooleanField(required=False, widget=forms.HiddenInput)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Make tier field read-only - it will be calculated automatically
+        # Le tier est derive des couvertures, jamais saisi.
         self.fields['tier'].disabled = True
 
+    def clean_biobank_id(self):
+        """Controle souple : nomme le cas en conflit plutot que de bloquer.
+
+        Sans ce controle, une contrainte de base de donnees afficherait a la
+        technicienne un message du type
+        'Constraint "uniq_biobank_id" is violated' -- inexploitable. Et une
+        contrainte dure la bloquerait un jour sur le vrai identifiant d'un
+        patient, deux projets partageant un meme espace de numerotation nu.
+        """
+        value = (self.cleaned_data.get('biobank_id') or '').strip()
+        if not value:
+            return None
+
+        if self.data.get('confirm_duplicate'):
+            return value
+
+        probe = Case(biobank_id=value)
+        if self.instance and self.instance.pk:
+            probe.pk = self.instance.pk
+        conflict = probe.find_biobank_id_conflict()
+        if conflict:
+            self.biobank_id_conflict = conflict
+            raise forms.ValidationError(
+                _('Biobank ID "%(value)s" is already used by %(acc)s in %(project)s.'),
+                code='duplicate',
+                params={
+                    'value': value,
+                    'acc': conflict.name,
+                    'project': conflict.project.name,
+                },
+            )
+        return value
+
 class BatchCaseForm(forms.Form):
-    """Form for creating multiple cases in a batch."""
-    min_case_number = forms.IntegerField(
-        min_value=1,
-        widget=forms.NumberInput(attrs={'class': 'form-control'}),
-        label=_('Number of the first case'),
-        help_text=_('First case number in the sequence')
-    )
-    max_case_number = forms.IntegerField(
-        min_value=2,
-        widget=forms.NumberInput(attrs={'class': 'form-control'}),
-        label=_('Number of the last case'),
-        help_text=_('Last case number in the sequence')
-    )
-    batch_name = forms.CharField(
-        max_length=255,
-        widget=forms.TextInput(attrs={'class': 'form-control'}),
-        label=_('Batch Name'),
-        help_text=_('Will be used as prefix for case names (e.g., "Lung" with range 5-7 will create cases named "Lung-5", "Lung-6", "Lung-7")')
-    )
-    status = forms.ChoiceField(
-        choices=Case.STATUS_CHOICES,
-        widget=forms.Select(attrs={'class': 'form-select'}),
-        label=_('Default Status'),
-        initial=Case.STATUS_RECEIVED
-    )
-    rna_coverage = forms.FloatField(
-        required=False,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'RNA Coverage in M'}),
-        label=_('Default RNA Coverage (M)'),
-        help_text=_('RNA Coverage in million reads (M)')
-    )
-    dna_t_coverage = forms.FloatField(
-        required=False,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'DNA (T) Coverage in X'}),
-        label=_('Default DNA (T) Coverage (X)'),
-        help_text=_('DNA Tumor Coverage in X')
-    )
-    dna_n_coverage = forms.FloatField(
-        required=False,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'DNA (N) Coverage in X'}),
-        label=_('Default DNA (N) Coverage (X)'),
-        help_text=_('DNA Normal Coverage in X')
+    """Creation en lot : on colle une liste de Biobank ID, un par ligne.
+
+    L'ancien formulaire fabriquait des noms a partir d'un prefixe et d'un
+    intervalle numerique ("Lung-5", "Lung-6"...). Ce n'est plus possible :
+    l'ACC est desormais attribue par le LIMS. Mais le remplacer par un simple
+    champ "nombre de cas" donnerait N cas anonymes, que la technicienne devrait
+    ensuite ouvrir un par un pour saisir l'identifiant -- 50 pages pour ce qui
+    devrait etre un collage. D'ou la zone de texte.
+
+    Le meme motif existe deja dans ce code : BatchUserCreateForm.
+    """
+
+    biobank_ids = forms.CharField(
+        label=_('Biobank IDs'),
+        widget=forms.Textarea(attrs={
+            'class': 'form-control font-monospace',
+            'rows': 12,
+            'placeholder': 'N-BBN 501\nN-BBN 502\nN-BBN 503',
+            'autocomplete': 'off', 'spellcheck': 'false',
+        }),
+        help_text=_('One per line. The LIMS assigns the ACC identifiers.'),
     )
 
+    status = forms.ChoiceField(
+        label=_('Status for every case'),
+        choices=Case.STATUS_CHOICES,
+        initial=Case.STATUS_CREATED,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    rna_coverage = forms.FloatField(
+        required=False, label=_('RNA Coverage (M)'),
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+        help_text=_('Optional. Applied to every case in the batch.'),
+    )
+    dna_t_coverage = forms.FloatField(
+        required=False, label=_('DNA (T) Coverage (X)'),
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+        help_text=_('Optional. Applied to every case in the batch.'),
+    )
+    dna_n_coverage = forms.FloatField(
+        required=False, label=_('DNA (N) Coverage (X)'),
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+        help_text=_('Optional. Applied to every case in the batch.'),
+    )
+
+    # Posee par le bouton "Create anyway" quand des doublons sont signales.
+    confirm_duplicates = forms.BooleanField(required=False, widget=forms.HiddenInput)
+
+    def clean_biobank_ids(self):
+        """Renvoie la liste nettoyee, et refuse les doublons internes au collage."""
+        lignes = [l.strip() for l in (self.cleaned_data['biobank_ids'] or '').splitlines()]
+        lignes = [l for l in lignes if l]
+
+        if not lignes:
+            raise forms.ValidationError(_('Paste at least one Biobank ID.'))
+
+        vus, doublons = set(), []
+        for ligne in lignes:
+            cle = ligne.casefold()
+            if cle in vus:
+                doublons.append(ligne)
+            vus.add(cle)
+        if doublons:
+            raise forms.ValidationError(
+                _('The pasted list repeats: %(ids)s'),
+                params={'ids': ', '.join(sorted(set(doublons))[:10])},
+            )
+
+        return lignes
+
     def clean(self):
-        cleaned_data = super().clean()
-        min_case_number = cleaned_data.get('min_case_number')
-        max_case_number = cleaned_data.get('max_case_number')
-        
-        if min_case_number is not None and max_case_number is not None:
-            if max_case_number < min_case_number:
-                raise forms.ValidationError(_("The last case number must be greater than or equal to the first case number."))
-            
-            # Check that at least 2 cases will be created
-            if (max_case_number - min_case_number + 1) < 2:
-                raise forms.ValidationError(_("You must create at least 2 cases in a batch."))
-        
-        return cleaned_data
+        """Signale les Biobank ID deja presents ailleurs, sans bloquer definitivement."""
+        cleaned = super().clean()
+        identifiants = cleaned.get('biobank_ids') or []
+
+        if identifiants and not self.data.get('confirm_duplicates'):
+            conflits = list(
+                Case.objects
+                .filter(biobank_id__in=identifiants)
+                .select_related('project')[:10]
+            )
+            if conflits:
+                self.conflits = conflits
+                apercu = ', '.join(
+                    f'{c.biobank_id} ({c.name} in {c.project.name})' for c in conflits
+                )
+                raise forms.ValidationError(
+                    _('Already in the LIMS: %(list)s. Check these are different '
+                      'patients before continuing.'),
+                    code='duplicates',
+                    params={'list': apercu},
+                )
+        return cleaned
+
 
 class CSVImportForm(forms.Form):
     """Form for importing cases from a CSV file."""
@@ -188,12 +264,23 @@ class ProjectFilterForm(forms.Form):
         self.fields['project_lead'].queryset = ProjectLead.objects.all().order_by('name')
 
 class CaseFilterForm(forms.Form):
-    """Form for filtering cases on the project detail page."""
+    """Filtres de la page projet.
+
+    Le champ conserve le nom `name` : les signets et les liens existants du type
+    ?name=ACC-0042 continuent donc de fonctionner. Ce qui change, c'est ce qu'il
+    interroge -- l'ACC ET le Biobank ID. Sans cela, la demande "le Biobank ID
+    est le champ par lequel on cherche" serait ratee par omission : l'unique
+    champ de recherche de la page n'interrogeait que Case.name, devenu une
+    chaine generee par le LIMS.
+    """
+
     name = forms.CharField(
-        required=False, 
+        required=False,
+        label=_('Search'),
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': _('Search by name...')
+            'placeholder': _('ACC or Biobank ID...'),
+            'autocomplete': 'off',
         })
     )
     status = forms.ChoiceField(

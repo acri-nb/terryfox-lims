@@ -1,4 +1,5 @@
 from django.db import models, transaction
+from django.db.models import F, Max
 from django.contrib.auth.models import User, Group
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -47,6 +48,66 @@ class SoftDeleteModel(models.Model):
     def restore(self):
         self.deleted_at = None
         self.save(update_fields=['deleted_at'])
+
+
+# ---------------------------------------------------------------------------
+# Identifiants generes par le LIMS
+#
+# L'ACC n'est plus saisi a la main : le LIMS l'attribue. Le compteur est
+# monotone et ne reutilise jamais un numero libere -- un ACC retire peut deja
+# figurer sur une etiquette de congelateur ou un dossier papier, le reattribuer
+# ferait silencieusement porter le meme identifiant a deux patients differents.
+# ---------------------------------------------------------------------------
+
+ACC_PREFIX = 'ACC'
+ACC_SEQUENCE_KEY = 'acc'
+
+
+def format_acc(number):
+    """1499 -> 'ACC-1499'. Les 1329 cas existants suivent deja ce format."""
+    return f"{ACC_PREFIX}-{number:04d}"
+
+
+class IdentifierSequence(models.Model):
+    """Compteur monotone, une ligne par famille d'identifiants."""
+
+    key = models.CharField(max_length=32, primary_key=True)
+    last_value = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = _('Identifier sequence')
+        verbose_name_plural = _('Identifier sequences')
+
+    def __str__(self):
+        return f"{self.key} = {self.last_value}"
+
+    @classmethod
+    def allocate(cls, count=1, key=ACC_SEQUENCE_KEY):
+        """Reserve `count` numeros consecutifs et les renvoie.
+
+        UPDATE puis SELECT, dans cet ordre : la premiere instruction prend le
+        verrou d'ecriture de SQLite et le conserve jusqu'au commit, donc deux
+        allocations concurrentes se serialisent au lieu de s'entrelacer. Un
+        Max(acc_number) + 1 serait en situation de course avec trois workers
+        gunicorn, et select_for_update() n'est pas utilisable : le backend
+        SQLite de Django leve NotSupportedError.
+        """
+        if count < 1:
+            raise ValueError("count doit valoir au moins 1")
+
+        with transaction.atomic():
+            updated = cls.objects.filter(pk=key).update(last_value=F('last_value') + count)
+            if updated:
+                last = cls.objects.get(pk=key).last_value
+            else:
+                # Amorcage : demarrer au-dessus du plus grand numero existant.
+                # La migration 0021 seme normalement le compteur ; ce chemin
+                # n'est qu'un filet.
+                start = Case.all_objects.aggregate(m=Max('acc_number'))['m'] or 0
+                cls.objects.create(key=key, last_value=start + count)
+                last = start + count
+
+        return list(range(last - count + 1, last + 1))
 
 
 class ProjectLead(models.Model):
@@ -149,8 +210,20 @@ class Case(SoftDeleteModel):
     ]
     
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='cases')
-    name = models.CharField(max_length=255)
-    other_id = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Other ID'))
+
+    # Valeur numerique de l'ACC : c'est elle qui porte la contrainte d'unicite
+    # et le tri. `name` reste la chaine affichee partout ('ACC-0142'), derivee
+    # d'acc_number, pour ne rien casser dans les templates ni dans les exports.
+    acc_number = models.PositiveIntegerField(
+        null=True, blank=True, db_index=True, verbose_name=_('ACC number'))
+    name = models.CharField(max_length=255, verbose_name=_('ACC'))
+
+    # Anciennement other_id. C'est l'identifiant par lequel la biobanque
+    # recherche reellement ; il est rempli sur les 1329 cas existants.
+    biobank_id = models.CharField(
+        max_length=255, blank=True, null=True, db_index=True,
+        verbose_name=_('Biobank ID'),
+        help_text=_('The identifier used by the biobank. Searchable.'))
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default=STATUS_RECEIVED)
     
     # Coverage values
@@ -163,9 +236,40 @@ class Case(SoftDeleteModel):
     updated_at = models.DateTimeField(auto_now=True)
     
     def save(self, *args, **kwargs):
-        """Override save method to calculate tier based on coverage values."""
+        """Attribue l'ACC si besoin, normalise le Biobank ID, recalcule le tier."""
+        # Un cas cree sans identifiant recoit le prochain numero du compteur.
+        # Les cas anterieurs a la v2 portent deja un name et un acc_number : rien
+        # n'est reattribue.
+        if self.acc_number is None and not self.name:
+            self.acc_number = IdentifierSequence.allocate()[0]
+        if self.acc_number is not None:
+            self.name = format_acc(self.acc_number)
+
+        # Espaces superflus et chaine vide ramenes a NULL : sans cela, ' N-BBN 42'
+        # et 'N-BBN 42' seraient deux identifiants differents, et les recherches
+        # rateraient l'un des deux.
+        if self.biobank_id is not None:
+            self.biobank_id = self.biobank_id.strip() or None
+
         self.tier = self.calculate_tier()
         super().save(*args, **kwargs)
+
+    def find_biobank_id_conflict(self):
+        """Renvoie le cas actif portant deja ce Biobank ID, ou None.
+
+        Controle SOUPLE, volontairement : deux projets partagent aujourd'hui un
+        meme espace de numerotation nu (P08_CRC utilise 5..849, P09_BC_EV
+        102..850). Une contrainte dure bloquerait un jour une technicienne sur
+        le vrai identifiant d'un patient. La demande dit "ne peut plus etre cree
+        dans deux projets PAR ERREUR" : c'est une prevention d'erreur, pas un
+        axiome d'unicite.
+        """
+        if not self.biobank_id:
+            return None
+        qs = Case.objects.filter(biobank_id__iexact=self.biobank_id.strip())
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+        return qs.select_related('project').first()
     
     def calculate_tier(self):
         """Calculate tier based on coverage values."""
@@ -195,6 +299,20 @@ class Case(SoftDeleteModel):
     
     def __str__(self):
         return f"{self.project.name} - {self.name}"
+
+    class Meta(SoftDeleteModel.Meta):
+        constraints = [
+            # Unicite DURE sur l'ACC : il est genere par le LIMS, donc gratuite
+            # (0 doublon sur les 1329 cas existants). Conditionnee sur les cas
+            # vivants pour qu'un cas retire ne bloque rien.
+            models.UniqueConstraint(
+                fields=['acc_number'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='uniq_active_acc_number',
+                violation_error_message=_(
+                    'This ACC identifier is already used by another case.'),
+            ),
+        ]
 
 class Accession(models.Model):
     """Model to store accession numbers for a case."""
