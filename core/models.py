@@ -1,6 +1,53 @@
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth.models import User, Group
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+
+
+# ---------------------------------------------------------------------------
+# Suppression douce
+#
+# GARDE-FOU DONNEES : rien ne doit pouvoir quitter la base par le chemin d'une
+# interface web. Supprimer un projet effacait jusqu'ici le projet ET ses cas en
+# cascade -- mesure sur P06 : 256 cas detruits derriere une simple page de
+# confirmation. Les lignes sont desormais marquees, jamais retirees.
+# ---------------------------------------------------------------------------
+
+class AliveManager(models.Manager):
+    """Gestionnaire par defaut : ne voit que les lignes non supprimees."""
+
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=True)
+
+
+class SoftDeleteModel(models.Model):
+    deleted_at = models.DateTimeField(
+        null=True, blank=True, db_index=True, editable=False,
+        verbose_name=_('Deleted at'),
+    )
+
+    objects = AliveManager()
+    all_objects = models.Manager()  # y compris les lignes supprimees
+
+    class Meta:
+        abstract = True
+        # Le parcours des cles etrangeres passe par ce gestionnaire : sans cela,
+        # un commentaire dont le cas est supprime leverait DoesNotExist au lieu
+        # de rester consultable.
+        base_manager_name = 'all_objects'
+
+    @property
+    def is_deleted(self):
+        return self.deleted_at is not None
+
+    def soft_delete(self):
+        self.deleted_at = timezone.now()
+        self.save(update_fields=['deleted_at'])
+
+    def restore(self):
+        self.deleted_at = None
+        self.save(update_fields=['deleted_at'])
+
 
 class ProjectLead(models.Model):
     """Model representing a project lead in the LIMS."""
@@ -14,7 +61,7 @@ class ProjectLead(models.Model):
         verbose_name = _('Project Lead')
         verbose_name_plural = _('Project Leads')
 
-class Project(models.Model):
+class Project(SoftDeleteModel):
     """Model representing a research project in the LIMS."""
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
@@ -36,13 +83,35 @@ class Project(models.Model):
     def get_cases_count(self):
         """Return the number of cases in this project."""
         return self.cases.count()
+
+    def soft_delete(self):
+        """Marque le projet et ses cas encore vivants, en une seule transaction.
+
+        Le meme horodatage est pose partout, ce qui permet a restore() de rendre
+        exactement l'ensemble retire -- et pas les cas supprimes anterieurement.
+        """
+        now = timezone.now()
+        with transaction.atomic():
+            # .update() volontairement : pas de Case.save(), donc aucun tier recalcule.
+            self.cases.update(deleted_at=now)
+            self.deleted_at = now
+            self.save(update_fields=['deleted_at'])
+
+    def restore(self):
+        """Rend le projet et les cas retires lors du meme geste."""
+        stamp = self.deleted_at
+        with transaction.atomic():
+            if stamp is not None:
+                Case.all_objects.filter(project=self, deleted_at=stamp).update(deleted_at=None)
+            self.deleted_at = None
+            self.save(update_fields=['deleted_at'])
     
     @classmethod
     def get_unique_project_leads(cls):
         """Return all unique project leads."""
         return ProjectLead.objects.all().order_by('name')
 
-class Case(models.Model):
+class Case(SoftDeleteModel):
     """Model representing a case within a project."""
     
     # Status options

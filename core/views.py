@@ -240,13 +240,33 @@ def project_delete(request, project_id):
     View for deleting a project
     """
     project = get_object_or_404(Project, id=project_id)
-    
+    cases_count = project.get_cases_count()
+
     if request.method == 'POST':
-        project.delete()
-        messages.success(request, _('Project deleted successfully!'))
+        # GARDE-FOU : supprimer un projet emportait ses cas en cascade. Il faut
+        # desormais recopier le nom du projet -- un clic distrait ne suffit plus
+        # a retirer 256 cas -- et rien n'est efface, seulement marque.
+        typed = (request.POST.get('confirm_name') or '').strip()
+        if typed != project.name:
+            messages.error(
+                request,
+                _('The name you typed does not match. Nothing was deleted.')
+            )
+            return render(request, 'core/project_confirm_delete.html', {
+                'project': project, 'cases_count': cases_count,
+            })
+
+        project.soft_delete()
+        messages.success(
+            request,
+            _('Project "{}" and its {} case(s) were removed. Nothing is lost: an '
+              'administrator can restore them.').format(project.name, cases_count)
+        )
         return redirect('home')
     
-    return render(request, 'core/project_confirm_delete.html', {'project': project})
+    return render(request, 'core/project_confirm_delete.html', {
+        'project': project, 'cases_count': cases_count,
+    })
 
 # Opérations CRUD pour les Cases, uniquement pour les utilisateurs 'editor'
 @login_required
@@ -350,8 +370,13 @@ def case_delete(request, case_id):
     project_id = case.project.id
     
     if request.method == 'POST':
-        case.delete()
-        messages.success(request, _('Case deleted successfully!'))
+        # Marque, ne supprime pas : les commentaires du cas restent attaches.
+        case.soft_delete()
+        messages.success(
+            request,
+            _('Case "{}" was removed. Nothing is lost: an administrator can '
+              'restore it.').format(case.name)
+        )
         return redirect('project_detail', project_id=project_id)
     
     return render(request, 'core/case_confirm_delete.html', {'case': case})
@@ -482,6 +507,7 @@ def csv_case_import(request, project_id):
                 # Track counts
                 created_count = 0
                 updated_count = 0
+                preserved_count = 0  # valeurs existantes protegees d'un ecrasement par une cellule vide
                 error_rows = []
                 
                 # Map CSV status to model status
@@ -536,12 +562,34 @@ def csv_case_import(request, project_id):
                     if created:
                         created_count += 1
                     else:
-                        # Update existing case
-                        case.other_id = other_id
+                        # Update existing case.
+                        #
+                        # GARDE-FOU DONNEES : une cellule vide veut dire "inchange",
+                        # jamais "efface". Avant ce correctif, re-importer un CSV
+                        # partiellement rempli ecrasait les couvertures par NULL, et
+                        # comme Case.save() recalcule le tier, les cas concernes
+                        # basculaient silencieusement en FAIL.
+                        # Effacer une valeur doit rester un geste explicite, fait
+                        # depuis le formulaire du cas.
                         case.status = status_mapping[status]
-                        case.dna_t_coverage = dna_t
-                        case.dna_n_coverage = dna_n
-                        case.rna_coverage = rna
+                        if other_id is not None:
+                            case.other_id = other_id
+                        if dna_t is not None:
+                            case.dna_t_coverage = dna_t
+                        if dna_n is not None:
+                            case.dna_n_coverage = dna_n
+                        if rna is not None:
+                            case.rna_coverage = rna
+
+                        for field, incoming in (
+                            ('other_id', other_id),
+                            ('dna_t_coverage', dna_t),
+                            ('dna_n_coverage', dna_n),
+                            ('rna_coverage', rna),
+                        ):
+                            if incoming is None and getattr(case, field) is not None:
+                                preserved_count += 1
+
                         case.save()
                         updated_count += 1
                     
@@ -561,6 +609,14 @@ def csv_case_import(request, project_id):
                         _('Import completed with some errors: {}').format(', '.join(error_rows))
                     )
                 
+                if preserved_count:
+                    messages.info(
+                        request,
+                        _('{} existing values were kept because their cell was empty in the '
+                          'CSV. An empty cell means "unchanged" — to clear a value, edit the '
+                          'case directly.').format(preserved_count)
+                    )
+
                 messages.success(
                     request,
                     _('CSV import complete! Created: {}, Updated: {}').format(created_count, updated_count)

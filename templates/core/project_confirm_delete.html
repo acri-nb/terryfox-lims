@@ -16,20 +16,40 @@
         <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i> Delete Project</h5>
     </div>
     <div class="card-body">
-        <p class="mb-4">Are you sure you want to delete the project "<strong>{{ project.name }}</strong>"?</p>
-        
+        <p class="mb-4">
+            You are about to remove the project "<strong>{{ project.name }}</strong>"
+            {% if cases_count %}and its <strong>{{ cases_count }}</strong> case{{ cases_count|pluralize }}{% endif %}.
+        </p>
+
+        {% if cases_count %}
         <div class="alert alert-warning">
-            <i class="fas fa-exclamation-circle me-2"></i> This action cannot be undone. All data associated with this project including cases, accession numbers, and comments will be permanently deleted.
+            <i class="fas fa-exclamation-circle me-2"></i>
+            <strong>{{ cases_count }}</strong> case{{ cases_count|pluralize }} will disappear from the LIMS
+            along with this project, including their coverage values and comments.
         </div>
-        
+        {% endif %}
+
+        <div class="alert alert-info">
+            <i class="fas fa-shield-alt me-2"></i>
+            Nothing is erased from the database. The project and its cases are marked as removed
+            and hidden from the application; an administrator can restore them.
+        </div>
+
         <form method="post">
             {% csrf_token %}
+            <label for="confirm_name" class="form-label">
+                To confirm, type the project name exactly: <code>{{ project.name }}</code>
+            </label>
+            <input type="text" class="form-control" id="confirm_name" name="confirm_name"
+                   autocomplete="off" autocapitalize="off" spellcheck="false"
+                   placeholder="{{ project.name }}" required>
+
             <div class="d-flex justify-content-between mt-4">
                 <a href="{% url 'project_detail' project_id=project.id %}" class="btn btn-secondary">
                     <i class="fas fa-times me-1"></i> Cancel
                 </a>
                 <button type="submit" class="btn btn-danger">
-                    <i class="fas fa-trash-alt me-1"></i> Delete Project
+                    <i class="fas fa-trash-alt me-1"></i> Remove Project
                 </button>
             </div>
         </form>
