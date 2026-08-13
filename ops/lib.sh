@@ -49,19 +49,34 @@ assert_no_writers() {
 }
 
 # Interroge l'application et renvoie le code HTTP (000 si injoignable).
+#
+# Pas de `|| echo 000` : sur un refus de connexion, curl imprime deja 000 ET
+# sort en erreur, ce qui produisait un "HTTP 000000" illisible dans les messages.
 app_http_code() {
-  curl -sk -o /dev/null -w '%{http_code}' --max-time 5 https://localhost/ 2>/dev/null || echo 000
+  local code
+  code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 5 https://localhost/ 2>/dev/null)"
+  echo "${code:-000}"
 }
 
 # Attend que l'application reponde. Renvoie 1 apres expiration.
+#
+# Le budget est genereux a dessein : gunicorn_start_robust.sh fait tourner
+# collectstatic, verifie les certificats et peut installer gunicorn avant meme
+# d'ouvrir le port. Une attente trop courte fait echouer la VERIFICATION d'un
+# deploiement pourtant reussi -- ce qui s'est produit, et envoie chercher une
+# panne qui n'existe pas.
 wait_for_app() {
-  local tries="${1:-20}" code
-  for _ in $(seq 1 "$tries"); do
-    sleep 1
+  local tries="${1:-90}" code i
+  for i in $(seq 1 "$tries"); do
+    sleep 2
     code="$(app_http_code)"
     if [ "$code" = "302" ] || [ "$code" = "200" ]; then
+      [ "$i" -gt 5 ] && printf '   (repond apres %s s)\n' "$((i * 2))" >&2
       echo "$code"; return 0
     fi
+    # Un point toutes les 10 s, pour que l'attente ne paraisse pas figee.
+    [ $((i % 5)) -eq 0 ] && printf '.' >&2
   done
-  echo "${code:-000}"; return 1
+  printf '\n' >&2
+  echo "$code"; return 1
 }

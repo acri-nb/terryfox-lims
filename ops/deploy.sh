@@ -103,8 +103,13 @@ fi
 # ---------------------------------------------------------------- 7
 say "7/7  Redemarrage et verification"
 systemctl start "$SERVICE"
-if ! code="$(wait_for_app 20)"; then
-  die "l'application ne repond pas (HTTP $code) -- verifier: journalctl -u $SERVICE -n 50"
+if ! code="$(wait_for_app 90)"; then
+  # La migration est passee et les invariants sont tenus : la base est saine.
+  # Seul le service ne repond pas. On ne restaure donc PAS.
+  die "l'application ne repond pas apres 3 min (HTTP $code).
+   La base est migree et verifiee, il n'y a rien a restaurer.
+   Regarder :  systemctl status $SERVICE
+               tail -40 /var/log/terryfox-lims/error.log"
 fi
 ok "application en ligne (HTTP $code)"
 

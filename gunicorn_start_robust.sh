@@ -32,8 +32,16 @@ echo "=== Environnement Python ==="
 echo "Conda environment: $(conda info --envs | grep '*')"
 echo "Python version: $(python --version)"
 
-# Installer Gunicorn si nécessaire
-pip install gunicorn --quiet
+# Installer Gunicorn seulement s'il manque.
+#
+# Cet appel etait inconditionnel : 10 s de reseau a chaque demarrage, dans le
+# chemin critique, avant meme l'ouverture du port. Or le watchdog redemarre le
+# service toutes les 5 min quand la sonde echoue -- une coupure reseau se
+# transformait donc en boucle de redemarrages lents.
+if ! python -c "import gunicorn" 2>/dev/null; then
+    echo "Gunicorn absent de l'environnement, installation..."
+    pip install gunicorn --quiet
+fi
 
 # Préparation des certificats SSL
 SSL_DIR=/root/ssl

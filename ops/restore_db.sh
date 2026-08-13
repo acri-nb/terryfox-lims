@@ -97,7 +97,7 @@ say "Redemarrage"
 systemctl start "$SERVICE"
 sleep 3
 systemctl start "$WATCHDOG" 2>/dev/null || true
-if ! code="$(wait_for_app 20)"; then
+if ! code="$(wait_for_app 90)"; then
   die "l'application ne repond pas (HTTP $code)"
 fi
 ok "application en ligne (HTTP $code)"
