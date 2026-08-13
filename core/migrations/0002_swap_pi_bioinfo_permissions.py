@@ -11,10 +11,17 @@ def swap_permissions(apps, schema_editor):
     - PI becomes read-only
     - Bioinformatician gets CRUD permissions
     """
-    # Get the groups
-    pi_group = Group.objects.get(name='PI')
-    bioinfo_group = Group.objects.get(name='Bioinformatician')
-    
+    # Migration historique : elle corrigeait des groupes existants en production.
+    # Sur une base neuve -- base de test, archive V1 reconstruite, poste de dev --
+    # les groupes 'PI' et 'Bioinformatician' n'existent pas, ou ont deja ete
+    # renommes en 'viewer'/'editor' par 0002_rename_user_groups. Il n'y a alors
+    # rien a permuter. Sans ce garde-fou, aucune base ne peut etre creee a partir
+    # de zero, ce qui rendait toute suite de tests impossible.
+    pi_group = Group.objects.filter(name='PI').first()
+    bioinfo_group = Group.objects.filter(name='Bioinformatician').first()
+    if pi_group is None or bioinfo_group is None:
+        return
+
     # Clear existing permissions
     pi_group.permissions.clear()
     bioinfo_group.permissions.clear()
@@ -70,10 +77,17 @@ def reverse_swap_permissions(apps, schema_editor):
     - PI gets CRUD permissions back
     - Bioinformatician becomes read-only again
     """
-    # Get the groups
-    pi_group = Group.objects.get(name='PI')
-    bioinfo_group = Group.objects.get(name='Bioinformatician')
-    
+    # Migration historique : elle corrigeait des groupes existants en production.
+    # Sur une base neuve -- base de test, archive V1 reconstruite, poste de dev --
+    # les groupes 'PI' et 'Bioinformatician' n'existent pas, ou ont deja ete
+    # renommes en 'viewer'/'editor' par 0002_rename_user_groups. Il n'y a alors
+    # rien a permuter. Sans ce garde-fou, aucune base ne peut etre creee a partir
+    # de zero, ce qui rendait toute suite de tests impossible.
+    pi_group = Group.objects.filter(name='PI').first()
+    bioinfo_group = Group.objects.filter(name='Bioinformatician').first()
+    if pi_group is None or bioinfo_group is None:
+        return
+
     # Clear existing permissions
     pi_group.permissions.clear()
     bioinfo_group.permissions.clear()
