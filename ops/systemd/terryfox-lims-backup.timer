@@ -1,0 +1,14 @@
+[Unit]
+Description=Sauvegarde horaire de la base TerryFox LIMS
+
+[Timer]
+OnCalendar=hourly
+# Rattrape une execution manquee apres un arret de la machine.
+Persistent=true
+# Evite de tomber pile a l'heure ronde en meme temps que d'autres taches.
+RandomizedDelaySec=120
+AccuracySec=1min
+Unit=terryfox-lims-backup.service
+
+[Install]
+WantedBy=timers.target

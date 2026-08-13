@@ -81,10 +81,13 @@ WSGI_APPLICATION = 'terryfox_lims.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
+# Le chemin de la base est configurable pour que la base de production puisse
+# vivre hors de l'arbre git (voir ops/install.sh). Sans la variable, comportement
+# identique a avant.
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': os.environ.get('DATABASE_PATH') or BASE_DIR / 'db.sqlite3',
     }
 }
 

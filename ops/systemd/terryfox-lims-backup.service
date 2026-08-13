@@ -1,0 +1,17 @@
+[Unit]
+Description=Sauvegarde verifiee de la base TerryFox LIMS
+Documentation=file:///home/hadriengt/project/lims/terryfox-lims/ops/README.md
+After=terryfox-lims.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/home/hadriengt/project/lims/terryfox-lims
+ExecStart=/usr/bin/python3 /home/hadriengt/project/lims/terryfox-lims/ops/backup_db.py --dest /var/backups/terryfox-lims
+# La sauvegarde ne doit jamais gener l'application.
+Nice=10
+IOSchedulingClass=idle
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=terryfox-backup

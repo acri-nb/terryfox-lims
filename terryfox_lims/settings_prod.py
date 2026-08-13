@@ -85,10 +85,17 @@ WSGI_APPLICATION = 'terryfox_lims.wsgi_prod.application'
 
 # Database
 # Using SQLite for now (can be changed to PostgreSQL if needed)
+# La base de production vit hors de l'arbre git : aucune commande git ne peut
+# alors atteindre les donnees vivantes. Voir ops/install.sh et docs/lims_v2_plan.html.
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': config('DATABASE_PATH', default=str(BASE_DIR / 'db.sqlite3')),
+        'OPTIONS': {
+            # Attendre plutot que de lever "database is locked" si un autre
+            # worker ecrit au meme instant.
+            'timeout': 20,
+        },
     }
 }
 
