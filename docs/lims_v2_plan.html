@@ -1,0 +1,1580 @@
+<title>TerryFox LIMS v2</title>
+
+<style>
+  :root {
+    --ground: #f4f6f7;
+    --surface: #ffffff;
+    --surface-2: #fafbfc;
+    --rule: #dbe1e5;
+    --rule-strong: #b6c0c7;
+    --ink: #121a20;
+    --ink-2: #46525c;
+    --ink-3: #6e7c86;
+    --accent: #1c5d99;
+    --accent-bg: #e8f0f8;
+    --good: #16733f;
+    --good-bg: #e6f4ec;
+    --warn: #8a5300;
+    --warn-bg: #fdf1dc;
+    --bad: #b3261e;
+    --bad-bg: #fce9e7;
+
+    --font-display: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+    --font-ui: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+    --measure: 74ch;
+    --wide: 1160px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0e1317;
+      --surface: #151c22;
+      --surface-2: #1a2229;
+      --rule: #2a343c;
+      --rule-strong: #3e4b55;
+      --ink: #e5eaee;
+      --ink-2: #a6b2bb;
+      --ink-3: #7c8993;
+      --accent: #6aa9dd;
+      --accent-bg: #16293a;
+      --good: #62c98e;
+      --good-bg: #143020;
+      --warn: #d9a154;
+      --warn-bg: #2f2410;
+      --bad: #ef8279;
+      --bad-bg: #331715;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0e1317;
+    --surface: #151c22;
+    --surface-2: #1a2229;
+    --rule: #2a343c;
+    --rule-strong: #3e4b55;
+    --ink: #e5eaee;
+    --ink-2: #a6b2bb;
+    --ink-3: #7c8993;
+    --accent: #6aa9dd;
+    --accent-bg: #16293a;
+    --good: #62c98e;
+    --good-bg: #143020;
+    --warn: #d9a154;
+    --warn-bg: #2f2410;
+    --bad: #ef8279;
+    --bad-bg: #331715;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 16px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 0 20px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .col { max-width: var(--measure); margin-inline: auto; }
+  .wide { max-width: var(--wide); margin-inline: auto; }
+
+  /* ---------- masthead ---------- */
+
+  header.masthead {
+    max-width: var(--wide);
+    margin: 0 auto;
+    padding: 64px 0 28px;
+    border-bottom: 2px solid var(--ink);
+  }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 18px;
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(38px, 6vw, 62px);
+    line-height: 1.02;
+    letter-spacing: -0.022em;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-size: 19px;
+    line-height: 1.55;
+    color: var(--ink-2);
+    max-width: 62ch;
+    margin: 0 0 30px;
+  }
+  .masthead-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 32px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-3);
+    padding-top: 6px;
+  }
+  .masthead-meta b { color: var(--ink-2); font-weight: 600; }
+
+  /* ---------- toc ---------- */
+
+  nav.toc {
+    max-width: var(--wide);
+    margin: 0 auto 8px;
+    padding: 22px 0 30px;
+    border-bottom: 1px solid var(--rule);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 4px 34px;
+  }
+  nav.toc a {
+    display: block;
+    padding: 5px 0;
+    color: var(--ink-2);
+    text-decoration: none;
+    font-size: 14.5px;
+    border-bottom: 1px solid transparent;
+  }
+  nav.toc a:hover { color: var(--accent); border-bottom-color: var(--rule-strong); }
+  nav.toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  /* ---------- sections ---------- */
+
+  section { padding-top: 62px; }
+
+  h2 {
+    font-family: var(--font-display);
+    font-size: clamp(27px, 3.4vw, 36px);
+    line-height: 1.14;
+    letter-spacing: -0.014em;
+    font-weight: 700;
+    margin: 0 0 8px;
+    text-wrap: balance;
+  }
+  .section-note {
+    color: var(--ink-3);
+    font-size: 15px;
+    margin: 0 0 30px;
+    max-width: 62ch;
+  }
+  h3 {
+    font-size: 17.5px;
+    font-weight: 700;
+    letter-spacing: -0.006em;
+    margin: 40px 0 10px;
+    color: var(--ink);
+  }
+  h4 {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 600;
+    margin: 32px 0 12px;
+  }
+  p { margin: 0 0 17px; }
+  a { color: var(--accent); }
+
+  ul, ol { margin: 0 0 17px; padding-left: 22px; }
+  li { margin-bottom: 8px; }
+  li::marker { color: var(--ink-3); }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--ink);
+    word-break: break-word;
+  }
+  pre {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule-strong);
+    padding: 15px 17px;
+    overflow-x: auto;
+    margin: 0 0 20px;
+  }
+  pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+
+  /* ---------- tables ---------- */
+
+  .scroll { overflow-x: auto; margin: 0 0 24px; border: 1px solid var(--rule); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td {
+    text-align: left;
+    padding: 11px 15px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  thead th {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 600;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--rule-strong);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono); white-space: nowrap; }
+  td.mono { font-family: var(--font-mono); font-size: 13px; white-space: nowrap; }
+
+  /* ---------- chips ---------- */
+
+  .chip {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 3px;
+    border: 1px solid;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+  .chip.good { color: var(--good); background: var(--good-bg); border-color: var(--good); }
+  .chip.warn { color: var(--warn); background: var(--warn-bg); border-color: var(--warn); }
+  .chip.bad  { color: var(--bad);  background: var(--bad-bg);  border-color: var(--bad); }
+  .chip.info { color: var(--accent); background: var(--accent-bg); border-color: var(--accent); }
+  .chip.mute { color: var(--ink-3); background: var(--surface-2); border-color: var(--rule-strong); }
+
+  /* ---------- callouts ---------- */
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule-strong);
+    padding: 20px 22px;
+    margin: 0 0 24px;
+  }
+  .panel > :last-child { margin-bottom: 0; }
+  .panel .panel-title {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin: 0 0 10px;
+    color: var(--ink-2);
+  }
+  .panel.alert { border-left-color: var(--bad); background: var(--surface); }
+  .panel.alert .panel-title { color: var(--bad); }
+  .panel.key { border-left-color: var(--accent); }
+  .panel.key .panel-title { color: var(--accent); }
+  .panel.ok { border-left-color: var(--good); }
+  .panel.ok .panel-title { color: var(--good); }
+
+  /* ---------- rule list (numbered where order is real) ---------- */
+
+  .steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+  .steps > li {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 46px 1fr;
+    gap: 0 18px;
+    padding: 22px 0;
+    border-top: 1px solid var(--rule);
+    margin: 0;
+  }
+  .steps > li:last-child { border-bottom: 1px solid var(--rule); }
+  .steps > li::before {
+    content: counter(step, decimal-leading-zero);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    padding-top: 2px;
+  }
+  .steps h3 { margin: 0 0 6px; font-size: 16.5px; }
+  .steps p { margin: 0 0 10px; font-size: 15px; color: var(--ink-2); }
+  .steps > li > div > :last-child { margin-bottom: 0; }
+  .step-meta {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-top: 10px;
+  }
+
+  /* ---------- rules (ergonomics) ---------- */
+
+  .rules { list-style: none; padding: 0; margin: 0 0 24px; }
+  .rules li {
+    padding: 15px 0 15px 0;
+    border-top: 1px solid var(--rule);
+    margin: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .rules li:last-child { border-bottom: 1px solid var(--rule); }
+  .rules b { font-weight: 650; }
+  .rules span { color: var(--ink-2); font-size: 14.5px; }
+
+  /* ---------- diagram ---------- */
+
+  figure { margin: 0 0 26px; }
+  figure svg { display: block; width: 100%; height: auto; }
+  figcaption {
+    font-size: 13px;
+    color: var(--ink-3);
+    margin-top: 10px;
+    font-family: var(--font-ui);
+  }
+  .diagram-frame {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 26px 22px;
+    overflow-x: auto;
+  }
+
+  /* ---------- stage track ---------- */
+
+  .track-demo { display: grid; gap: 14px; margin: 0 0 6px; }
+  .track-row { display: grid; grid-template-columns: 68px 132px 1fr; align-items: center; gap: 14px; }
+  .track-label { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); }
+  .track { display: flex; gap: 3px; }
+  .track i { display: block; height: 7px; width: 40px; background: var(--rule-strong); border-radius: 1px; }
+  .track i.on { background: var(--accent); }
+  .track-state { font-size: 13.5px; color: var(--ink-2); font-family: var(--font-mono); }
+
+  footer {
+    max-width: var(--wide);
+    margin: 96px auto 0;
+    padding-top: 26px;
+    border-top: 2px solid var(--ink);
+    font-size: 13.5px;
+    color: var(--ink-3);
+  }
+
+  @media (max-width: 620px) {
+    body { padding: 0 16px 64px; }
+    header.masthead { padding-top: 44px; }
+    .steps > li { grid-template-columns: 34px 1fr; gap: 0 12px; }
+    .track-row { grid-template-columns: 60px 1fr; }
+    .track-state { grid-column: 1 / -1; }
+  }
+
+  @media print {
+    body { background: #fff; color: #000; }
+    nav.toc { display: none; }
+    section { page-break-inside: auto; }
+  }
+</style>
+
+<header class="masthead">
+  <p class="eyebrow">Spécification · Version 2</p>
+  <h1>TerryFox LIMS v2</h1>
+  <p class="standfirst">
+    Ce que la v2 doit contenir, dans quel ordre la livrer, et ce qui doit être tranché
+    par le consortium avant d'écrire la première ligne de code.
+  </p>
+  <div class="masthead-meta">
+    <span><b>Base actuelle</b> 15 projets · 1329 cas · 42 utilisateurs</span>
+    <span><b>Effort estimé</b> ~58 jours-dev · 10 incréments</span>
+    <span><b>Non négociable</b> aucune donnée perdue · V1 conservée · facile à utiliser</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Sommaire">
+  <a href="#urgent">Ce qui est cassé aujourd'hui</a>
+  <a href="#gardefous">Les garde-fous sur les données</a>
+  <a href="#archivev1">L'archive V1</a>
+  <a href="#insight">Les trois choses qui changent vraiment</a>
+  <a href="#etat">L'état réel de la base</a>
+  <a href="#contradictions">Trois contradictions à trancher</a>
+  <a href="#modele">Le modèle de données</a>
+  <a href="#statuts">Les statuts</a>
+  <a href="#ecrans">Les écrans</a>
+  <a href="#ergonomie">Les règles d'ergonomie</a>
+  <a href="#design">Le design</a>
+  <a href="#livraison">Le plan de livraison</a>
+  <a href="#decisions">Ce qui vous appartient</a>
+</nav>
+
+<section class="col" id="amendements" style="padding-top:52px">
+  <div class="panel key">
+    <p class="panel-title">Arbitrages du 13 août 2026 — intégrés dans tout ce qui suit</p>
+    <ul style="margin-bottom:0">
+      <li><strong>Le dépôt GitHub reste public</strong> et aucune réinitialisation de mot de passe n'est demandée : il n'y a pas eu d'incident de sécurité.</li>
+      <li><strong>La V1 reste accessible</strong> après la bascule, pour comparer et pour consulter les données d'avant.</li>
+      <li><strong>Aucune donnée ne doit être perdue</strong>, et des garde-fous doivent rendre la perte structurellement impossible plutôt que simplement improbable.</li>
+      <li><strong>La v2 doit être élégante et moderne</strong> — l'interface actuelle n'est pas laide, elle est datée.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+
+<section id="urgent" class="col">
+  <h2>Ce qui est cassé aujourd'hui</h2>
+  <p class="section-note">
+    Cinq problèmes trouvés en auditant le dépôt et le serveur. Aucun n'attend la v2 —
+    tous sont actifs en ce moment. Les correctifs sont regroupés dans la section suivante.
+  </p>
+
+  <div class="panel alert">
+    <p class="panel-title">1 · Il n'existe aucune sauvegarde</p>
+    <p>
+      Ni tâche cron, ni timer systemd, ni rien dans <code>/var/backups</code>. La seule copie de
+      <code>db.sqlite3</code> qui existe ailleurs que sur ce disque est celle du dépôt git, et les deux derniers
+      commits <code>chore:update db</code> sont espacés de neuf mois.
+    </p>
+    <p>
+      Autrement dit, aujourd'hui, la perte de la machine ou une fausse manœuvre coûterait jusqu'à neuf mois de
+      saisie. C'est le point le plus grave de cette liste et il n'a rien à voir avec la v2.
+    </p>
+  </div>
+
+  <div class="panel alert">
+    <p class="panel-title">2 · Supprimer un projet détruit tous ses cas, sans retour</p>
+    <p>
+      <code>Case.project</code> est en <code>on_delete=CASCADE</code>. J'ai mesuré l'effet réel : supprimer
+      P06_BC_lnRNA effacerait <strong>le projet et ses 256 cas</strong>, plus leurs commentaires. Il n'y a
+      qu'une page de confirmation entre un clic et cette perte, aucune corbeille, et — voir le point 1 —
+      aucune sauvegarde pour revenir en arrière.
+    </p>
+  </div>
+
+  <div class="panel alert">
+    <p class="panel-title">3 · L'import CSV efface silencieusement les couvertures</p>
+    <p>
+      Dans <code>core/views.py</code>, sur un cas <em>existant</em>, l'import fait
+      <code>case.dna_t_coverage = dna_t</code> où <code>dna_t</code> vaut <code>None</code> quand la cellule est vide.
+      Ré-importer un CSV partiellement rempli écrase donc les couvertures par <code>NULL</code> —
+      et comme <code>Case.save()</code> recalcule le tier, les cas concernés basculent en <strong>FAIL</strong>
+      sans un mot d'avertissement.
+    </p>
+    <p>
+      C'est actif aujourd'hui, sur le chemin d'édition en masse le plus utilisé. Correctif : cellule vide =
+      <em>inchangé</em>, jamais <em>effacé</em>. C'est aussi ce que la v2 doit adopter comme règle générale.
+    </p>
+  </div>
+
+  <div class="panel alert">
+    <p class="panel-title">4 · Le watchdog redémarrera le service pendant une migration</p>
+    <p>
+      <code>terryfox-lims-watchdog.timer</code> a <code>OnUnitActiveSec=5min</code>, et <code>watchdog.sh</code>
+      lance <code>systemctl restart terryfox-lims.service</code> dès que la sonde échoue. Pendant une fenêtre de
+      maintenance où le service est volontairement arrêté, le watchdog le relance — potentiellement au milieu
+      d'un <code>migrate</code>, donnant à trois workers gunicorn un accès en écriture concurrent à une base à
+      moitié migrée. <code>Restart=always</code> dans l'unité aggrave le tout.
+    </p>
+    <p>Le runbook de déploiement doit commencer par <code>systemctl stop terryfox-lims-watchdog.timer</code>.</p>
+  </div>
+
+  <div class="panel alert">
+    <p class="panel-title">5 · Un <code>git checkout</code> sur le serveur détruit les données vivantes</p>
+    <p>
+      <code>db.sqlite3</code> est suivi par git et <strong>perpétuellement modifié</strong> (gunicorn écrit dedans
+      en continu). Un <code>git checkout .</code>, <code>git restore .</code>, <code>git stash</code> ou
+      <code>git reset --hard</code> dans le répertoire de production remplace la base vivante par celle du
+      dernier commit — soit un recul de près d'un an.
+    </p>
+    <p>Chaque déploiement de ce plan implique une opération git dans ce répertoire.</p>
+  </div>
+
+  <h3>Sur le dépôt public</h3>
+  <p>
+    Décision retenue : <strong>le dépôt reste public et il n'y a pas de réinitialisation des mots de passe.</strong>
+    Voici ce que cela recouvre exactement, pour que le choix soit fait en connaissance de cause plutôt que par défaut.
+  </p>
+  <p>
+    Les hachages exposés sont du PBKDF2-SHA256 à 600 000 – 870 000 itérations, et les mots de passe distribués
+    par le LIMS font 12 caractères tirés sur 62. Les casser est hors de portée pratique : la position
+    « pas de réinitialisation » se tient. Il reste trois choses distinctes :
+  </p>
+  <ul>
+    <li>La <code>SECRET_KEY</code> publiée permet de <em>forger</em> une session Django valide sans connaître aucun mot de passe. C'est indépendant de la robustesse des mots de passe.</li>
+    <li><code>_generate_password()</code> utilise <code>random</code> et non <code>secrets</code> — un générateur non cryptographique. Un mot à changer dans <code>core/views.py</code>.</li>
+    <li><code>db.sqlite3</code> publie 1329 cas de recherche avec leurs Biobank ID. C'est une question de gouvernance de données du consortium, pas de sécurité : cette diffusion a-t-elle été approuvée ? Elle n'est pas de nature technique et ne m'appartient pas.</li>
+  </ul>
+  <div class="panel key">
+    <p class="panel-title">Ces deux exigences ne s'opposent pas</p>
+    <p>
+      Garder le dépôt public n'oblige pas à y publier <code>.env</code> et <code>db.sqlite3</code>. Sortir la base
+      de l'arbre git — l'action n° 1 des garde-fous ci-dessous, demandée pour protéger les données — retire
+      mécaniquement les données du dépôt. Le code reste public, la base cesse d'être publiée, et le
+      <code>git checkout</code> destructeur du point 5 devient impossible. Une seule action sert vos deux
+      contraintes.
+    </p>
+    <p style="margin-bottom:0">
+      Reste la <code>SECRET_KEY</code> : la faire tourner n'est pas une réinitialisation de mot de passe. Cela
+      invalide les sessions ouvertes, donc chacun se reconnecte une fois avec son mot de passe actuel. Coût
+      pour les 42 utilisateurs : une connexion. À vous de voir.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+
+<section id="gardefous" class="col">
+  <h2>Les garde-fous sur les données</h2>
+  <p class="section-note">
+    « Faire très attention » ne tient pas dans la durée. Huit mécanismes pour que la perte de données
+    devienne structurellement impossible plutôt que simplement improbable — chacun rattrapant ce que
+    le précédent laisse passer.
+  </p>
+
+  <ol class="steps">
+    <li>
+      <div>
+        <h3>La base vivante sort de l'arbre git</h3>
+        <p>
+          <code>db.sqlite3</code> déménage vers <code>/var/lib/terryfox-lims/db.sqlite3</code> et
+          <code>settings_prod.DATABASES</code> pointe dessus. Une ligne de configuration.
+        </p>
+        <p>
+          Aucune commande git ne peut plus atteindre les données vivantes : la classe entière d'accidents du
+          point 5 disparaît, et le dépôt cesse de publier la base sans cesser d'être public. Un instantané
+          peut toujours être versionné volontairement, mais c'est alors un export délibéré, pas le fichier
+          que gunicorn écrit en continu.
+        </p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h3>Sauvegardes automatiques, vérifiées, avec rétention</h3>
+        <p>
+          Un timer systemd horaire lance <code>sqlite3 .backup</code> — la sauvegarde en ligne cohérente,
+          contrairement à un <code>cp</code> qui peut copier une base en cours d'écriture. Chaque archive est
+          <strong>ouverte et comptée</strong> juste après création : si le nombre de cas ne correspond pas,
+          l'archive est rejetée et une alerte part.
+        </p>
+        <p>
+          Rétention : 48 horaires, 30 quotidiennes, 12 mensuelles. La base fait 656 Ko et se sauvegarde en
+          46 ms ; 286 Go sont libres sur le disque. Le coût est nul, l'absence actuelle n'a aucune excuse.
+        </p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h3>Aucune migration sans point de restauration frais</h3>
+        <p>
+          Le script de déploiement refuse de lancer <code>migrate</code> s'il n'existe pas une sauvegarde
+          vérifiée datant de moins de cinq minutes, et il arrête le timer du watchdog en première instruction.
+          Cette sauvegarde-là est conservée indéfiniment, étiquetée du numéro de migration.
+        </p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h3>Contrôle d'invariants bloquant, avant et après</h3>
+        <p>
+          Le même script compte les lignes de chaque table et la distribution des tiers avant, puis après.
+          Les valeurs de référence sont connues : <strong>1329 cas, 1550 commentaires, 15 projets, 42
+          utilisateurs, 552 A / 682 B / 95 FAIL</strong>. Tout écart non explicitement attendu par la migration
+          déclenche un retour arrière automatique sur la sauvegarde de l'étape 3.
+        </p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h3>Toute migration de données est réversible et testée dans les deux sens</h3>
+        <p>
+          Chaque <code>RunPython</code> reçoit un <code>reverse_code</code> réel — pas
+          <code>noop</code>. Avant tout passage en production, la migration est jouée en avant puis en arrière
+          sur une <em>copie</em> de la base réelle, et l'on vérifie que l'état final est identique à l'état
+          initial, octet par octet sur les colonnes concernées.
+        </p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h3>Suppression douce partout</h3>
+        <p>
+          <code>Project</code>, <code>Case</code> et <code>Comment</code> gagnent un champ
+          <code>deleted_at</code>. Les vues de suppression le renseignent au lieu d'émettre un
+          <code>DELETE</code>, et le gestionnaire par défaut filtre les lignes marquées. Rien ne quitte jamais
+          la base par le chemin d'une interface web.
+        </p>
+        <p>
+          La confirmation de suppression d'un projet doit annoncer le nombre exact de cas concernés et exiger
+          la saisie du nom du projet. 256 cas ne partent pas sur un clic distrait.
+        </p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h3>Une cellule vide ne signifie jamais « efface »</h3>
+        <p>
+          Règle générale, pas seulement pour le correctif de l'import CSV : partout où une valeur peut arriver
+          d'un fichier ou d'un formulaire, vide veut dire <em>inchangé</em>. Effacer une valeur devient un geste
+          explicite. L'import v2 impose en plus une prévisualisation obligatoire — combien de créations,
+          combien de mises à jour, quelles colonnes changent — avant d'écrire quoi que ce soit, le tout dans
+          une seule transaction.
+        </p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h3>Une restauration réellement répétée</h3>
+        <p>
+          Une sauvegarde jamais restaurée n'est pas une sauvegarde. Avant la bascule v2, la procédure est
+          exécutée pour de vrai : restaurer la veille dans une instance de test, ouvrir l'application, compter
+          les cas. Puis une fois par trimestre.
+        </p>
+      </div>
+    </li>
+  </ol>
+
+  <div class="panel ok">
+    <p class="panel-title">Ce que ces huit points garantissent ensemble</p>
+    <p style="margin-bottom:0">
+      Une erreur humaine sur l'interface est annulable (6, 7). Une erreur de migration est détectée puis
+      annulée automatiquement (3, 4, 5). Une erreur d'exploitation ne peut plus atteindre le fichier (1).
+      Et si tout échoue en même temps, la perte maximale est d'une heure (2), avec une procédure de retour
+      qu'on aura déjà exécutée au moins une fois (8).
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+
+<section id="archivev1" class="col">
+  <h2>L'archive V1</h2>
+  <p class="section-note">
+    La V1 reste consultable après la bascule. Le choix de conception qui rend cette promesse
+    tenable dans le temps : la figer plutôt que la brancher sur les données vivantes.
+  </p>
+
+  <h3>Pourquoi figée, et non branchée sur la base courante</h3>
+  <p>
+    La tentation serait de garder les anciennes vues actives sur la base à jour, sous un préfixe
+    <code>/v1/</code>. Ça ne tient pas : le code V1 lit des slugs de statut que la v2 renomme, il ignore les
+    spécimens, et il ne connaît ni les tentatives archivées ni la suppression douce. Il afficherait donc des
+    statuts vides et des cas incomplets — une V1 qui ment est pire que pas de V1. Et chaque migration future
+    obligerait à maintenir deux jeux de vues sur un même schéma.
+  </p>
+  <p>
+    L'archive est donc une <strong>photographie</strong> : le code V1 tel qu'il est aujourd'hui, sur les données
+    telles qu'elles étaient à l'instant de la bascule. C'est exactement ce que demande « retourner en arrière
+    pour comparer » — un point de référence stable. Pour consulter les données <em>courantes</em>, ce sont les
+    exports v2 qui répondent, et ils sont plus complets que ce que la V1 sait afficher.
+  </p>
+
+  <h3>Le montage</h3>
+  <ul>
+    <li>Une étiquette git <code>v1.0-final</code> sur le dernier commit avant migration, et un déploiement de ce tag dans <code>/opt/terryfox-lims-v1/</code>, indépendant du répertoire de travail.</li>
+    <li>Un instantané de la base pris juste avant la migration : <code>/var/lib/terryfox-lims/v1-frozen.sqlite3</code>, en <code>chmod 444</code> et appartenant à un autre utilisateur que le service.</li>
+    <li>Un second service systemd sur un port distinct, exposé par le proxy en <code>candig-lims.cair.mun.ca/v1/</code>.</li>
+    <li>Les mêmes comptes et les mêmes rôles : personne n'a de nouveau mot de passe à retenir.</li>
+  </ul>
+
+  <h3>Lecture seule, en trois couches</h3>
+  <p>
+    Une seule barrière finit toujours par sauter. Trois, dont deux au niveau du système :
+  </p>
+  <ol>
+    <li><strong>Permissions du fichier</strong> — <code>444</code>, propriétaire différent du compte de service.</li>
+    <li><strong>SQLite ouvert en lecture seule</strong> — <code>NAME: 'file:/var/lib/terryfox-lims/v1-frozen.sqlite3?mode=ro'</code> avec <code>OPTIONS: {'uri': True}</code>. Vérifié : Django lit bien les 1329 cas, et toute écriture est refusée par SQLite lui-même avec <code>attempt to write a readonly database</code>.</li>
+    <li><strong>Middleware</strong> — toute requête autre que GET ou HEAD est rejetée avec un message clair plutôt qu'une erreur 500.</li>
+  </ol>
+  <pre><code>DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": "file:/var/lib/terryfox-lims/v1-frozen.sqlite3?mode=ro",
+        "OPTIONS": {"uri": True},
+    }
+}</code></pre>
+
+  <h3>Ce que voit l'utilisateur</h3>
+  <p>
+    Un bandeau permanent en haut de chaque page de l'archive : <em>« Archive V1 — lecture seule — données
+    figées au 13 août 2026 »</em>, avec un lien de retour vers la v2. Les boutons de création, de modification
+    et de suppression sont masqués, pas seulement désactivés — un bouton qui ne fait rien est plus déroutant
+    qu'un bouton absent. Et dans la v2, un lien discret vers l'archive, pour que personne n'ait à retenir une URL.
+  </p>
+
+  <div class="panel ok">
+    <p class="panel-title">Effet de bord utile</p>
+    <p style="margin-bottom:0">
+      Cette archive est aussi la meilleure preuve que rien n'a été perdu. Après migration, on peut comparer
+      côte à côte n'importe quel cas dans les deux systèmes. Elle est mise en place à l'incrément 5,
+      <em>avant</em> la migration des spécimens — le filet est tendu avant le saut, pas après.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+
+<section id="insight" class="col">
+  <h2>Les trois choses qui changent vraiment</h2>
+  <p class="section-note">
+    Le reste des demandes sont des ajouts. Ces trois-là déplacent l'architecture.
+  </p>
+
+  <div class="panel key">
+    <p class="panel-title">Les « 3 types de spécimen » et la découpe de Daniel sont le même concept</p>
+    <p>
+      La note de réunion demande un « type de spécimen : 1, 2 ou 3 ». Daniel demande, séparément, que
+      « tumeur et normal soient des entités distinctes dans un cas, et que la tumeur soit séparée en ADN et ARN ».
+      Ce sont les mêmes trois choses : <strong>Normal-ADN</strong>, <strong>Tumeur-ADN</strong>, <strong>Tumeur-ARN</strong>.
+    </p>
+    <p>
+      Et elles correspondent exactement, une pour une, aux trois colonnes de couverture actuelles
+      (<code>dna_n_coverage</code>, <code>dna_t_coverage</code>, <code>rna_coverage</code>). La migration est donc
+      sans perte, et les seuils de tier se transposent sans changer une valeur. Un seul concept nouveau à
+      introduire dans l'interface, pas deux.
+    </p>
+  </div>
+
+  <div class="panel key">
+    <p class="panel-title">Le statut descend au niveau du spécimen — mais l'interface doit continuer à parler « cas »</p>
+    <p>
+      « Suivre ces choses indépendamment même si elles partagent le même case ID » signifie que le statut est
+      une propriété du spécimen. Mais si on s'arrête là, l'action la plus fréquente du système — un technicien
+      qui fait avancer un cas d'un cran — passe de <em>un</em> menu déroulant à <em>trois</em>.
+    </p>
+    <p>
+      La v2 garde donc un statut de cas, <strong>dérivé</strong> des spécimens, exactement comme le tier est déjà
+      dérivé des couvertures. Le patron existe déjà dans ce code, l'équipe le connaît.
+    </p>
+  </div>
+
+  <div class="panel key">
+    <p class="panel-title">La biobanque cesse de saisir des identifiants</p>
+    <p>
+      L'ACC devient généré par le LIMS, et le Biobank ID devient le champ par lequel on cherche. C'est un
+      renversement : aujourd'hui l'unique champ de recherche de la page projet interroge <code>Case.name</code>,
+      c'est-à-dire l'ACC. Si on ne change que la génération, taper « N-BBN 42 » dans la recherche ne renverra
+      rien — la demande phare serait ratée par omission.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+
+<section id="etat" class="wide">
+  <h2>L'état réel de la base</h2>
+  <p class="section-note">
+    Mesuré sur <code>db.sqlite3</code> le 13 août 2026. Ces chiffres décident de plusieurs choix ci-dessous.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Constat</th>
+          <th class="num">Mesure</th>
+          <th>Conséquence pour la v2</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Noms de cas au format <code>ACC-####</code></td>
+          <td class="num">1329 / 1329</td>
+          <td>Le générateur peut reprendre le format tel quel ; aucun nettoyage.</td>
+        </tr>
+        <tr>
+          <td>Plage ACC utilisée, et trous dedans</td>
+          <td class="num">1 → 1498<br>169 trous</td>
+          <td>Le compteur démarre à 1499 et ne réutilise jamais un trou : un ACC libéré peut déjà figurer sur une étiquette de congélateur.</td>
+        </tr>
+        <tr>
+          <td>Doublons de nom de cas</td>
+          <td class="num">0</td>
+          <td>La contrainte d'unicité passe sans conflit. <span class="chip good">gratuit</span></td>
+        </tr>
+        <tr>
+          <td><code>other_id</code> rempli (le futur Biobank ID)</td>
+          <td class="num">1329 / 1329</td>
+          <td>Promotion en champ de première classe sans nettoyage préalable.</td>
+        </tr>
+        <tr>
+          <td>Doublons de <code>other_id</code>, casse et espaces normalisés</td>
+          <td class="num">0</td>
+          <td>Aucune collision aujourd'hui — mais c'est de la chance, voir la décision D3.</td>
+        </tr>
+        <tr>
+          <td>Couverture DNA-T / DNA-N / RNA renseignée</td>
+          <td class="num">1290 / 1304 / 883</td>
+          <td>446 cas n'ont pas d'ARN. Leur créer un spécimen ARN qui n'avancera jamais est un piège — voir D1.</td>
+        </tr>
+        <tr>
+          <td>Cas ayant les trois valeurs</td>
+          <td class="num">857</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>Tiers stockés vs recalculés</td>
+          <td class="num">0 écart</td>
+          <td>552 A / 682 B / 95 FAIL. Invariant de référence : la migration doit reproduire exactement cette distribution.</td>
+        </tr>
+        <tr>
+          <td>Statuts <code>incomplete</code> + <code>unknown</code></td>
+          <td class="num">469</td>
+          <td>Sans équivalent dans la nouvelle nomenclature. 35 % de la base. Voir D2.</td>
+        </tr>
+        <tr>
+          <td>Dont <code>incomplete</code> avec les 2 ADN et pas d'ARN</td>
+          <td class="num">385 / 428</td>
+          <td><code>incomplete</code> signifie donc, dans les faits, « l'ARN est encore en attente ».</td>
+        </tr>
+        <tr>
+          <td>Pagination dans l'application</td>
+          <td class="num">aucune</td>
+          <td>Les cases à cocher demandées par Mathieu ne peuvent pas se poser sur une grille de 256 cartes.</td>
+        </tr>
+        <tr>
+          <td>Page projet P06 (256 cas)</td>
+          <td class="num">522 requêtes<br>1,15 s · 926 Ko</td>
+          <td>N+1 dû à <code>case.accessions.count</code> et <code>case.comments.count</code> dans la boucle du template.</td>
+        </tr>
+        <tr>
+          <td>Contraste des badges de statut (blanc sur fond plein)</td>
+          <td class="num">2,10 – 3,82 : 1</td>
+          <td>Les neuf échouent au seuil WCAG AA de 4,5 : 1. Tier A est rouge, FAIL est gris — la sémantique est inversée.</td>
+        </tr>
+        <tr>
+          <td>Suite de tests</td>
+          <td class="num">0 test</td>
+          <td><code>core/tests.py</code> est un stub vide. Aucun filet sous les migrations à venir.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+
+<section id="contradictions" class="col">
+  <h2>Trois contradictions à trancher</h2>
+  <p class="section-note">
+    Les demandes se contredisent sur trois points. Voici la résolution proposée pour chacun.
+  </p>
+
+  <h3>Le même ACC, mais des identifiants uniques</h3>
+  <p>
+    La re-soumission demande « un nouveau cas réutilisant le <em>même</em> ACC ». La prévention des doublons
+    demande que « le LIMS bloque les identifiants dupliqués ». Littéralement, l'une interdit l'autre.
+  </p>
+  <p>
+    <strong>Résolution :</strong> l'unicité porte sur les cas <em>actifs</em>. Un index unique partiel conditionné
+    sur <code>is_archived = False</code> autorise exactement un cas actif par ACC, pendant que les tentatives
+    archivées partagent librement le même. Comportement vérifié sur SQLite 3.45 : insérer un second cas actif
+    avec l'ACC 42 est bloqué ; l'ACC 42 tentative 2 après archivage de la tentative 1 est accepté.
+  </p>
+  <pre><code>UniqueConstraint(fields=["acc_number"], condition=Q(is_archived=False),
+                 name="uniq_active_acc")</code></pre>
+
+  <h3>Le suivi par spécimen, mais une interface qui reste simple</h3>
+  <p>
+    Si <code>Case.status</code> disparaît, huit vues, deux formulaires de filtre, l'import CSV, l'export CSV et
+    tous les badges de statut cassent — et le technicien passe de un à trois menus déroulants pour l'action la
+    plus courante du système.
+  </p>
+  <p>
+    <strong>Résolution :</strong> <code>Specimen.status</code> est la seule chose qu'on écrit ;
+    <code>Case.status</code> survit comme miroir stocké en lecture seule, recalculé à chaque écriture — le
+    même patron que <code>Case.tier</code>. Sur la fiche de cas, <em>un</em> menu « Statut du cas » applique
+    à tous les spécimens en un clic ; les trois menus individuels sont l'exception, repliés sous un
+    « Suivre séparément ».
+  </p>
+
+  <h3>Un cas n'a pas toujours trois spécimens</h3>
+  <p>
+    Si l'on force les trois spécimens sur chaque cas et que le statut du cas est celui du spécimen le moins
+    avancé, alors P01_Lung — ctDNA (150 cas, ADN circulant) et P10_Prostate (32 cas, aucune valeur d'ARN)
+    afficheraient <em>« Case Created » à perpétuité</em>, même une fois l'analyse ADN terminée. Un PI ouvrant
+    P01 l'an prochain verrait 150 cas apparemment jamais commencés.
+  </p>
+  <p>
+    <strong>Résolution :</strong> un cas porte 1 à 3 spécimens, et le rollup ne considère que ceux qui existent.
+    C'est aussi la lecture littérale de « l'utilisateur choisit parmi les types 1, 2 ou 3 ».
+  </p>
+</section>
+
+<!-- ============================================================ -->
+
+<section id="modele" class="wide">
+  <h2>Le modèle de données</h2>
+  <p class="section-note">
+    Un seul modèle nouveau porte l'essentiel de la v2. Tout le reste est additif.
+  </p>
+
+  <figure>
+    <div class="diagram-frame">
+      <svg viewBox="0 0 860 300" role="img" aria-label="Un projet contient des cas ; chaque cas contient de un à trois spécimens : Normal ADN, Tumeur ADN, Tumeur ARN. Chaque spécimen porte son propre statut et sa propre couverture. Le statut et le tier du cas sont dérivés des spécimens.">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--rule-strong)"/>
+          </marker>
+        </defs>
+
+        <!-- Project -->
+        <rect x="8" y="112" width="132" height="66" fill="var(--surface-2)" stroke="var(--rule-strong)"/>
+        <text x="74" y="139" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" font-weight="600" fill="var(--ink)">Project</text>
+        <text x="74" y="159" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10.5" fill="var(--ink-3)">+ kind</text>
+
+        <line x1="140" y1="145" x2="196" y2="145" stroke="var(--rule-strong)" stroke-width="1.5" marker-end="url(#ar)"/>
+
+        <!-- Case -->
+        <rect x="198" y="78" width="176" height="134" fill="var(--surface-2)" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="286" y="104" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" font-weight="600" fill="var(--ink)">Case</text>
+        <line x1="214" y1="115" x2="358" y2="115" stroke="var(--rule)"/>
+        <text x="214" y="134" font-family="ui-monospace, monospace" font-size="10.5" fill="var(--ink-2)">acc_number · attempt</text>
+        <text x="214" y="151" font-family="ui-monospace, monospace" font-size="10.5" fill="var(--ink-2)">biobank_id</text>
+        <text x="214" y="168" font-family="ui-monospace, monospace" font-size="10.5" fill="var(--ink-2)">is_priority</text>
+        <text x="214" y="185" font-family="ui-monospace, monospace" font-size="10.5" fill="var(--ink-2)">is_archived</text>
+        <text x="214" y="202" font-family="ui-monospace, monospace" font-size="10.5" fill="var(--ink-3)">status · tier ← dérivés</text>
+
+        <line x1="374" y1="145" x2="430" y2="145" stroke="var(--rule-strong)" stroke-width="1.5" marker-end="url(#ar)"/>
+        <text x="402" y="137" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--ink-3)">1–3</text>
+
+        <!-- Specimens -->
+        <rect x="432" y="30" width="240" height="66" fill="var(--surface)" stroke="var(--rule-strong)"/>
+        <text x="448" y="55" font-family="ui-monospace, monospace" font-size="12" font-weight="600" fill="var(--ink)">Specimen · normal_dna</text>
+        <text x="448" y="76" font-family="ui-monospace, monospace" font-size="10.5" fill="var(--ink-3)">status · coverage (X)</text>
+
+        <rect x="432" y="112" width="240" height="66" fill="var(--surface)" stroke="var(--rule-strong)"/>
+        <text x="448" y="137" font-family="ui-monospace, monospace" font-size="12" font-weight="600" fill="var(--ink)">Specimen · tumour_dna</text>
+        <text x="448" y="158" font-family="ui-monospace, monospace" font-size="10.5" fill="var(--ink-3)">status · coverage (X)</text>
+
+        <rect x="432" y="194" width="240" height="66" fill="var(--surface)" stroke="var(--rule-strong)"/>
+        <text x="448" y="219" font-family="ui-monospace, monospace" font-size="12" font-weight="600" fill="var(--ink)">Specimen · tumour_rna</text>
+        <text x="448" y="240" font-family="ui-monospace, monospace" font-size="10.5" fill="var(--ink-3)">status · coverage (M)</text>
+
+        <!-- derive arrows back -->
+        <path d="M 432 63 C 400 63 400 96 376 108" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="4 3"/>
+        <path d="M 432 227 C 400 227 400 200 376 186" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="4 3"/>
+
+        <!-- Events -->
+        <line x1="672" y1="145" x2="722" y2="145" stroke="var(--rule-strong)" stroke-width="1.5" marker-end="url(#ar)"/>
+        <rect x="724" y="112" width="128" height="66" fill="var(--surface-2)" stroke="var(--rule-strong)"/>
+        <text x="788" y="139" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" font-weight="600" fill="var(--ink)">StatusEvent</text>
+        <text x="788" y="159" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--ink-3)">qui · quand · quoi</text>
+      </svg>
+    </div>
+    <figcaption>
+      Les traits pleins sont des clés étrangères ; les pointillés bleus indiquent que
+      <code>Case.status</code> et <code>Case.tier</code> sont recalculés depuis les spécimens, jamais saisis.
+    </figcaption>
+  </figure>
+
+  <div class="col" style="margin-inline:0">
+    <h3>Ce qui est ajouté</h3>
+    <ul>
+      <li><code>Specimen</code> — <code>case</code>, <code>specimen_type</code> (les trois types), <code>status</code>, <code>coverage</code>, <code>external_id</code>. Unicité sur <code>(case, specimen_type)</code>.</li>
+      <li><code>Case.acc_number</code> (entier, triable et contraignable) à côté de <code>Case.name</code> qui reste la chaîne <code>ACC-%04d</code> affichée partout.</li>
+      <li><code>Case.attempt</code>, <code>Case.is_archived</code>, <code>Case.superseded_by</code> pour la re-soumission.</li>
+      <li><code>Case.is_priority</code>, <code>Project.kind</code> (recherche / cas référés).</li>
+      <li><code>IdentifierSequence</code> — une ligne, un compteur, pour l'allocation des ACC.</li>
+      <li><code>StatusEvent</code> et <code>BatchOperation</code> — la traçabilité qui rend l'annulation des changements en lot possible.</li>
+    </ul>
+
+    <h3>Ce qui n'est pas touché</h3>
+    <p>
+      Les trois colonnes de couverture restent sur <code>Case</code>, en <strong>miroir</strong> des spécimens.
+      Conséquence : <code>calculate_tier()</code> n'est pas modifié d'un caractère, les templates de liste
+      continuent de fonctionner, l'export CSV aussi, et le retour arrière consiste à supprimer les lignes
+      <code>Specimen</code>. Les supprimer sera un chantier séparé, plus tard, protégé par un test de référence.
+    </p>
+
+    <div class="panel ok">
+      <p class="panel-title">Critère de non-régression de la migration</p>
+      <p>
+        Après le backfill, la distribution des tiers doit être <strong>exactement</strong> 552 A / 682 B / 95 FAIL,
+        et aucun statut de cas ne doit avoir changé. Une répétition à blanc du backfill donne aujourd'hui
+        0 changement de tier et 0 changement de statut. Si ce n'est pas le cas le jour J, on annule.
+      </p>
+    </div>
+
+    <h3>La génération des ACC</h3>
+    <p>
+      <code>Max(acc_number) + 1</code> est en situation de course avec trois workers gunicorn, et
+      <code>select_for_update()</code> lève <code>NotSupportedError</code> sur SQLite. Le motif correct est
+      d'écrire avant de lire, ce qui prend le verrou d'écriture de SQLite dès la première instruction :
+    </p>
+    <pre><code>with transaction.atomic():
+    IdentifierSequence.objects.filter(key="acc").update(
+        last_value=F("last_value") + n)
+    last = IdentifierSequence.objects.get(key="acc").last_value
+    return range(last - n + 1, last + 1)</code></pre>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+
+<section id="statuts" class="wide">
+  <h2>Les statuts</h2>
+  <p class="section-note">
+    Dix statuts en trois étapes. Le regroupement n'est pas décoratif : il porte l'ordre,
+    ce que dix badges de couleurs différentes ne savent pas faire.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th>Étape</th><th>Statuts</th><th>Qui les pose</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Biobanque</strong></td>
+          <td>Case Created <span class="chip mute">défaut</span> · Sent to Sequencing Center</td>
+          <td>Biobanque</td>
+        </tr>
+        <tr>
+          <td><strong>Séquençage</strong></td>
+          <td>Received · QC complete · Library complete · iSeq finished · Sequencing Complete</td>
+          <td>Centre de séquençage</td>
+        </tr>
+        <tr>
+          <td><strong>Bio-informatique</strong></td>
+          <td>Transferred to CAIR · Analyzing · Analysis complete</td>
+          <td>CAIR</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col" style="margin-inline:0">
+    <h3>Comment ça s'affiche</h3>
+    <p>
+      Trois micro-barres empilées dans une seule cellule de tableau, préfixées N / D / R. Les segments
+      remplis indiquent l'étape atteinte. Un technicien voit « deux terminés, un en attente » sans lire,
+      là où un badge unique replierait l'information sur la pire valeur.
+    </p>
+
+    <div class="panel">
+      <div class="track-demo">
+        <div class="track-row">
+          <span class="track-label">N · ADN</span>
+          <span class="track" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i></span>
+          <span class="track-state">Analysis complete</span>
+        </div>
+        <div class="track-row">
+          <span class="track-label">D · ADN</span>
+          <span class="track" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i></span>
+          <span class="track-state">Analysis complete</span>
+        </div>
+        <div class="track-row">
+          <span class="track-label">R · ARN</span>
+          <span class="track" aria-hidden="true"><i class="on"></i><i class="on"></i><i></i></span>
+          <span class="track-state">Sequencing Complete</span>
+        </div>
+      </div>
+    </div>
+
+    <p>
+      Le statut du cas est celui du spécimen <em>le moins avancé</em>, et il se libelle explicitement —
+      <code>Sequencing Complete · en attente de Tumeur (ARN)</code> — plutôt que de laisser croire que le cas
+      entier stagne.
+    </p>
+
+    <h3>Les 469 cas sans équivalent</h3>
+    <p>
+      <code>incomplete</code> (428) et <code>unknown</code> (41) n'existent dans aucune des trois étapes.
+      Les inventer serait perdre l'information ; les mapper arbitrairement ferait apparaître 469 cas plus
+      avancés ou moins avancés qu'ils ne sont.
+    </p>
+    <p>
+      La donnée tranche à moitié la question : <strong>385 des 428</strong> cas <code>incomplete</code> ont
+      leurs deux couvertures ADN et pas d'ARN, et leurs commentaires disent littéralement « Needs Normal
+      Top-Up », « No DNA Normal fastq ». <code>incomplete</code> signifie donc « ARN en attente » — ce que le
+      modèle par spécimen exprime nativement, sans statut supplémentaire.
+    </p>
+    <p>
+      Proposition : conserver les deux valeurs comme statuts <em>dépréciés</em> (« Unknown (pre-V2) »), invisibles
+      dans les menus de saisie mais visibles dans les filtres, et les vider projet par projet avec l'outil de
+      changement en lot — c'est exactement l'usage pour lequel cet outil a été demandé.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+
+<section id="ecrans" class="col">
+  <h2>Les écrans</h2>
+  <p class="section-note">Ce qui change, écran par écran, et pourquoi.</p>
+
+  <h3>Page projet — le chantier principal</h3>
+  <p>
+    La grille de cartes devient un tableau dense, trié, paginé. C'est la condition d'existence des cases à
+    cocher : cocher 40 cases parmi 128 rangées de cartes, sans tout-sélectionner ni tri ni sélection par
+    plage, ne remplace pas l'aller-retour CSV — ça le remplace par pire.
+  </p>
+  <ul>
+    <li>Colonnes : case à cocher · ACC · Biobank ID · les trois micro-barres · Tier · dernière mise à jour.</li>
+    <li>Identifiants en police à chasse fixe. <code>ACC-0142</code> et <code>ACC-0412</code> se distinguent en mono, pas en proportionnel.</li>
+    <li>En-tête collant, tout-sélectionner, sélection par plage avec Maj-clic.</li>
+    <li>Une seule zone de recherche libellée « ACC ou Biobank ID », interrogeant les deux champs.</li>
+    <li>Filtres : statut groupé par étape, tier, et une bascule « Prioritaires uniquement ».</li>
+    <li>Le N+1 disparaît : deux annotations remplacent 512 requêtes.</li>
+  </ul>
+
+  <h3>La barre d'action en lot</h3>
+  <p>
+    Elle apparaît quand au moins une ligne est cochée, et porte deux menus : <em>appliquer à</em>
+    (tous les spécimens / Normal / Tumeur-ADN / Tumeur-ARN) et <em>nouveau statut</em>. Sans le premier menu,
+    « passer 40 cas à Sequencing Complete » est ambigu dès lors que le statut vit sur le spécimen.
+  </p>
+  <p>
+    Chaque application s'exécute dans une transaction, journalise un <code>BatchOperation</code> et une ligne
+    par spécimen touché, puis revient sur la même URL filtrée avec une bannière <strong>Annuler</strong> qui ne
+    remet en arrière que les spécimens encore à la valeur qu'on venait de poser.
+  </p>
+
+  <h3>Fiche de cas</h3>
+  <ul>
+    <li>En-tête d'identité : ACC en gros, Biobank ID, projet, drapeau prioritaire.</li>
+    <li>Un menu « Statut du cas » + bouton, qui applique aux spécimens présents. Les trois menus individuels sont repliés.</li>
+    <li>Le panneau des spécimens affiche l'unité dans le champ lui-même (X pour l'ADN, M pour l'ARN) — un help-text partagé entre trois lignes identiques de formulaire ne suffit pas à empêcher une saisie en mauvaise unité, qui produirait un Tier A erroné.</li>
+    <li>Historique des soumissions : les tentatives précédentes, avec le nombre de commentaires qu'elles portent — c'est généralement dans ces commentaires que se trouve la raison de la re-soumission.</li>
+    <li>Sur un cas archivé : bandeau en lecture seule « Remplacé par la tentative 2 », formulaires masqués. Sinon un technicien arrivant par un vieux lien éditera un cas mort.</li>
+  </ul>
+
+  <h3>Création en lot</h3>
+  <p>
+    Le formulaire actuel génère des noms par intervalle numérique. Avec l'ACC généré automatiquement,
+    cette logique disparaît — mais si on la remplace par un simple champ « nombre de cas », le technicien
+    obtient 50 cas anonymes puis doit ouvrir 50 pages pour saisir les Biobank ID.
+  </p>
+  <p>
+    À la place : une zone de texte, un Biobank ID par ligne. Le LIMS alloue les ACC et crée les cas déjà
+    porteurs de leur identifiant cherchable. Le patron existe déjà dans ce code —
+    <code>BatchUserCreateForm</code> fonctionne exactement ainsi.
+  </p>
+
+  <h3>Exports</h3>
+  <ul>
+    <li><strong>Par projet</strong> : un CSV large, une ligne par cas, avec un bloc de colonnes fixe pour chacun des trois spécimens. C'est ce format-là qu'un PI croise avec sa feuille clinique par <code>RECHERCHEV</code> sur le Biobank ID.</li>
+    <li><strong>Export complet</strong> : une archive ZIP construite avec la bibliothèque standard — <code>cases.csv</code>, <code>specimens.csv</code>, <code>comments.csv</code>, <code>cases_archived.csv</code>, et un <code>README.txt</code> qui décrit les colonnes.</li>
+    <li>Les tentatives archivées vont dans un fichier <em>séparé</em>, jamais mélangées derrière une colonne d'état : une erreur de filtre gonflerait un effectif publié.</li>
+    <li>Chaque fichier enfant porte <code>(acc_id, attempt)</code> comme clé de jointure. Joindre sur l'ACC seul après une re-soumission dupliquerait les lignes de la tentative 1 sur la tentative 2.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+
+<section id="ergonomie" class="col">
+  <h2>Les règles d'ergonomie</h2>
+  <p class="section-note">
+    Le critère au-dessus de tous les autres. Chacune de ces règles répond à une manière concrète
+    dont la v2 pouvait rendre le système plus pénible qu'aujourd'hui.
+  </p>
+
+  <ul class="rules">
+    <li>
+      <b>Faire avancer un cas reste un seul menu déroulant.</b>
+      <span>Le suivi par spécimen est une option repliée, jamais le chemin par défaut. C'est l'action la plus fréquente du système ; elle ne doit pas tripler.</span>
+    </li>
+    <li>
+      <b>Aucun cas n'est forcé à trois spécimens.</b>
+      <span>Sinon 182 cas de P01 et P10 afficheraient « Case Created » à vie.</span>
+    </li>
+    <li>
+      <b>Un seul champ de recherche, qui cherche l'ACC et le Biobank ID.</b>
+      <span>Plus une recherche globale dans la barre de navigation, tous projets confondus.</span>
+    </li>
+    <li>
+      <b>Créer 50 cas, c'est coller une liste.</b>
+      <span>Pas 50 chargements de page.</span>
+    </li>
+    <li>
+      <b>Un doublon nomme le cas en conflit.</b>
+      <span>« Le Biobank ID N-BBN 42 est déjà utilisé par ACC-0311 dans P06 — ouvrir ce cas ? », jamais <code>Constraint "uniq_active_biobank_id" is violated</code>.</span>
+    </li>
+    <li>
+      <b>Toute action en lot est annulable.</b>
+      <span>Et la confirmation nomme le nombre de cas touchés.</span>
+    </li>
+    <li>
+      <b>Rien ne change de place.</b>
+      <span>Barre de navigation, fil d'Ariane, action principale en haut à droite. Toutes les URL et tous les paramètres <code>?name=</code>, <code>?status=</code>, <code>?tier=</code>, <code>?project_lead=</code> continuent de fonctionner : les signets des utilisateurs avancés ne cassent pas.</span>
+    </li>
+    <li>
+      <b>L'unité s'affiche dans le champ.</b>
+      <span>X pour l'ADN, M pour l'ARN, en suffixe visible — pas dans un help-text répété trois fois.</span>
+    </li>
+    <li>
+      <b>Les statuts dépréciés disparaissent des menus de saisie mais restent dans les filtres.</b>
+      <span>Sinon le personnel ne peut plus retrouver les 469 cas qu'on lui demande de reclasser.</span>
+    </li>
+    <li>
+      <b>Jamais la couleur seule.</b>
+      <span>Chaque état porte aussi un texte ou une forme. Contraste minimum 4,5 : 1, cibles de clic d'au moins 24 px, focus visible au clavier.</span>
+    </li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+
+<section id="design" class="col">
+  <h2>Le design</h2>
+  <p class="section-note">
+    L'interface actuelle n'est pas laide, elle est datée — d'une façon précise, nommable et réparable.
+    L'objectif de la v2 est qu'elle soit élégante, et l'archive V1 permet d'y aller franchement.
+  </p>
+
+  <h3>Le diagnostic</h3>
+  <p>
+    <code>templates/base.html</code> contient environ 265 lignes de CSS en ligne qui reprennent la palette
+    Flat UI Colors de 2013 — #2c3e50, #3498db, #e74c3c, #1abc9c, #9b59b6, #2ecc71. Trois détails signent
+    l'amateurisme plus que la palette elle-même :
+  </p>
+  <ul>
+    <li><code>.card:hover { transform: translateY(-5px) }</code> — toutes les cartes lévitent, y compris celles qui ne sont pas cliquables. C'est le signal « kit de template » le plus fort de l'application.</li>
+    <li>Une ombre portée sur chaque surface, y compris les simples conteneurs de mise en page.</li>
+    <li>Une icône FontAwesome collée à chaque lien, chaque titre, chaque bouton — neuf rien que dans la barre de navigation. Environ 500 Ko de police pour une quinzaine de glyphes réellement utilisés.</li>
+  </ul>
+
+  <h3>Ce qu'on s'interdit</h3>
+  <p>
+    « Éviter les slops AI » se traduit par une liste de choses bannies, écrite une fois pour toutes :
+    dégradés violet-vers-bleu, glassmorphisme, emoji en guise d'icônes, section d'accueil surdimensionnée,
+    cartes statistiques arc-en-ciel, texte d'accueil du type « Bon retour parmi nous ! », illustrations
+    décoratives, Inter ou Space Grotesk comme police « par défaut sûre », et mode sombre non demandé.
+  </p>
+
+  <h3>Ce que « moderne » veut dire ici</h3>
+  <p>
+    Pas des effets. Un outil de laboratoire paraît moderne quand la densité est maîtrisée, quand la
+    typographie est choisie plutôt que subie, quand chaque état — vide, en cours, en erreur, confirmé — a été
+    dessiné, et quand la couleur porte du sens au lieu de décorer. C'est le contraire d'un habillage : c'est du
+    travail sur la lisibilité.
+  </p>
+
+  <h3>La direction retenue</h3>
+  <ul>
+    <li>
+      <strong>Une vraie identité typographique.</strong> <em>IBM Plex Sans</em> pour l'interface et
+      <em>IBM Plex Mono</em> pour tous les identifiants et toutes les valeurs numériques — libres, auto-hébergées,
+      d'origine industrielle et scientifique. Elles donnent un caractère net que la pile système n'a pas, et
+      elles évitent délibérément Inter et Space Grotesk, devenues la signature du « généré ».
+      <code>ACC-0142</code> et <code>ACC-0412</code> se distinguent en mono, pas en proportionnel : c'est le
+      changement typographique qui a le plus de valeur pratique ici.
+    </li>
+    <li>
+      <strong>Bordures, pas d'ombres.</strong> Un filet de 1 px, zéro ombre au repos. L'ombre est réservée aux
+      couches réellement flottantes — menu, modale, en-tête collant. Un système à filets s'imprime, une ombre non.
+    </li>
+    <li>
+      <strong>Une grille de 4 px, tenue partout.</strong> L'espacement est ce qui sépare le plus visiblement une
+      interface soignée d'une interface fonctionnelle. Une échelle typographique fermée, et rien en dehors.
+    </li>
+    <li>
+      <strong>Badges teintés.</strong> Fond clair, texte foncé de la même teinte, filet de 1 px. Mesuré :
+      5,20 : 1 pour le vert, 5,66 : 1 pour l'ambre, 5,59 : 1 pour le rouge, contre 2,10 à 3,82 : 1 aujourd'hui.
+      Les badges cessent aussi de crier dans un tableau de 40 lignes.
+    </li>
+    <li>
+      <strong>Sémantique du tier corrigée.</strong> A vert, B ambre, FAIL rouge. Aujourd'hui A est rouge et FAIL
+      est gris : un PI qui survole un projet voit un mur de rouge et lit une catastrophe.
+    </li>
+    <li>
+      <strong>Le statut est une progression, pas dix teintes.</strong> Dix couleurs n'ont pas d'ordre ; on ne
+      peut pas deviner si « QC complete » précède « Library complete ». Une barre à segments l'encode sans lecture.
+    </li>
+    <li>
+      <strong>La page d'accueil devient un tableau de bord, pas une liste de compteurs.</strong> Répartition par
+      étape, distribution des tiers, cas prioritaires en attente : de vraies petites visualisations, sobres et
+      monochromes, qui répondent en un coup d'œil à « où en est le consortium ». C'est le gain de modernité
+      perçue le plus fort du chantier, et il est aussi utile.
+    </li>
+    <li>
+      <strong>Les états intermédiaires sont dessinés.</strong> Listes vides avec une action proposée, indicateur
+      d'attente sur les opérations en lot, confirmations en bandeau, messages d'erreur qui nomment le problème
+      et la sortie. C'est précisément ce dont l'interface actuelle est dépourvue, et ce qui la fait paraître
+      inachevée plus que datée.
+    </li>
+    <li>
+      <strong>Mouvement discret.</strong> 120 ms sur les seuls éléments interactifs, et
+      <code>prefers-reduced-motion</code> respecté. Aucune animation décorative — c'est là que le
+      « moderne » bascule dans le clinquant.
+    </li>
+    <li>
+      <strong>Bootstrap conservé, mais plus aucun composant à son apparence d'origine.</strong> Il porte la
+      grille, les menus et le pack crispy-forms des 18 templates : le retirer serait une réécriture déguisée en
+      changement de style. En revanche, si un bouton, un tableau ou un formulaire ressemble encore à du
+      Bootstrap par défaut à la livraison, le travail n'est pas fait. Le bloc <code>&lt;style&gt;</code> en ligne
+      disparaît au profit d'un unique <code>static/css/lims.css</code> piloté par jetons.
+    </li>
+    <li>
+      <strong>Une feuille d'impression.</strong> Les PI impriment les fiches de cas.
+    </li>
+  </ul>
+
+  <h3>Ce qui ne bouge pas, malgré tout</h3>
+  <p>
+    L'élégance ne s'achète pas en réorganisant l'application. La barre de navigation reste en haut, le fil
+    d'Ariane garde son ordre, l'action principale reste en haut à droite, et toutes les URL et tous les
+    paramètres de filtre continuent de fonctionner. Une barre latérale serait plus « moderne » sur une capture
+    d'écran et coûterait un réapprentissage à 42 personnes pour cinq destinations — on ne l'échange pas contre
+    ça. Le seul ajout dans la barre est le champ de recherche global, qui sert aussi la recherche par Biobank ID.
+  </p>
+  <p>
+    Pas de mode sombre en v2.0. Personne ne l'a demandé, il double la surface de vérification visuelle sur un
+    projet qui n'a pas encore de tests, et un mode sombre non sollicité fait justement partie des signes du
+    travail généré. C'est une décision, pas un oubli — il pourra venir ensuite.
+  </p>
+
+  <div class="panel alert">
+    <p class="panel-title">Deux pièges de déploiement sur cette étape</p>
+    <p>
+      <code>settings_prod.py</code> utilise <code>CompressedManifestStaticFilesStorage</code> : tout chemin
+      <code>{% static %}</code> absent de <code>staticfiles.json</code> lève une <code>ValueError</code> et
+      renvoie une 500. Redémarrer le service <em>sans</em> <code>collectstatic</code> après avoir ajouté
+      <code>lims.css</code> met tout le site à terre pour les 42 utilisateurs.
+    </p>
+    <p>
+      Et <code>templates/base.html</code> n'a pas de <code>{% load static %}</code> : ajouter une balise
+      <code>{% static %}</code> sans cette ligne fait lever une <code>TemplateSyntaxError</code> sur
+      <em>toutes</em> les pages, page de connexion comprise — plus personne ne peut entrer.
+    </p>
+  </div>
+
+  <p>
+    Le renommage des statuts casse aussi le style au passage : <code>base.html</code> code en dur neuf règles
+    <code>.badge-&lt;slug&gt;</code> et neuf règles <code>.case-&lt;slug&gt;</code> sur les slugs actuels.
+    Après migration, les 855 cas <code>completed</code> deviennent <code>analysis_complete</code> et perdent
+    leur couleur. La parade est d'arrêter de coder la couleur sur le slug : quatre classes d'étape
+    remplacent dix classes de statut, ce qui fait aussi quatre couleurs à apprendre au lieu de dix.
+  </p>
+</section>
+
+<!-- ============================================================ -->
+
+<section id="livraison" class="wide">
+  <h2>Le plan de livraison</h2>
+  <p class="section-note">
+    Dix incréments, chacun laissant l'application en état de marche. Deux principes d'ordonnancement :
+    les garde-fous viennent avant tout ce qui touche aux données, et l'archive V1 est debout
+    <em>avant</em> la seule migration difficilement réversible.
+  </p>
+
+  <ol class="steps">
+    <li>
+      <div>
+        <h3>Garde-fous et sauvegardes</h3>
+        <p>
+          Les huit mécanismes de la section garde-fous. La base sort de l'arbre git, le timer de sauvegarde
+          horaire vérifiée est en place, le runbook de déploiement arrête le watchdog et exige un point de
+          restauration frais, le script d'invariants est écrit, la suppression devient douce, et l'import CSV
+          cesse d'effacer les couvertures. Restauration répétée pour de vrai en fin d'incrément.
+        </p>
+        <div class="step-meta"><span class="chip bad">bloquant</span><span class="chip mute">~5 j</span></div>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h3>Gains immédiats et filet de sécurité</h3>
+        <p>
+          Pagination et correction du N+1 sur la page projet. Suite de tests d'amorce : fichier de référence des
+          tiers, test de fumée sur toutes les URL, tests de permissions. Activation du WAL SQLite et du délai
+          d'attente sur verrou. Fusion des deux modules de réglages dupliqués. Suppression du code mort
+          (l'API DRF jamais branchée, les templates React sans application React).
+        </p>
+        <div class="step-meta"><span class="chip mute">~6 j</span></div>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h3>Identifiants</h3>
+        <p>
+          Contraintes d'unicité — gratuites aujourd'hui, mesuré : 0 doublon sur les deux champs. Génération
+          automatique des ACC. <code>other_id</code> devient <code>biobank_id</code>, cherchable, avec la
+          recherche unifiée et la recherche globale. Message de doublon qui nomme le cas en conflit.
+        </p>
+        <div class="step-meta"><span class="chip info">R1 · R6</span><span class="chip mute">~5 j</span></div>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h3>Prioritaires et cas référés</h3>
+        <p>
+          Purement additif : le drapeau prioritaire, son traitement visuel dans les listes, le filtre associé,
+          et le projet « Referred Cases » avec son type distinct.
+        </p>
+        <div class="step-meta"><span class="chip info">R2 · R7</span><span class="chip mute">~2 j</span></div>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h3>Archive V1</h3>
+        <p>
+          Étiquette <code>v1.0-final</code>, déploiement du tag dans <code>/opt/terryfox-lims-v1/</code>,
+          instantané figé de la base en lecture seule à trois couches, second service systemd, route
+          <code>/v1/</code> sur le proxy, bandeau permanent et liens croisés entre les deux versions.
+        </p>
+        <p>
+          Placé ici volontairement : le filet doit être tendu avant le saut de l'incrément suivant, et
+          l'instantané doit dater d'avant la migration des spécimens.
+        </p>
+        <div class="step-meta"><span class="chip good">filet de sécurité</span><span class="chip mute">~3 j</span></div>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h3>Spécimens et statuts</h3>
+        <p>
+          L'incrément lourd et le seul difficilement réversible. Modèle <code>Specimen</code>, les dix statuts
+          en trois étapes, le rollup, et le backfill des 1329 cas. Découpé en quatre migrations : schéma additif,
+          puis backfill des données, puis contraintes, puis données de référence. Les colonnes de couverture
+          restent en miroir, donc <code>calculate_tier()</code> n'est pas touché et l'invariant
+          552 / 682 / 95 est vérifiable des deux côtés.
+        </p>
+        <div class="step-meta"><span class="chip bad">risque élevé</span><span class="chip info">R8 · R9</span><span class="chip mute">~12 j</span></div>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h3>Changement de statut en lot</h3>
+        <p>
+          Le tableau, les cases à cocher, la barre d'action, la journalisation et l'annulation.
+          Environ 90 lignes de JavaScript en ligne — pas de HTMX, pas de npm, pas d'étape de compilation,
+          et la fonctionnalité continue de marcher sans JavaScript, puisque des cases à cocher et un bouton
+          d'envoi sont du HTML natif.
+        </p>
+        <div class="step-meta"><span class="chip info">R3</span><span class="chip mute">~7 j</span></div>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h3>Re-soumission</h3>
+        <p>
+          Le bouton, le service qui archive la tentative précédente et ouvre la suivante avec le même ACC,
+          l'option « le Normal est encore bon » qui reporte le spécimen valide, le bandeau des cas archivés,
+          et l'historique des tentatives sur la fiche.
+        </p>
+        <div class="step-meta"><span class="chip info">R4</span><span class="chip mute">~5 j</span></div>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h3>Exports</h3>
+        <p>
+          Export par projet, export consortium en ZIP avec son <code>README.txt</code>, import CSV réécrit en
+          mode mise à jour avec prévisualisation obligatoire.
+        </p>
+        <div class="step-meta"><span class="chip info">R5</span><span class="chip mute">~5 j</span></div>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h3>Refonte visuelle</h3>
+        <p>
+          En dernier, parce qu'elle touche tous les templates et qu'il vaut mieux qu'ils aient cessé de bouger.
+          Couche de jetons et <code>lims.css</code>, polices Plex auto-hébergées, sprite d'icônes en SVG,
+          tableau de bord d'accueil, états vides et de chargement, feuille d'impression, passe d'accessibilité.
+          L'archive V1 reste accessible en parallèle pendant toute la période d'adaptation.
+        </p>
+        <div class="step-meta"><span class="chip info">R10</span><span class="chip mute">~8 j</span></div>
+      </div>
+    </li>
+  </ol>
+
+  <div class="col" style="margin-inline:0">
+    <div class="panel">
+      <p class="panel-title">Sur l'infrastructure</p>
+      <p>
+        Rester sur SQLite. Mesuré : trois écrivains et trois lecteurs concurrents produisent
+        <strong>0 erreur de verrou</strong>, en mode delete comme en mode WAL, avec un p95 de 4 à 5 ms. La base
+        entière fait environ 650 Ko et se sauvegarde en 46 ms. Activer WAL, les transactions <code>IMMEDIATE</code> et
+        un délai d'attente de 20 s suffit ; PostgreSQL n'est pas justifié à cette échelle.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+
+<section id="decisions" class="col">
+  <h2>Ce qui vous appartient</h2>
+  <p class="section-note">
+    Six questions que le code ne peut pas trancher. Les recommandations ci-dessous ont été
+    <strong>acceptées le 13 août 2026</strong> et sont désormais la ligne de conduite ; elles restent
+    documentées ici avec leur justification, pour qu'on sache pourquoi si on veut les rouvrir.
+  </p>
+
+  <div class="panel key">
+    <p class="panel-title">Seul point encore ouvert</p>
+    <p style="margin-bottom:0">
+      Faire tourner ou non la <code>SECRET_KEY</code>. Ce n'est pas une réinitialisation de mot de passe :
+      chacun se reconnecte une fois avec son mot de passe actuel. Sans rotation, la clé publiée continue de
+      permettre la forge de sessions valides. Coût d'une reconnexion pour 42 personnes contre cette exposition —
+      la décision vous revient, elle ne bloque aucun incrément.
+    </p>
+  </div>
+
+  <h3>D1 · Combien de spécimens par cas ?</h3>
+  <p>
+    446 cas n'ont pas de valeur d'ARN, et P01_Lung est de l'ADN circulant où un spécimen d'ARN tumoral ne sera
+    peut-être jamais prélevé.
+  </p>
+  <p>
+    <strong>Recommandation :</strong> le type de spécimen se coche à la création, comme le demande la note de
+    réunion. Pour la migration, créer les trois spécimens partout <em>sauf</em> pour les projets que la
+    biobanque désigne comme sans ARN. Supprimer des spécimens en trop est une requête ; en recréer 446 à la
+    main ne l'est pas.
+  </p>
+
+  <h3>D2 · Que deviennent les 469 cas <code>incomplete</code> et <code>unknown</code> ?</h3>
+  <p>
+    <strong>Recommandation :</strong> les garder comme statuts dépréciés et les vider avec l'outil de lot,
+    projet par projet, avec la biobanque dans la pièce. Si le consortium veut une table rase au jour 1,
+    le mappage le moins inventif est <code>incomplete → Sequencing Complete</code> (ADN fait, ARN en attente)
+    et <code>unknown → Case Created</code>. La valeur d'origine est conservée dans tous les cas.
+  </p>
+
+  <h3>D3 · Le Biobank ID doit-il être unique globalement, ou seulement par projet ?</h3>
+  <p>
+    Zéro collision aujourd'hui — mais c'est de la chance, pas de la conception : P08_CRC utilise des
+    identifiants numériques nus de 5 à 849, et P09_BC_EV de 102 à 850. Deux projets partagent un même espace de
+    numérotation. Le jour où P09 enregistre son patient 300 alors que P08 a déjà un 300, une contrainte dure
+    bloque la technicienne sur le <em>vrai</em> identifiant du patient.
+  </p>
+  <p>
+    <strong>Recommandation :</strong> unicité dure sur l'ACC, qui est généré par le LIMS et donc gratuite.
+    Contrôle <em>souple</em> sur le Biobank ID : « cet identifiant existe déjà dans P08_CRC (ACC-0742).
+    Même patient ? [Ouvrir] [Non, créer quand même] ». La demande dit « ne peut plus être créé dans deux
+    projets <em>par erreur</em> » — c'est une prévention d'erreur, pas un axiome d'unicité.
+  </p>
+
+  <h3>D4 · La re-soumission porte-t-elle sur le cas entier ou sur un spécimen ?</h3>
+  <p>
+    <strong>Recommandation :</strong> au niveau du cas, comme demandé — un bouton, un avant et un après clairs —
+    avec une case « le Normal est encore bon » qui reporte le spécimen valide et sa couverture dans la nouvelle
+    tentative. Distinguer par ailleurs le <em>top-up</em> (un spécimen recule d'un cran sur le même cas) de la
+    re-soumission (nouveau prélèvement physique après échec).
+  </p>
+
+  <h3>D5 · Les cas prioritaires remontent-ils en tête de liste ?</h3>
+  <p>
+    <strong>Recommandation :</strong> oui, épinglés en tête, plus un marqueur ambre et un filtre dédié.
+    Un cas urgent sorti de l'écran par le défilement vide la demande de sa substance. Revenir en arrière
+    est une ligne de code si le personnel dit ne plus retrouver ses ACC en balayant la liste.
+  </p>
+
+  <h3>D6 · Qui peut extraire un export consortium complet ?</h3>
+  <p>
+    Le fichier contient les données de tous les projets de tous les groupes.
+    <strong>Recommandation :</strong> superutilisateurs uniquement, avec journalisation de qui l'a extrait et quand.
+    Les PI gardent l'export de leur propre projet en un clic.
+  </p>
+</section>
+
+<footer class="wide">
+  <p>
+    Chiffres mesurés sur <code>db.sqlite3</code> et sur le serveur de production le 13 août 2026.
+    Les recommandations engagent une lecture du code ; les valeurs par défaut proposées s'appliquent
+    faute de décision contraire du consortium.
+  </p>
+</footer>
