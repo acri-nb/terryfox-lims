@@ -25,7 +25,7 @@ SECURE_HSTS_PRELOAD = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Configuration des hôtes autorisés - seulement les IPs/domaines nécessaires
-ALLOWED_HOSTS = ['10.220.115.67', 'localhost', '127.0.0.1', 'candig.cair.mun.ca']
+ALLOWED_HOSTS = ['10.220.115.67', 'localhost', '127.0.0.1', 'candig-lims.cair.mun.ca']
 
 # Configuration pour résoudre le problème de Bad Request avec le nom de domaine
 USE_X_FORWARDED_HOST = True
