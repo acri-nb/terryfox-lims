@@ -1,0 +1,35 @@
+# Bytecode Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Bases SQLite
+# La base de production vit hors de l'arbre git (/var/lib/terryfox-lims/db.sqlite3),
+# precisement pour qu'aucune commande git ne puisse atteindre les donnees vivantes.
+db.sqlite3
+db.sqlite3-journal
+db.sqlite3-wal
+db.sqlite3-shm
+*.sqlite3.deplacee-*
+*.sqlite3.remplacee-*
+
+# Fichiers statiques collectes
+/staticfiles/
+
+# Environnements virtuels
+venv/
+.venv/
+env/
+
+# Journaux et sauvegardes locales
+*.log
+/logs/
+/backups/
+
+# Sauvegardes de configuration produites par ops/install.sh
+.env.avant-install-*
+
+# Outils
+.DS_Store
+*.swp
+.idea/
