@@ -76,7 +76,14 @@ def snapshot(db_path):
                     f"SELECT count(*) FROM {table} WHERE deleted_at IS NULL"
                 ).fetchone()[0]
             except sqlite3.Error:
-                pass  # colonne absente : base anterieure a la migration 0019
+                # Colonne deleted_at absente : base anterieure a la migration 0019.
+                # Par definition aucune ligne n'y est supprimee, donc vivants == total.
+                # Sans cette equivalence, la mesure serait absente de la reference
+                # prise AVANT la migration et presente APRES : le controle la lirait
+                # comme un ecart de +1329 et annulerait un deploiement parfaitement sain.
+                total = snap.get(table)
+                if isinstance(total, int):
+                    snap[f"vivants:{table}"] = total
 
         for row in conn.execute("SELECT tier, count(*) FROM core_case GROUP BY tier"):
             snap[f"tier:{row[0]}"] = row[1]
@@ -128,9 +135,18 @@ def render(snap):
 
 def compare(before, after, allowed):
     keys = [k for k in sorted(set(before) | set(after)) if not k.startswith("_")]
-    problems, expected, unchanged = [], [], 0
+    problems, expected, unchanged, appeared = [], [], 0, []
 
     for key in keys:
+        # Une cle absente de la reference est une mesure nouvelle, pas une donnee
+        # qui a change : elle n'avait pas de valeur anterieure. On la signale sans
+        # bloquer. Rien n'est masque pour autant -- si une valeur s'est deplacee
+        # d'une cle vers une autre (un statut renomme, par exemple), la cle
+        # d'origine chute et reste, elle, signalee comme ecart.
+        if key not in before:
+            appeared.append(f"{key} = {after[key]}")
+            continue
+
         old = before.get(key, 0)
         new = after.get(key, 0)
         if old == new:
@@ -149,6 +165,8 @@ def compare(before, after, allowed):
         problems.append(f"integrity_check = {after.get('integrity')!r}")
 
     print(f"  {unchanged} valeurs inchangees")
+    for line in appeared:
+        print(f"  NOUVEAU  {line}")
     for line in expected:
         print(f"  ATTENDU  {line}")
     for line in problems:
@@ -166,7 +184,14 @@ def main():
     args = ap.parse_args()
 
     db = resolve_db(args.db)
-    snap = snapshot(db)
+    try:
+        snap = snapshot(db)
+    except sqlite3.DatabaseError as exc:
+        # Une base corrompue doit produire une phrase, pas une trace Python :
+        # ce message est lu pendant un incident, par quelqu'un qui doit decider
+        # vite s'il restaure.
+        fail(f"base illisible ({db}) -> {exc}. "
+             f"Restaurer : sudo {REPO_ROOT}/ops/restore_db.sh")
 
     if args.save:
         Path(args.save).write_text(json.dumps(snap, indent=2, sort_keys=True))

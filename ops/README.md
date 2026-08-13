@@ -96,8 +96,16 @@ DATABASE_PATH=/tmp/essai.sqlite3 python manage.py runserver 8001
 ## Tests
 
 ```bash
-python manage.py test core
+python manage.py test core     # application
+python3 ops/selftest.py        # le controle d'invariants lui-meme
 ```
+
+`selftest.py` verifie sur des bases synthetiques jetables que le controle
+detecte bien une perte de lignes, une suppression douce de masse et une base
+corrompue, et qu'il ne bloque pas une migration purement additive. C'est ce
+script qui decide d'annuler une migration de production : s'il se degrade en
+silence, personne ne s'en apercoit avant l'incident.
+
 
 13 tests couvrent le calcul du tier (fichier de référence des critères du consortium),
 la suppression douce, l'import CSV et la réponse de chaque page. Ils tournent sur une base
