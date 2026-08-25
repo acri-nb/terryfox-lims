@@ -30,6 +30,10 @@
         <a href="{% url 'csv_case_export' project_id=project.id %}" class="btn btn-success">
             <i class="fas fa-download me-1"></i> Export to CSV
         </a>
+        <a href="{% url 'project_export_bundle' project_id=project.id %}" class="btn btn-outline-success"
+           title="Cases, specimens, comments and archived attempts, with a README">
+            <i class="fas fa-file-archive me-1"></i> Full export (ZIP)
+        </a>
     </div>
 </div>
 

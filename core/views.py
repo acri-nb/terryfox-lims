@@ -15,7 +15,9 @@ from datetime import datetime
 import string
 import random
 
-from . import statuses
+import logging
+
+from . import exports, statuses
 from .models import BatchOperation, SpecimenStatusChange, Project, Case, Specimen, Accession, Comment, ProjectLead, IdentifierSequence
 
 from .forms import ProjectForm, CaseForm, CaseStatusForm, SpecimenFormSet, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, BulkStatusForm, ResubmitForm, CSVImportForm, UserCreateForm, BatchUserCreateForm, UserUpdateForm
@@ -24,6 +26,8 @@ from .forms import ProjectForm, CaseForm, CaseStatusForm, SpecimenFormSet, Comme
 # page la recherche et les filtres restent le chemin principal pour retrouver un
 # cas, la pagination n'etant qu'un garde-fou sur le poids de la page.
 CASES_PER_PAGE = 100
+
+logger = logging.getLogger(__name__)
 
 @login_required
 def home(request):
@@ -937,32 +941,63 @@ def csv_case_import(request, project_id):
 
 @login_required
 def csv_case_export(request, project_id):
-    """
-    Export all cases of a project to CSV
+    """Export d'un projet : un seul fichier, une ligne par cas.
+
+    Le format LARGE est deliberé : c'est celui qu'un PI croise avec sa feuille
+    clinique par RECHERCHEV sur le Biobank ID. Un fichier long, une ligne par
+    specimen, triplerait son effectif sans qu'il s'en apercoive.
     """
     project = get_object_or_404(Project, id=project_id)
-    
-    # Create the HttpResponse object with the appropriate CSV header.
+
     response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="cases_{project.name}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
-    
-    writer = csv.writer(response)
-    writer.writerow(['CaseID', 'Biobank_ID', 'Status', 'DNAT', 'DNAN', 'RNA', 'Tier'])
-    
-    for case in project.cases.all():
-        writer.writerow([
-            case.name,
-            case.biobank_id or '',
-            case.status,
-            case.dna_t_coverage or '',
-            case.dna_n_coverage or '',
-            case.rna_coverage or '',
-            case.tier
-        ])
-    
+    horodatage = datetime.now().strftime('%Y%m%d_%H%M%S')
+    response['Content-Disposition'] = (
+        f'attachment; filename="cases_{project.name}_{horodatage}.csv"')
+    exports.ecrire_cas(response, project=project)
     return response
 
-# User Management Views (Admin Only)
+
+@login_required
+def project_export_bundle(request, project_id):
+    """Export complet d'un projet : donnees et metadonnees, en archive ZIP."""
+    project = get_object_or_404(Project, id=project_id)
+    archive, comptes = exports.construire_archive(
+        project=project, scope=f'Project: {project.name}')
+
+    horodatage = datetime.now().strftime('%Y%m%d_%H%M%S')
+    response = HttpResponse(archive.read(), content_type='application/zip')
+    response['Content-Disposition'] = (
+        f'attachment; filename="terryfox_{project.name}_{horodatage}.zip"')
+    logger.info("Export projet %s par %s : %s",
+                project.name, request.user.username, comptes)
+    return response
+
+
+@login_required
+def consortium_export(request):
+    """Export de tous les projets. Superutilisateurs seulement, et journalise.
+
+    Le fichier reunit les donnees de tous les groupes du consortium : il ne
+    circule pas comme un export de projet.
+    """
+    if not request.user.is_superuser:
+        messages.error(
+            request,
+            _('A consortium-wide export covers every group. Only administrators '
+              'can produce one; your own project exports are on the project page.'))
+        return redirect('home')
+
+    archive, comptes = exports.construire_archive(scope='All projects (consortium)')
+
+    horodatage = datetime.now().strftime('%Y%m%d_%H%M%S')
+    response = HttpResponse(archive.read(), content_type='application/zip')
+    response['Content-Disposition'] = (
+        f'attachment; filename="terryfox_consortium_{horodatage}.zip"')
+    # Trace d'audit : qui a extrait l'ensemble du consortium, et quand.
+    logger.warning("EXPORT CONSORTIUM par %s (%s) : %s",
+                   request.user.username, request.META.get('REMOTE_ADDR', '?'), comptes)
+    return response
+
 
 def _generate_password(length=12):
     """Generate a random password."""

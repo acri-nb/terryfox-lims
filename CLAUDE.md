@@ -113,6 +113,17 @@ rows inherited from V1. `statuses.from_any()` accepts v1 slugs and v1 labels so 
 still import. A case is never forced to three specimens — `ensure_specimens(types)` takes the
 list, and P10_Prostate has no RNA specimen at all.
 
+### Exports
+
+`core/exports.py`, stdlib only. `cases.csv` is **wide** — one row per case with a fixed block
+of columns per specimen — because a PI cross-references it with a clinical sheet on
+`Biobank_ID`; a long file would triple their cohort count unnoticed. The ZIP bundle adds
+`specimens.csv`, `comments.csv` and `cases_archived.csv`. Archived attempts live in their own
+file, never behind a state column in `cases.csv`, so a filter mistake cannot inflate a count.
+Every child file carries `(ACC, Attempt)`: joining on ACC alone fans attempt-1 rows onto
+attempt 2 after a resubmit, and the README says so. Consortium-wide export is superuser-only
+and logged at WARNING.
+
 ### Resubmit
 
 `Case.resubmit()` archives the current attempt and opens the next one under the **same ACC**.

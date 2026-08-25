@@ -798,6 +798,122 @@ class ResubmitTests(TestCase):
                          "aucune troisieme tentative ne doit avoir ete ouverte")
 
 
+class ExportTests(TestCase):
+    """Deux granularites, et une forme de fichier choisie pour ce qu'on en fait."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("admin3", password="x")
+        self.editor = make_editor("editor9")
+        self.project = Project.objects.create(name="P export", created_by=self.admin)
+        self.case = Case.objects.create(project=self.project, biobank_id="E-1")
+        self.case.ensure_specimens()
+        for specimen in self.case.specimens.all():
+            specimen.coverage = 85
+            specimen.status = statuses.ANALYSIS_COMPLETE
+            specimen.save()
+        Comment.objects.create(case=self.case, user=self.admin,
+                               text='ligne 1\nligne 2, avec virgule et "guillemets"')
+        self.client = Client()
+        self.client.force_login(self.admin)
+
+    def _zip(self, url):
+        import io, zipfile
+        return zipfile.ZipFile(io.BytesIO(self.client.get(url).content))
+
+    def _rows(self, texte):
+        import csv, io
+        return list(csv.reader(io.StringIO(texte)))
+
+    def test_project_csv_is_one_wide_row_per_case(self):
+        """Le format large : c'est celui qu'un PI croise par RECHERCHEV."""
+        response = self.client.get(
+            reverse("csv_case_export", kwargs={"project_id": self.project.id}))
+        rows = self._rows(response.content.decode())
+        self.assertEqual(len(rows) - 1, 1, "une ligne par cas, pas par specimen")
+        self.assertIn("Normal_DNA_Coverage_X", rows[0])
+        self.assertIn("Tumour_RNA_Coverage_M_reads", rows[0])
+        self.assertIn("Biobank_ID", rows[0])
+
+    def test_the_bundle_carries_the_four_files_and_a_readme(self):
+        archive = self._zip(
+            reverse("project_export_bundle", kwargs={"project_id": self.project.id}))
+        self.assertEqual(
+            sorted(archive.namelist()),
+            ["README.txt", "cases.csv", "cases_archived.csv", "comments.csv", "specimens.csv"],
+        )
+
+    def test_the_readme_warns_about_joining_on_acc_alone(self):
+        """Le piege de correctitude le plus serieux de ces exports."""
+        archive = self._zip(
+            reverse("project_export_bundle", kwargs={"project_id": self.project.id}))
+        readme = archive.read("README.txt").decode()
+        self.assertIn("never on ACC alone", readme)
+
+    def test_archived_attempts_never_land_in_the_active_file(self):
+        """Une erreur de filtre gonflerait un effectif publie."""
+        self.case.resubmit(user=self.admin)
+        archive = self._zip(
+            reverse("project_export_bundle", kwargs={"project_id": self.project.id}))
+
+        actifs = self._rows(archive.read("cases.csv").decode())
+        archives = self._rows(archive.read("cases_archived.csv").decode())
+        self.assertEqual(len(actifs) - 1, 1)
+        self.assertEqual(len(archives) - 1, 1)
+        self.assertEqual(actifs[1][1], "2", "le fichier actif porte la tentative en cours")
+        self.assertEqual(archives[1][1], "1")
+
+    def test_child_files_carry_the_join_key(self):
+        archive = self._zip(
+            reverse("project_export_bundle", kwargs={"project_id": self.project.id}))
+        for nom in ("specimens.csv", "comments.csv"):
+            with self.subTest(fichier=nom):
+                entete = self._rows(archive.read(nom).decode())[0]
+                self.assertIn("ACC", entete)
+                self.assertIn("Attempt", entete)
+
+    def test_multiline_comments_survive_the_round_trip(self):
+        archive = self._zip(
+            reverse("project_export_bundle", kwargs={"project_id": self.project.id}))
+        rows = self._rows(archive.read("comments.csv").decode())
+        self.assertEqual(len(rows) - 1, 1, "un commentaire multi-lignes reste UNE ligne CSV")
+        self.assertIn('guillemets', rows[1][-1])
+
+    def test_a_missing_specimen_reads_as_not_collected(self):
+        autre = Case.objects.create(project=self.project, biobank_id="E-2")
+        autre.ensure_specimens([Specimen.TYPE_NORMAL_DNA])
+        rows = self._rows(self.client.get(
+            reverse("csv_case_export", kwargs={"project_id": self.project.id})
+        ).content.decode())
+        colonne = rows[0].index("Tumour_RNA_Status")
+        ligne = next(r for r in rows[1:] if r[2] == "E-2")
+        self.assertEqual(ligne[colonne], "not collected",
+                         "distinguer 'pas prevu au protocole' de 'en attente'")
+
+    def test_only_an_administrator_gets_the_consortium_export(self):
+        client = Client()
+        client.force_login(self.editor)
+        response = client.get(reverse("consortium_export"), follow=True)
+        self.assertNotIn("application/zip", response.get("Content-Type", ""))
+
+    def test_an_editor_keeps_their_own_project_export(self):
+        client = Client()
+        client.force_login(self.editor)
+        response = client.get(
+            reverse("project_export_bundle", kwargs={"project_id": self.project.id}))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/zip")
+
+    def test_export_query_count_does_not_grow_with_case_count(self):
+        for i in range(30):
+            case = Case.objects.create(project=self.project, biobank_id=f"E-1{i:02d}")
+            case.ensure_specimens()
+        with CaptureQueriesContext(connection) as ctx:
+            self.client.get(reverse("project_export_bundle",
+                                    kwargs={"project_id": self.project.id}))
+        self.assertLess(len(ctx.captured_queries), 25,
+                        "un N+1 dans l'export ferait exploser le temps sur 1329 cas")
+
+
 class SmokeTests(TestCase):
     """Chaque page repond. Le filet minimal avant toute refonte."""
 

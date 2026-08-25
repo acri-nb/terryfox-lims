@@ -25,6 +25,8 @@ urlpatterns = [
     path('projects/<int:project_id>/cases/batch/', views.batch_case_create, name='batch_case_create'),
     path('projects/<int:project_id>/cases/import-csv/', views.csv_case_import, name='csv_case_import'),
     path('projects/<int:project_id>/cases/export-csv/', views.csv_case_export, name='csv_case_export'),
+    path('projects/<int:project_id>/export/', views.project_export_bundle, name='project_export_bundle'),
+    path('export/consortium/', views.consortium_export, name='consortium_export'),
     path('cases/<int:case_id>/resubmit/', views.case_resubmit, name='case_resubmit'),
     path('cases/<int:case_id>/delete/', views.case_delete, name='case_delete'),
     
