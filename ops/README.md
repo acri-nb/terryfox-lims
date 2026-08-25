@@ -37,6 +37,13 @@ La V1 reste consultable apres la bascule, **figee** : le code du commit
 que la v2 a renommees et ignore les specimens ; sur des donnees courantes il
 afficherait des cas incomplets, et une V1 qui ment est pire que pas de V1.
 
+L'archive tourne sur la meme machine que la production, avec une ligne de
+commande voisine : `gunicorn terryfox_lims.wsgi_archive` contre
+`terryfox_lims.wsgi_prod`. Tous les motifs `pgrep`/`pkill` de l'outillage visent
+donc **wsgi_prod explicitement**. Un motif large attrapait l'archive : le
+demarrage du service principal la tuait, et `deploy.sh` refusait de migrer en la
+prenant pour un ecrivain sur la base vivante.
+
 Lecture seule sur trois couches : fichier en `444 root`, SQLite ouvert en
 `mode=ro`, et un middleware qui rejette tout ce qui n'est pas GET ou HEAD.
 L'installateur verifie les trois, et verifie aussi qu'on peut encore **se

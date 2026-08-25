@@ -20,7 +20,9 @@ ExecStart=/home/hadriengt/miniconda/envs/django/bin/gunicorn \
     --log-level=info \
     --certfile=/root/ssl/v1-archive.crt \
     --keyfile=/root/ssl/v1-archive.key
-Restart=on-failure
+# always, pas on-failure : un SIGTERM venu d'ailleurs est un arret « propre »
+# du point de vue de gunicorn, et l'archive resterait eteinte sans le dire.
+Restart=always
 RestartSec=15
 
 # Une archive n'a besoin ni d'ecrire ni de beaucoup de memoire.

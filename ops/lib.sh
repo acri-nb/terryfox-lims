@@ -23,14 +23,17 @@ resolve_db() {
   echo "$repo/db.sqlite3"
 }
 
-# PID des workers gunicorn servant CE LIMS.
+# PID des workers gunicorn qui ECRIVENT dans la base de production.
 #
-# Le motif vise la ligne de commande reelle ("... gunicorn terryfox_lims.wsgi_prod:application")
-# et non un motif large : sur cette machine tournent d'autres gunicorn sans rapport.
-# On exclut aussi ce script et son parent, car pgrep -f matche n'importe quel shell
-# dont la ligne de commande contient le motif -- y compris celui qui appelle ce script.
+# Le motif vise wsgi_prod precisement. Un motif plus large attrapait aussi
+# l'archive V1 -- « gunicorn terryfox_lims.wsgi_archive:application » -- qui
+# tourne sur la meme machine, lit une base FIGEE et n'ecrit nulle part : un
+# deploiement etait refuse a cause d'elle.
+#
+# On exclut aussi ce script et son parent : pgrep -f matche n'importe quel shell
+# dont la ligne de commande contient le motif, y compris celui qui l'appelle.
 lims_writer_pids() {
-  pgrep -f 'gunicorn[[:space:]]+terryfox_lims\.wsgi' 2>/dev/null \
+  pgrep -f 'gunicorn[[:space:]]+terryfox_lims\.wsgi_prod' 2>/dev/null \
     | grep -vx -e "$$" -e "${PPID:-0}" || true
 }
 

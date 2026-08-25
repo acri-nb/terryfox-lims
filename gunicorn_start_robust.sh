@@ -17,7 +17,10 @@ chown root:root /var/log/terryfox-lims
 chmod 755 /var/log/terryfox-lims
 
 # Kill any existing processes
-pkill -f "gunicorn.*terryfox_lims" || true
+# Motif restreint a wsgi_prod : « gunicorn.*terryfox_lims » tuait aussi
+# l'archive V1 (wsgi_archive) a chaque demarrage du service principal, et comme
+# elle recevait un SIGTERM propre, son Restart=on-failure ne la relancait pas.
+pkill -f "gunicorn[[:space:]]\+terryfox_lims\.wsgi_prod" || true
 pkill -f "runserver_plus" || true
 sleep 2
 
