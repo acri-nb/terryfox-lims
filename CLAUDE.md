@@ -127,6 +127,21 @@ Sans/Mono, Bootstrap and FontAwesome are all **vendored under `static/`**: no CD
 storage means a missing `{% static %}` path 500s at render, so `StaticAssetTests` renders every
 page with that storage active — run it before touching templates or assets.
 
+### Narrow screens
+
+`static/css/lims.css` had **no width breakpoints at all** until the mobile pass; every flex
+row was a chain of atoms with `min-width: auto` that pushed the page instead of wrapping —
+the project header alone asked for ~1050px in a 360px viewport. There are now three
+breakpoints, all Bootstrap's (991.98 / 767.98 / 575.98), plus four unconditional guards:
+`overflow-wrap` on `body` and text blocks, `.nav-search-input` (replacing an inline
+`min-width` no media query could reach), and `.alert-dismissible { padding-right: 3rem }`
+which restores the Bootstrap rule `.alert` was clobbering — message text ran under the close
+button on every page. Form controls go to 16px below `md`: anything smaller makes iOS Safari
+auto-zoom on focus.
+
+`ops/lint_templates.py` estimates the width each unwrapped flex row demands and fails above
+336px; it runs inside `StaticAssetTests`, so the regression cannot come back quietly.
+
 ### Exports
 
 `core/exports.py`, stdlib only. `cases.csv` is **wide** — one row per case with a fixed block

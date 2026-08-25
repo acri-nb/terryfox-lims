@@ -24,7 +24,9 @@
             <a class="navbar-brand" href="{% url 'home' %}">
                 TerryFox LIMS
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#navbarNav" aria-controls="navbarNav"
+                    aria-expanded="false" aria-label="Open navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
@@ -43,11 +45,11 @@
                     {% endif %}
                 </ul>
                 {% if user.is_authenticated %}
-                <form class="d-flex me-3" role="search" action="{% url 'case_search' %}" method="get">
-                    <input class="form-control form-control-sm" type="search" name="q"
+                <form class="d-flex me-lg-3 my-2 my-lg-0" role="search" action="{% url 'case_search' %}" method="get">
+                    <input class="form-control form-control-sm nav-search-input" type="search" name="q"
                            value="{{ request.GET.q|default:'' }}"
                            placeholder="ACC or Biobank ID" aria-label="Search cases"
-                           autocomplete="off" style="min-width: 190px;">
+                           autocomplete="off">
                     <button class="btn btn-sm btn-outline-light ms-1" type="submit" aria-label="Search">
                         <i class="fas fa-search"></i>
                     </button>

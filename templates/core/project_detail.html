@@ -10,7 +10,7 @@
     </ol>
 </nav>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center flex-wrap mb-4 page-head">
     <h1 class="mb-0">{{ project.name }}</h1>
     <div>
         {% if can_edit %}
@@ -132,7 +132,7 @@
                 {{ filter_form.tier }}
             </div>
             <div class="col-md-auto">
-                <div class="form-check mt-4">
+                <div class="form-check mt-md-4">
                     {{ filter_form.to_classify }}
                     <label class="form-check-label" for="{{ filter_form.to_classify.id_for_label }}">
                         To classify
@@ -140,7 +140,7 @@
                 </div>
             </div>
             <div class="col-md-auto">
-                <div class="form-check mt-4">
+                <div class="form-check mt-md-4">
                     {{ filter_form.priority }}
                     <label class="form-check-label" for="{{ filter_form.priority.id_for_label }}">
                         <i class="fas fa-flag text-warning me-1"></i> Priority only
@@ -199,10 +199,10 @@
                         <th style="width:1.5rem"></th>
                         <th>ACC</th>
                         <th>Biobank ID</th>
-                        <th style="min-width:9rem">Specimens</th>
+                        <th class="d-none d-md-table-cell" style="min-width:9rem">Specimens</th>
                         <th>Status</th>
                         <th class="text-center">Tier</th>
-                        <th class="text-end">Updated</th>
+                        <th class="text-end d-none d-md-table-cell">Updated</th>
                         <th class="text-end">&nbsp;</th>
                     </tr>
                 </thead>
@@ -226,7 +226,7 @@
                                class="text-decoration-none">{{ case.name }}</a>
                         </td>
                         <td class="font-monospace small">{{ case.biobank_id|default:"--" }}</td>
-                        <td>
+                        <td class="d-none d-md-table-cell">
                             {% for specimen in case.specimens_in_order %}
                             <div class="d-flex align-items-center gap-1" style="line-height:1.1">
                                 <span class="font-monospace text-muted"
@@ -253,7 +253,7 @@
                         <td class="text-center">
                             <span class="badge badge-{{ case.tier }}">{{ case.tier }}</span>
                         </td>
-                        <td class="text-end small text-muted">{{ case.updated_at|date:"M d, Y" }}</td>
+                        <td class="text-end small text-muted d-none d-md-table-cell">{{ case.updated_at|date:"M d, Y" }}</td>
                         <td class="text-end">
                             <a href="{% url 'case_detail' case_id=case.id %}"
                                class="btn btn-sm btn-outline-primary" aria-label="Open {{ case.name }}">
@@ -274,14 +274,14 @@
     <div class="card shadow-sm mb-4" id="bulk-bar" hidden>
         <div class="card-body py-2">
             <div class="row g-2 align-items-end">
-                <div class="col-auto">
+                <div class="col-12 col-md-auto">
                     <span class="badge bg-secondary" id="bulk-count">0 selected</span>
                 </div>
-                <div class="col-md-3">
+                <div class="col-6 col-md-3">
                     <label class="form-label small mb-1">{{ bulk_form.apply_to.label }}</label>
                     {{ bulk_form.apply_to }}
                 </div>
-                <div class="col-md-4">
+                <div class="col-6 col-md-4">
                     <label class="form-label small mb-1">{{ bulk_form.status.label }}</label>
                     {{ bulk_form.status }}
                 </div>
@@ -307,7 +307,7 @@
         <span class="text-muted small">
             Showing {{ page_obj.start_index }}&ndash;{{ page_obj.end_index }} of {{ filtered_count }} case{{ filtered_count|pluralize }}
         </span>
-        <ul class="pagination mb-0">
+        <ul class="pagination flex-wrap mb-0">
             <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
                 {% if page_obj.has_previous %}
                     <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if querystring %}&amp;{{ querystring }}{% endif %}" aria-label="Previous">

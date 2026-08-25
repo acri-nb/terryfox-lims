@@ -3,7 +3,7 @@
 {% block title %}User Management | TerryFox LIMS{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
     <h1 class="mb-0">User Management</h1>
     <div>
         <a href="{% url 'user_create' %}" class="btn btn-primary me-2">
@@ -29,8 +29,8 @@
                         <th><i class="fas fa-id-card me-1"></i> Full Name</th>
                         <th><i class="fas fa-toggle-on me-1"></i> Status</th>
                         <th><i class="fas fa-shield-alt me-1"></i> Role</th>
-                        <th><i class="fas fa-calendar me-1"></i> Last Login</th>
-                        <th><i class="fas fa-calendar-plus me-1"></i> Date Joined</th>
+                        <th class="d-none d-md-table-cell"><i class="fas fa-calendar me-1"></i> Last Login</th>
+                        <th class="d-none d-md-table-cell"><i class="fas fa-calendar-plus me-1"></i> Date Joined</th>
                         <th class="text-center"><i class="fas fa-cogs me-1"></i> Actions</th>
                     </tr>
                 </thead>
@@ -57,14 +57,14 @@
                         <td>
                             <span class="badge bg-{{ user_info.role_class }}">{{ user_info.role }}</span>
                         </td>
-                        <td>
+                        <td class="d-none d-md-table-cell">
                             {% if user_info.user.last_login %}
                                 {{ user_info.user.last_login|date:"M d, Y H:i" }}
                             {% else %}
                                 <em class="text-muted">Never</em>
                             {% endif %}
                         </td>
-                        <td>{{ user_info.user.date_joined|date:"M d, Y" }}</td>
+                        <td class="d-none d-md-table-cell">{{ user_info.user.date_joined|date:"M d, Y" }}</td>
                         <td class="text-center">
                             {% if user_info.user != user %}
                             <a href="{% url 'user_update' user_info.user.id %}" 

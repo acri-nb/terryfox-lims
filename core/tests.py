@@ -995,6 +995,39 @@ class StaticAssetTests(TestCase):
                         marqueur, body,
                         f"syntaxe de gabarit non interpretee servie par {url}")
 
+    def test_templates_have_no_mobile_hostile_patterns(self):
+        """L'ecran etroit ne doit pas se degrader a la prochaine modification.
+
+        Les enfants d'un conteneur flex ont min-width:auto : sans flex-wrap,
+        une rangee chargee garde sa largeur de contenu et pousse la page. C'est
+        ce qui rendait l'en-tete de la page projet large de ~1050 px dans un
+        viewport de 360. ops/lint_templates.py attrape cette famille de motifs.
+        """
+        import subprocess
+        import sys
+
+        racine = Path(__file__).resolve().parent.parent
+        resultat = subprocess.run(
+            [sys.executable, str(racine / "ops" / "lint_templates.py")],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(
+            resultat.returncode, 0,
+            "motifs hostiles au petit ecran :\n" + resultat.stdout,
+        )
+
+    def test_the_stylesheet_adapts_to_narrow_screens(self):
+        """La feuille n'avait aucun point de rupture de largeur."""
+        css = (Path(__file__).resolve().parent.parent
+               / "static" / "css" / "lims.css").read_text()
+        for point in ("max-width: 991.98px", "max-width: 767.98px", "max-width: 575.98px"):
+            with self.subTest(point=point):
+                self.assertIn(point, css)
+        # Un jeton insecable ne doit jamais elargir la page.
+        self.assertIn("overflow-wrap", css)
+        # Les champs sous 16 px declenchent le zoom automatique de Safari iOS.
+        self.assertIn("font-size: 16px", css)
+
     def test_no_asset_is_loaded_from_a_cdn(self):
         """Un serveur de laboratoire interne ne doit pas dependre d'un CDN."""
         body = self.client.get(reverse("home")).content.decode()

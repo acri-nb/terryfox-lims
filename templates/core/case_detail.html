@@ -12,7 +12,7 @@
     </ol>
 </nav>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
     <h1 class="mb-0">{{ case.name }}</h1>
     <div>
         {% if can_edit %}
@@ -57,7 +57,7 @@
                             <span class="font-monospace">{{ case.name }}</span>
                             <small class="text-muted">assigned by the LIMS</small></p>
                         <p class="mb-2"><strong>Biobank ID:</strong>
-                            <span class="font-monospace">{{ case.biobank_id|default:"--" }}</span></p>
+                            <span class="font-monospace text-break">{{ case.biobank_id|default:"--" }}</span></p>
                         <p class="mb-2"><strong>Project:</strong> {{ case.project.name }}</p>
                         {% if case.is_priority %}
                         <p class="mb-2"><span class="badge badge-priority">
@@ -80,7 +80,7 @@
                     <div class="row align-items-end">
                         <div class="col-md-6">{{ case_form.biobank_id|as_crispy_field }}</div>
                         <div class="col-md-4">{{ case_form.is_priority|as_crispy_field }}</div>
-                        <div class="col-md-2 text-end mb-3">
+                        <div class="col-md-2 text-end mb-3 d-grid d-md-block">
                             <button type="submit" class="btn btn-outline-primary">
                                 <i class="fas fa-save me-1"></i> Save
                             </button>
@@ -109,9 +109,9 @@
                     <table class="table table-sm align-middle mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th style="width:1%"></th>
+                                <th style="width:1%" class="d-none d-md-table-cell"></th>
                                 <th>Specimen</th>
-                                <th>Progress</th>
+                                <th class="d-none d-md-table-cell">Progress</th>
                                 <th>Status</th>
                                 <th class="text-end">Coverage</th>
                             </tr>
@@ -119,9 +119,9 @@
                         <tbody>
                         {% for specimen in specimens %}
                             <tr>
-                                <td class="font-monospace text-muted">{{ specimen.short_code }}</td>
+                                <td class="font-monospace text-muted d-none d-md-table-cell">{{ specimen.short_code }}</td>
                                 <td>{{ specimen.get_specimen_type_display }}</td>
-                                <td>
+                                <td class="d-none d-md-table-cell">
                                     <span class="track" aria-hidden="true">
                                         {% for stage in stages %}
                                         <i class="{% if forloop.counter0 <= specimen.stage_index %}on{% endif %}"></i>
@@ -159,10 +159,13 @@
                     </div>
                 </form>
 
-                <div class="d-flex justify-content-end mb-3">
+                <div class="d-flex justify-content-end align-items-center flex-wrap gap-2 mb-3">
+                    <span class="form-text mb-0 me-auto">
+                        A new specimen was collected from this patient after a failure?
+                    </span>
                     <a href="{% url 'case_resubmit' case_id=case.id %}"
                        class="btn btn-sm btn-outline-warning">
-                        <i class="fas fa-redo me-1"></i> Resubmit &mdash; new specimen for this patient
+                        <i class="fas fa-redo me-1"></i> Resubmit
                     </a>
                 </div>
 
@@ -176,7 +179,7 @@
                         <input type="hidden" name="specimen_update" value="1">
                         {{ specimen_formset.management_form }}
                         {% for form in specimen_formset %}
-                        <div class="row g-2 align-items-end mb-2">
+                        <div class="row g-2 align-items-end mb-2 specimen-edit-row">
                             {{ form.id }}
                             <div class="col-md-3">
                                 <label class="form-label small mb-1">
@@ -253,7 +256,7 @@
                 </p>
                 <ul class="list-unstyled mb-0">
                 {% for attempt in previous_attempts %}
-                    <li class="d-flex justify-content-between align-items-center border-bottom py-2">
+                    <li class="d-flex justify-content-between align-items-center gap-2 border-bottom py-2">
                         <span>
                             <strong>Attempt {{ attempt.attempt }}</strong>
                             <span class="text-muted small ms-2">

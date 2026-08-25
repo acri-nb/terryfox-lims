@@ -457,3 +457,153 @@ tr.is-priority > td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
 .coverage-section { background: var(--surface-2); border-radius: var(--radius); padding: var(--s4); }
 .coverage-label { font-size: var(--t-sm); color: var(--ink-3); }
 .coverage-value { font-family: var(--font-mono); font-size: var(--t-md); font-variant-numeric: tabular-nums; }
+
+/* ==========================================================================
+   Ecran etroit
+   ==========================================================================
+
+   Cette feuille n'avait AUCUN point de rupture de largeur : les seuls @media
+   etaient prefers-reduced-motion et l'impression. Chaque rangee flex de
+   l'application etait donc une chaine d'atomes increductibles -- les enfants
+   flex ont min-width:auto -- et poussait la page au lieu de se replier.
+   L'en-tete de la page projet demandait a lui seul ~1050 px dans un viewport
+   de 360.
+
+   Trois paliers, tous ceux de Bootstrap, donc rien ne bouge au-dessus.
+   ========================================================================== */
+
+/* ------------------------------------------------- garde-fous de largeur */
+
+/* Sans condition : ces regles ne se voient que lorsque quelque chose
+   deborderait de toute facon. */
+
+/* Un jeton insecable -- un chemin colle dans un commentaire, un nom de fichier
+   fastq de 35 caracteres -- elargissait <body> lui-meme. C'etait le seul
+   debordement de page qui pouvait survenir n'importe ou. */
+body { overflow-wrap: break-word; }
+
+/* `anywhere` et non `break-word` : lui seul reduit AUSSI la largeur
+   min-content, ce qu'exige un enfant flex pour accepter de retrecir. Reserve
+   aux blocs de texte libre : pose trop largement, il ferait casser les
+   identifiants au milieu dans les colonnes d'un tableau. */
+h1, h2, h3, h4, h5, h6,
+.comment, .alert, .empty-state, .breadcrumb-item, .acc-list li {
+  overflow-wrap: anywhere;
+}
+
+/* La largeur du champ de recherche etait un style en ligne, donc hors de
+   portee de toute media query. Valeur identique a l'ancienne au-dessus de
+   992 px. */
+.nav-search-input { min-width: 190px; }
+
+/* La regle .alert plus haut ecrase le padding-right:3rem de Bootstrap sur
+   .alert-dismissible -- meme specificite, feuille chargee apres -- et le texte
+   du message passait sous la croix de fermeture, large de 48 px. Le
+   chevauchement existe aussi sur grand ecran des qu'un message tient sur
+   plusieurs lignes. */
+.alert-dismissible { padding-right: 3rem; }
+
+/* ------------------------------------------- menu replie (moins de 992 px) */
+
+@media (max-width: 991.98px) {
+  /* La recherche prend toute la largeur du menu deplie et respire. */
+  .nav-search-input { min-width: 0; }
+  .navbar .form-control { width: 100%; }
+
+  /* Le focus par defaut de Bootstrap est un halo bleu a 1,32:1 sur la barre
+     presque noire : invisible. Or c'est le seul chemin de navigation au
+     clavier sur telephone. */
+  .navbar .nav-link:focus-visible,
+  .navbar .dropdown-toggle:focus-visible,
+  .navbar-toggler:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+
+  /* Les entrees du menu replie faisaient 30,5 px de haut, sous le plancher de
+     32 px que cette feuille se donne elle-meme, et se touchaient sans
+     separation. */
+  .navbar-collapse .nav-link {
+    padding: var(--s2) var(--s3) !important;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+  }
+}
+
+/* --------------------------------------------- telephone (moins de 768 px) */
+
+@media (max-width: 767.98px) {
+
+  /* En-tete de page : le titre prend sa ligne, les actions se replient sous
+     lui. `margin-right: 0` neutralise les me-2 du gabarit, uniquement ici. */
+  .page-head { flex-wrap: wrap; gap: var(--s3); }
+  .page-head > h1 { flex: 1 1 100%; min-width: 0; }
+  .page-head > div { display: flex; flex-wrap: wrap; gap: var(--s2); width: 100%; }
+  .page-head > div > .btn { flex: 1 1 auto; margin-right: 0 !important; }
+
+  /* Les champs a moins de 16 px declenchent le zoom automatique de Safari iOS
+     des la mise au point, et laissent la page decalee horizontalement ensuite.
+     16 px est le seuil exact au-dessous duquel iOS zoome. */
+  .form-control, .form-select, .form-control-sm, .form-select-sm {
+    font-size: 16px;
+  }
+
+  /* Cibles tactiles : le doigt n'a pas la precision d'une souris. */
+  .btn-sm { min-height: 32px; }
+  .form-check-input { width: 1.25rem; height: 1.25rem; margin-top: .15rem; }
+  .table .form-check-input { width: 1.4rem; height: 1.4rem; }
+
+  /* .stat-label est flex:0 0 auto avec un plancher de 11rem : la barre de
+     progression tombait a 23 px sur 302 px disponibles. On laisse le libelle
+     prendre sa ligne et la barre toute la largeur. */
+  .stat-row { flex-wrap: wrap; }
+  .stat-label { min-width: 0; flex: 1 1 100%; }
+  .stat-bar { flex: 1 1 auto; }
+
+  /* Un badge est un atome en chasse fixe et nowrap qui peut atteindre 199 px --
+     plus de la moitie de la largeur utile -- et ne cede jamais dans une rangee
+     flex. */
+  .stat-label .badge { white-space: normal; }
+
+  /* Empiles, les trois blocs de specimens se confondaient en une colonne de
+     douze champs sans separation. */
+  .specimen-edit-row + .specimen-edit-row {
+    border-top: 1px solid var(--rule);
+    margin-top: var(--s4);
+    padding-top: var(--s3);
+  }
+  .specimen-edit-row .form-label {
+    font-size: var(--t-base);
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  /* La barre d'action en lot devient collante en bas via le script ; les
+     marges basses la decollaient du bord et laissaient passer une bande de
+     contenu dessous. */
+  #bulk-bar { margin-bottom: 0 !important; }
+
+  /* Le tableau des cas defile dans son conteneur, mais l'ACC ne doit jamais se
+     couper apres son tiret : c'est le seul identifiant de la ligne. */
+  #case-table .font-monospace { white-space: nowrap; }
+}
+
+/* ------------------------------------------ petit telephone (moins de 576) */
+
+@media (max-width: 575.98px) {
+  /* Un formulaire de filtre en ligne dans un en-tete de carte : <input> et
+     <select> ont une taille minimale automatique et ne se compriment pas --
+     ~482 px reclames dans 302 px. Le repli doit rester dans la media query :
+     pose sans condition, il ferait passer chaque champ a la ligne sur grand
+     ecran aussi, les form-control etant en width:100%. */
+  .card-header > form.d-flex { flex-wrap: wrap; width: 100%; gap: var(--s2); }
+  .card-header > form.d-flex > .form-control,
+  .card-header > form.d-flex > .form-select { flex: 1 1 100%; }
+
+  /* Les quatre tuiles de chiffres passent de deux par ligne a une seule si le
+     nombre ne tient pas. */
+  .metric { padding: var(--s3); }
+  .metric-value { font-size: var(--t-lg); }
+}

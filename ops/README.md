@@ -125,9 +125,17 @@ DATABASE_PATH=/tmp/essai.sqlite3 python manage.py runserver 8001
 ## Tests
 
 ```bash
-python manage.py test core     # application
-python3 ops/selftest.py        # le controle d'invariants lui-meme
+python manage.py test core        # application
+python3 ops/selftest.py           # le controle d'invariants lui-meme
+python3 ops/lint_templates.py     # motifs qui cassent sur telephone
 ```
+
+`lint_templates.py` estime la largeur reclamee par chaque rangee flex non
+repliable et la compare aux 336 px utiles d'un telephone de 360. Les enfants
+d'un conteneur flex ont `min-width:auto` : sans `flex-wrap`, la rangee garde sa
+largeur de contenu et pousse la page entiere. C'est ce qui rendait l'en-tete de
+la page projet large de ~1050 px. Le controle tourne aussi dans la suite Django,
+via `StaticAssetTests`.
 
 `selftest.py` verifie sur des bases synthetiques jetables que le controle
 detecte bien une perte de lignes, une suppression douce de masse et une base

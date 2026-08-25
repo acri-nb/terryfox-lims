@@ -40,7 +40,7 @@
             {% csrf_token %}
             {{ form|crispy }}
             
-            <div class="d-flex justify-content-between mt-4">
+            <div class="d-flex justify-content-between mt-4 flex-wrap gap-2">
                 <a href="{% url 'project_detail' project_id=project.id %}" class="btn btn-secondary">
                     <i class="fas fa-times me-1"></i> Cancel
                 </a>
