@@ -23,49 +23,30 @@
             <div class="row">
                 <div class="col-md-4">
                     <label class="form-label">ACC</label>
-                    <p class="form-control-plaintext font-monospace">
+                    <p class="form-control-plaintext font-monospace mb-0">
                         {% if form.instance.pk %}{{ form.instance.name }}{% else %}<span class="text-muted">assigned automatically</span>{% endif %}
                     </p>
                 </div>
                 <div class="col-md-4">
                     {{ form.biobank_id|as_crispy_field }}
+                </div>
+                <div class="col-md-4">
                     {{ form.is_priority|as_crispy_field }}
                 </div>
-                <div class="col-md-4">
-                    {{ form.status|as_crispy_field }}
-                </div>
             </div>
-            
+
+            {% if form.specimen_types %}
             <div class="row">
-                <div class="col-md-4">
-                    {{ form.rna_coverage|as_crispy_field }}
-                </div>
-                <div class="col-md-4">
-                    {{ form.dna_t_coverage|as_crispy_field }}
-                </div>
-                <div class="col-md-4">
-                    {{ form.dna_n_coverage|as_crispy_field }}
-                </div>
-            </div>
-            
-            <div class="row mb-3">
                 <div class="col-12">
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle me-2"></i> <strong>Note:</strong> Tier will be calculated automatically based on the following criteria:
-                        <ul class="mb-0 mt-2">
-                            <li>Tier A: DNA(T) ≥ 80X, DNA(N) ≥ 30X, RNA ≥ 80M</li>
-                            <li>Tier B: 30X ≤ DNA(T) ≤ 80X, DNA(N) ≥ 30X (any RNA) OR DNA(T) ≥ 80X, DNA(N) ≥ 30X, RNA &lt; 80M or no RNA</li>
-                            <li>FAIL: DNA(T) &lt; 30X OR DNA(N) &lt; 30X</li>
-                        </ul>
-                    </div>
+                    {{ form.specimen_types|as_crispy_field }}
                 </div>
             </div>
-            
-            <div class="row">
-                <div class="col-md-6">
-                    {{ form.tier|as_crispy_field }}
-                </div>
-            </div>
+            {% endif %}
+
+            <p class="text-muted small">
+                Status and coverage are set per specimen, on the case page, once the case exists.
+            </p>
+
             
             <div class="d-flex justify-content-between mt-4">
                 <a href="{% url 'project_detail' project_id=project.id %}" class="btn btn-secondary">

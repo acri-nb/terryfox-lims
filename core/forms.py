@@ -5,7 +5,8 @@ from django.contrib.auth.models import User, Group
 import string
 import random
 
-from .models import Project, Case, Comment, Accession, ProjectLead
+from . import statuses
+from .models import Project, Case, Specimen, Comment, Accession, ProjectLead
 
 class ProjectLeadForm(forms.ModelForm):
     """Form for creating and updating project leads."""
@@ -36,49 +37,61 @@ class ProjectForm(forms.ModelForm):
         self.fields['project_lead'].empty_label = _('-- Select a Project Lead --')
 
 class CaseForm(forms.ModelForm):
-    """Form for creating and updating cases."""
-    
+    """Identite du cas. Ni le statut ni les couvertures ne sont ici.
+
+    Les couvertures appartiennent desormais aux specimens : les trois colonnes
+    de Case n'en sont qu'un miroir, recalcule a chaque ecriture. Les modifier
+    ici serait sans effet -- un champ qui ne retient pas ce qu'on y tape est
+    pire qu'un champ absent.
+
+    Le statut est derive des specimens ; il se change avec CaseStatusForm.
+    """
+
     class Meta:
         model = Case
-        # 'name' (l'ACC) n'est plus saisissable : le LIMS l'attribue.
-        fields = ['biobank_id', 'is_priority', 'status', 'rna_coverage', 'dna_t_coverage', 'dna_n_coverage', 'tier']
+        fields = ['biobank_id', 'is_priority']
         widgets = {
             'biobank_id': forms.TextInput(attrs={
                 'class': 'form-control', 'placeholder': 'e.g. N-BBN 440',
                 'autocomplete': 'off', 'autocapitalize': 'off', 'spellcheck': 'false',
             }),
             'is_priority': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'status': forms.Select(attrs={'class': 'form-select'}),
-            'rna_coverage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'RNA Coverage in M'}),
-            'dna_t_coverage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'DNA (T) Coverage in X'}),
-            'dna_n_coverage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'DNA (N) Coverage in X'}),
-            'tier': forms.Select(attrs={'class': 'form-select', 'disabled': 'disabled'}),
         }
         help_texts = {
             'biobank_id': _('The identifier the biobank uses. This is what people search by.'),
-            'rna_coverage': _('RNA Coverage in million reads (M)'),
-            'dna_t_coverage': _('DNA Tumor Coverage in X'),
-            'dna_n_coverage': _('DNA Normal Coverage in X'),
-            'tier': _('Tier will be calculated automatically based on coverage values'),
         }
-    
-    # Case a cocher posee par le bouton "Create anyway" du modele : elle permet
-    # de passer outre le controle souple de doublon de Biobank ID.
+
+    #: Quels specimens ce cas comporte-t-il. C'est la « selection parmi les
+    #: types 1, 2 ou 3 » de la note de reunion. Les trois par defaut, parce que
+    #: c'est le cas courant, mais decochables : forcer un specimen d'ARN sur un
+    #: protocole qui n'en a pas le laisserait « en attente » pour toujours.
+    specimen_types = forms.MultipleChoiceField(
+        label=_('Specimens for this case'),
+        choices=Specimen.TYPE_CHOICES,
+        initial=[t for t in Specimen.ORDERED_TYPES],
+        required=True,
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+        help_text=_('Uncheck what this protocol does not collect.'),
+    )
+
+    # Case a cocher posee par le bouton "Create anyway" : elle permet de passer
+    # outre le controle souple de doublon de Biobank ID.
     confirm_duplicate = forms.BooleanField(required=False, widget=forms.HiddenInput)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Le tier est derive des couvertures, jamais saisi.
-        self.fields['tier'].disabled = True
+        if self.instance and self.instance.pk:
+            # A l'edition, le panneau des specimens fait foi. Decocher une case
+            # ici supprimerait des donnees sans le dire.
+            self.fields.pop('specimen_types', None)
 
     def clean_biobank_id(self):
         """Controle souple : nomme le cas en conflit plutot que de bloquer.
 
-        Sans ce controle, une contrainte de base de donnees afficherait a la
-        technicienne un message du type
-        'Constraint "uniq_biobank_id" is violated' -- inexploitable. Et une
+        Sans lui, une contrainte de base afficherait a la technicienne un
+        message du type 'Constraint "uniq_biobank_id" is violated', et une
         contrainte dure la bloquerait un jour sur le vrai identifiant d'un
-        patient, deux projets partageant un meme espace de numerotation nu.
+        patient, deux projets partageant un espace de numerotation nu.
         """
         value = (self.cleaned_data.get('biobank_id') or '').strip()
         if not value:
@@ -104,6 +117,62 @@ class CaseForm(forms.ModelForm):
             )
         return value
 
+
+class CaseStatusForm(forms.Form):
+    """Un seul menu deroulant pour faire avancer un cas.
+
+    C'est l'action la plus frequente du systeme. Le suivi par specimen est ce
+    que demande le TFRI, mais s'y arreter ferait passer ce geste de UN menu a
+    TROIS : le chemin par defaut applique donc a tous les specimens, et le
+    reglage fin reste possible juste en dessous.
+    """
+
+    APPLY_ALL = 'all'
+
+    status = forms.ChoiceField(
+        label=_('Move this case to'),
+        choices=statuses.GROUPED_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    apply_to = forms.ChoiceField(
+        label=_('Apply to'),
+        required=False,
+        initial=APPLY_ALL,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+
+    def __init__(self, *args, case=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.case = case
+        # On ne propose que les specimens qui existent reellement : proposer
+        # « Tumeur (ARN) » sur un cas qui n'en a pas induirait en erreur.
+        presents = case.specimens_in_order() if case else []
+        self.fields['apply_to'].choices = (
+            [(self.APPLY_ALL, _('All specimens'))]
+            + [(s.specimen_type, s.get_specimen_type_display()) for s in presents]
+        )
+
+    def apply(self):
+        """Ecrit le statut sur les specimens vises. Renvoie le nombre touche."""
+        cible = self.cleaned_data.get('apply_to') or self.APPLY_ALL
+        nouveau = self.cleaned_data['status']
+
+        specimens = self.case.specimens_in_order()
+        if cible != self.APPLY_ALL:
+            specimens = [s for s in specimens if s.specimen_type == cible]
+
+        touches = 0
+        for specimen in specimens:
+            if specimen.status != nouveau:
+                specimen.status = nouveau
+                specimen.save(update_fields=['status', 'updated_at'])
+                touches += 1
+
+        if touches:
+            self.case.sync_from_specimens()
+        return touches
+
+
 class BatchCaseForm(forms.Form):
     """Creation en lot : on colle une liste de Biobank ID, un par ligne.
 
@@ -128,15 +197,24 @@ class BatchCaseForm(forms.Form):
         help_text=_('One per line. The LIMS assigns the ACC identifiers.'),
     )
 
+    specimen_types = forms.MultipleChoiceField(
+        label=_('Specimens for every case'),
+        choices=Specimen.TYPE_CHOICES,
+        initial=[t for t in Specimen.ORDERED_TYPES],
+        required=True,
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+        help_text=_('Uncheck what this protocol does not collect.'),
+    )
     is_priority = forms.BooleanField(
         required=False,
         label=_('Mark every case in this batch as priority'),
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
     )
     status = forms.ChoiceField(
-        label=_('Status for every case'),
-        choices=Case.STATUS_CHOICES,
-        initial=Case.STATUS_CREATED,
+        label=_('Status for every specimen'),
+        # Groupee par etape : le menu enseigne l'enchainement du travail.
+        choices=statuses.GROUPED_CHOICES,
+        initial=statuses.DEFAULT,
         widget=forms.Select(attrs={'class': 'form-select'}),
     )
     rna_coverage = forms.FloatField(
@@ -290,7 +368,10 @@ class CaseFilterForm(forms.Form):
         })
     )
     status = forms.ChoiceField(
-        choices=[('', _('All Statuses'))] + Case.STATUS_CHOICES,
+        # Les statuts de transition sont absents des menus de SAISIE mais
+        # presents ici : sans cela, personne ne pourrait retrouver les cas
+        # herites de la v1 qu'il faut justement reclasser.
+        choices=[('', _('All Statuses'))] + list(statuses.ALL_CHOICES),
         required=False,
         widget=forms.Select(attrs={'class': 'form-select'})
     )
@@ -302,6 +383,11 @@ class CaseFilterForm(forms.Form):
     priority = forms.BooleanField(
         required=False,
         label=_('Priority only'),
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
+    to_classify = forms.BooleanField(
+        required=False,
+        label=_('Needs classification'),
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
     )
 
@@ -535,3 +621,45 @@ class UserUpdateForm(forms.ModelForm):
         """Generate a random password."""
         chars = string.ascii_letters + string.digits
         return ''.join(random.choices(chars, k=length)) 
+
+class SpecimenForm(forms.ModelForm):
+    """Une ligne du panneau des specimens.
+
+    L'unite s'affiche DANS le champ, en suffixe : X pour l'ADN, M reads pour
+    l'ARN. Un help_text partage entre trois lignes identiques n'empeche pas de
+    taper 80 dans la ligne ARN en pensant 80 X, ce qui produirait un Tier A
+    errone.
+    """
+
+    class Meta:
+        model = Specimen
+        fields = ['status', 'coverage', 'external_id']
+        widgets = {
+            'coverage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'external_id': forms.TextInput(attrs={
+                'class': 'form-control', 'placeholder': _('optional'), 'autocomplete': 'off'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['status'].widget = forms.Select(attrs={'class': 'form-select'})
+
+        # Les statuts de transition ne sont pas proposes... sauf si le specimen
+        # en porte deja un, sinon le formulaire refuserait sa propre valeur.
+        proposables = list(statuses.GROUPED_CHOICES)
+        actuel = getattr(self.instance, 'status', None)
+        if actuel and statuses.is_legacy(actuel):
+            proposables = [
+                (statuses.STAGE_LABELS[statuses.STAGE_LEGACY],
+                 [(actuel, statuses.LABEL_OF[actuel])]),
+            ] + proposables
+        self.fields['status'].choices = proposables
+
+        if self.instance and self.instance.pk:
+            self.fields['coverage'].label = _('Coverage (%(unit)s)') % {
+                'unit': self.instance.unit}
+
+
+SpecimenFormSet = forms.inlineformset_factory(
+    Case, Specimen, form=SpecimenForm, extra=0, can_delete=False,
+)

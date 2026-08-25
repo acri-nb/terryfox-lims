@@ -4,6 +4,8 @@ from django.contrib.auth.models import User, Group
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from . import statuses
+
 
 # ---------------------------------------------------------------------------
 # Suppression douce
@@ -190,29 +192,14 @@ class Project(SoftDeleteModel):
 class Case(SoftDeleteModel):
     """Model representing a case within a project."""
     
-    # Status options
-    STATUS_CREATED = 'created'
-    STATUS_RECEIVED = 'received'
-    STATUS_INCOMPLETE = 'incomplete'
-    STATUS_UNKNOWN = 'unknown'
-    STATUS_LIBRARY_PREPPED = 'library_prepped'
-    STATUS_SEQUENCED = 'sequenced'
-    STATUS_TRANSFERRED = 'transferred_to_nfl'
-    STATUS_BIOINFO = 'bioinfo_analysis'
-    STATUS_COMPLETED = 'completed'
-    
-    STATUS_CHOICES = [
-        (STATUS_CREATED, _('Created')),
-        (STATUS_RECEIVED, _('Received')),
-        (STATUS_INCOMPLETE, _('Incomplete')),
-        (STATUS_UNKNOWN, _('Unknown')),
-        (STATUS_LIBRARY_PREPPED, _('Library Prepped')),
-        (STATUS_SEQUENCED, _('Sequenced')),
-        (STATUS_TRANSFERRED, _('Transferred to NFL')),
-        (STATUS_BIOINFO, _('Bioinfo Analysis')),
-        (STATUS_COMPLETED, _('Completed')),
-    ]
-    
+    # Vocabulaire des statuts : voir core/statuses.py. Les constantes ci-dessous
+    # sont conservees sous leurs anciens noms pour que le code appelant n'ait pas
+    # a changer, mais elles pointent desormais vers les statuts de la v2.
+    STATUS_CHOICES = statuses.ALL_CHOICES
+    STATUS_CREATED = statuses.CASE_CREATED
+    STATUS_RECEIVED = statuses.RECEIVED
+    STATUS_COMPLETED = statuses.ANALYSIS_COMPLETE
+
     # Tier options
     TIER_A = 'A'
     TIER_B = 'B'
@@ -239,7 +226,14 @@ class Case(SoftDeleteModel):
         max_length=255, blank=True, null=True, db_index=True,
         verbose_name=_('Biobank ID'),
         help_text=_('The identifier used by the biobank. Searchable.'))
-    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default=STATUS_RECEIVED)
+    # Statut DERIVE des specimens, jamais saisi directement -- exactement le
+    # patron deja en place pour `tier`. Il survit comme colonne pour que les
+    # listes, les filtres, les statistiques et les exports continuent de
+    # fonctionner sans jointure, et pour qu'un technicien garde UNE pastille a
+    # lire par cas plutot que trois.
+    status = models.CharField(
+        max_length=50, choices=statuses.ALL_CHOICES, default=statuses.DEFAULT,
+        editable=False, db_index=True, verbose_name=_('Status'))
     
     # Coverage values
     rna_coverage = models.FloatField(null=True, blank=True, verbose_name=_('RNA Coverage (M)'))
@@ -275,6 +269,77 @@ class Case(SoftDeleteModel):
 
         self.tier = self.calculate_tier()
         super().save(*args, **kwargs)
+
+    def sync_from_specimens(self):
+        """Remet le cas en phase avec ses specimens.
+
+        Deux choses en une : les trois colonnes de couverture redeviennent le
+        miroir exact des specimens -- ce qui laisse calculate_tier() inchange,
+        donc la migration ne fait bouger aucun tier -- et le statut du cas
+        redevient celui du specimen le moins avance.
+
+        Sans specimen (cas cree avant la v2 et pas encore reparti), on ne touche
+        a rien : ecraser les couvertures par NULL serait une perte de donnees.
+        """
+        specimens = list(self.specimens.all())
+        if not specimens:
+            return
+
+        for specimen in specimens:
+            setattr(self, Specimen.MIRROR_FIELD[specimen.specimen_type], specimen.coverage)
+
+        self.status = statuses.least_advanced([s.status for s in specimens])
+
+        self.save(update_fields=[
+            'status', 'tier', 'rna_coverage', 'dna_t_coverage', 'dna_n_coverage',
+            'updated_at',
+        ])
+
+    def ensure_specimens(self, types=None, status=None):
+        """Cree les specimens manquants pour ce cas. Ne touche pas aux existants.
+
+        `types` par defaut : les trois. Un cas n'est jamais FORCE a trois pour
+        autant -- l'appelant choisit. C'est ce qui evite qu'un projet sans ARN
+        affiche « en attente de Tumeur (ARN) » a perpetuite : P10_Prostate a
+        32 cas sur 32 sans ARN, et son protocole n'en prevoit pas.
+        """
+        voulus = list(types or Specimen.ORDERED_TYPES)
+        existants = set(self.specimens.values_list('specimen_type', flat=True))
+        crees = []
+        for specimen_type in Specimen.ORDERED_TYPES:
+            if specimen_type in voulus and specimen_type not in existants:
+                crees.append(Specimen(
+                    case=self,
+                    specimen_type=specimen_type,
+                    status=status or statuses.DEFAULT,
+                    coverage=getattr(self, Specimen.MIRROR_FIELD[specimen_type]),
+                ))
+        if crees:
+            Specimen.objects.bulk_create(crees)
+            self.sync_from_specimens()
+        return crees
+
+    def specimens_in_order(self):
+        """Normal, puis Tumeur-ADN, puis Tumeur-ARN. Seuls ceux qui existent."""
+        par_type = {s.specimen_type: s for s in self.specimens.all()}
+        return [par_type[t] for t in Specimen.ORDERED_TYPES if t in par_type]
+
+    def blocking_specimen(self):
+        """Le specimen qui retient le cas, s'il en reste un en arriere.
+
+        Sert a libeller la pastille « Sequencing Complete · en attente de
+        Tumeur (ARN) » plutot que de laisser croire que le cas entier stagne.
+        """
+        candidats = [s for s in self.specimens.all() if not s.needs_classification]
+        if len(candidats) < 2:
+            return None
+        candidats.sort(key=lambda s: statuses.rank(s.status))
+        retard = candidats[0]
+        return retard if statuses.rank(retard.status) < statuses.rank(candidats[-1].status) else None
+
+    def specimens_to_classify(self):
+        """Nombre de specimens herites de la v1 dont l'etat reste a etablir."""
+        return sum(1 for s in self.specimens.all() if s.needs_classification)
 
     def find_biobank_id_conflict(self):
         """Renvoie le cas actif portant deja ce Biobank ID, ou None.
@@ -372,3 +437,106 @@ def init_groups(sender, **kwargs):
     """Initialize groups after migration."""
     if sender.name == 'core':
         create_groups()
+
+
+# ---------------------------------------------------------------------------
+# Specimens
+#
+# « Things should be organized by case but tumours and normals should be
+#   separate entities inside a case. And the tumour needs to be split into the
+#   DNA and the RNA. » -- Daniel, TFRI
+#
+# Les trois entites correspondent une pour une aux trois colonnes de couverture
+# qui existaient sur Case : dna_n -> Normal-ADN, dna_t -> Tumeur-ADN,
+# rna -> Tumeur-ARN. La migration est donc sans perte, et les seuils de tier se
+# transposent sans changer une valeur.
+#
+# Ce sont aussi les « types 1, 2 ou 3 » de la note de reunion : un seul concept
+# nouveau a introduire dans l'interface, pas deux.
+# ---------------------------------------------------------------------------
+
+class Specimen(models.Model):
+    TYPE_NORMAL_DNA = 'normal_dna'
+    TYPE_TUMOUR_DNA = 'tumour_dna'
+    TYPE_TUMOUR_RNA = 'tumour_rna'
+
+    TYPE_CHOICES = [
+        (TYPE_NORMAL_DNA, _('Normal (DNA)')),
+        (TYPE_TUMOUR_DNA, _('Tumour (DNA)')),
+        (TYPE_TUMOUR_RNA, _('Tumour (RNA)')),
+    ]
+
+    #: Ordre d'affichage : normal, puis tumeur ADN, puis tumeur ARN.
+    ORDERED_TYPES = [TYPE_NORMAL_DNA, TYPE_TUMOUR_DNA, TYPE_TUMOUR_RNA]
+
+    #: Colonne miroir sur Case. Ces trois colonnes restent la source du calcul
+    #: du tier, ce qui laisse calculate_tier() inchange.
+    MIRROR_FIELD = {
+        TYPE_NORMAL_DNA: 'dna_n_coverage',
+        TYPE_TUMOUR_DNA: 'dna_t_coverage',
+        TYPE_TUMOUR_RNA: 'rna_coverage',
+    }
+
+    #: L'unite depend du type. Elle s'affiche DANS le champ de saisie : un
+    #: help_text partage entre trois lignes identiques de formulaire n'empeche
+    #: pas de taper 80 pour 80 X dans la ligne ARN, ce qui produirait un Tier A
+    #: errone.
+    UNIT = {
+        TYPE_NORMAL_DNA: 'X',
+        TYPE_TUMOUR_DNA: 'X',
+        TYPE_TUMOUR_RNA: 'M reads',
+    }
+
+    #: Abreviation d'une lettre, pour les colonnes etroites.
+    SHORT = {TYPE_NORMAL_DNA: 'N', TYPE_TUMOUR_DNA: 'D', TYPE_TUMOUR_RNA: 'R'}
+
+    case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name='specimens')
+    specimen_type = models.CharField(
+        max_length=16, choices=TYPE_CHOICES, verbose_name=_('Specimen type'))
+    status = models.CharField(
+        max_length=32, choices=statuses.ALL_CHOICES, default=statuses.DEFAULT,
+        db_index=True, verbose_name=_('Status'))
+    coverage = models.FloatField(
+        null=True, blank=True, verbose_name=_('Coverage'),
+        help_text=_('X for DNA, million reads for RNA.'))
+    external_id = models.CharField(
+        max_length=255, blank=True, null=True,
+        verbose_name=_('Sequencing centre ID'),
+        help_text=_('Identifier issued by the sequencing centre, if any.'))
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _('Specimen')
+        verbose_name_plural = _('Specimens')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['case', 'specimen_type'], name='uniq_specimen_per_case'),
+        ]
+
+    def __str__(self):
+        return f"{self.case.name} · {self.get_specimen_type_display()}"
+
+    @property
+    def unit(self):
+        return self.UNIT.get(self.specimen_type, '')
+
+    @property
+    def short_code(self):
+        return self.SHORT.get(self.specimen_type, '?')
+
+    @property
+    def stage_index(self):
+        """0, 1 ou 2 : nombre de segments pleins dans la barre de progression."""
+        return statuses.stage_index(self.status)
+
+    @property
+    def needs_classification(self):
+        return statuses.is_legacy(self.status)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Le cas reste la source de verite affichee dans les listes : on le
+        # remet en phase des qu'un specimen bouge.
+        self.case.sync_from_specimens()

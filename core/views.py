@@ -8,14 +8,16 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.contrib.auth.models import User, Group
 import csv
+import re
 from io import TextIOWrapper
 from datetime import datetime
 import string
 import random
 
-from .models import Project, Case, Accession, Comment, ProjectLead, IdentifierSequence
+from . import statuses
+from .models import Project, Case, Specimen, Accession, Comment, ProjectLead, IdentifierSequence
 
-from .forms import ProjectForm, CaseForm, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, CSVImportForm, UserCreateForm, BatchUserCreateForm, UserUpdateForm
+from .forms import ProjectForm, CaseForm, CaseStatusForm, SpecimenFormSet, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, CSVImportForm, UserCreateForm, BatchUserCreateForm, UserUpdateForm
 
 # Nombre de cas affiches par page. Le plus gros projet en compte 256 ; a 100 par
 # page la recherche et les filtres restent le chemin principal pour retrouver un
@@ -58,7 +60,7 @@ def home(request):
     # Get status statistics with proper display names
     cases_by_status_raw = Case.objects.values('status').annotate(count=Count('id')).order_by('-count')
     cases_by_status = []
-    status_choices_dict = dict(Case.STATUS_CHOICES)
+    status_choices_dict = dict(statuses.ALL_CHOICES)
     for stat in cases_by_status_raw:
         cases_by_status.append({
             'status': stat['status'],
@@ -147,6 +149,9 @@ def project_detail(request, project_id):
 
         if filter_form.cleaned_data.get('priority'):
             cases = cases.filter(is_priority=True)
+
+        if filter_form.cleaned_data.get('to_classify'):
+            cases = cases.filter(specimens__status=statuses.UNKNOWN_LEGACY).distinct()
     
     # Les compteurs affiches sur chaque carte ({{ case.accessions.count }} et
     # {{ case.comments.count }}) declenchaient une requete chacun, par cas :
@@ -154,6 +159,16 @@ def project_detail(request, project_id):
     cases = cases.annotate(
         accessions_count=Count('accessions', distinct=True),
         comments_count=Count('comments', distinct=True),
+        # Le statut du cas vaut celui du specimen le moins avance PARMI CEUX
+        # DONT L'ETAT EST CONNU. Un cas dont l'ADN est analyse et dont l'ARN
+        # reste a classer afficherait donc « Analysis complete » tout court, ce
+        # qui le declarerait termine a tort. Ce compteur rend l'attente visible
+        # a cote de la pastille, sans faire regresser les 855 cas reellement
+        # termines.
+        to_classify=Count(
+            'specimens', distinct=True,
+            filter=Q(specimens__status=statuses.UNKNOWN_LEGACY),
+        ),
     ).order_by('-is_priority', 'name')
 
     # Pagination : la page renvoyait jusqu'a 926 Ko de HTML d'un coup.
@@ -176,7 +191,7 @@ def project_detail(request, project_id):
     # Get status statistics with proper display names
     cases_by_status_raw = all_cases.values('status').annotate(count=Count('id'))
     cases_by_status = []
-    status_choices_dict = dict(Case.STATUS_CHOICES)
+    status_choices_dict = dict(statuses.ALL_CHOICES)
     for stat in cases_by_status_raw:
         cases_by_status.append({
             'status': stat['status'],
@@ -185,10 +200,16 @@ def project_detail(request, project_id):
         })
     
     cases_by_tier = all_cases.values('tier').annotate(count=Count('id'))
-    
+
+    # Combien de cas trainent encore un specimen herite de la v1 dont l'etat
+    # reste a etablir : c'est la file de travail que l'outil de changement en
+    # lot est fait pour vider.
+    cases_to_classify = all_cases.filter(
+        specimens__status=statuses.UNKNOWN_LEGACY).distinct().count()
+
     # Check if user is part of the 'editor' group for editing permissions
     can_edit = request.user.groups.filter(name='editor').exists() or request.user.is_superuser
-    
+
     return render(request, 'core/project_detail.html', {
         'project': project,
         'cases': page_obj,          # iterable comme avant : le template ne change pas
@@ -201,27 +222,26 @@ def project_detail(request, project_id):
         'total_cases': total_cases,
         'cases_by_status': cases_by_status,
         'cases_by_tier': cases_by_tier,
+        'cases_to_classify': cases_to_classify,
         'can_edit': can_edit,
         'filter_form': filter_form,
     })
 
 @login_required
 def case_detail(request, case_id):
-    """
-    View for showing case details
-    """
-    case = get_object_or_404(Case, id=case_id)
-    comments = case.comments.all().order_by('-created_at')
+    """Fiche d'un cas : identite, statut, specimens, accessions, commentaires."""
+    case = get_object_or_404(
+        Case.objects.select_related('project').prefetch_related('specimens'),
+        id=case_id,
+    )
+    comments = case.comments.select_related('user').order_by('-created_at')
     accessions = case.accessions.all()
-    
-    # Check if user is part of the 'editor' group for editing permissions
+
     can_edit = request.user.groups.filter(name='editor').exists() or request.user.is_superuser
-    
-    # Initialize forms
-    comment_form = None
-    case_form = None
-    accession_formset = None
-    
+
+    comment_form = case_form = accession_formset = None
+    status_form = specimen_formset = None
+
     if can_edit:
         if request.method == 'POST':
             if 'comment_submit' in request.POST:
@@ -233,39 +253,75 @@ def case_detail(request, case_id):
                     comment.save()
                     messages.success(request, _('Comment added successfully!'))
                     return redirect('case_detail', case_id=case.id)
-            
+
             elif 'case_update' in request.POST:
                 case_form = CaseForm(request.POST, instance=case)
                 if case_form.is_valid():
                     case_form.save()
                     messages.success(request, _('Case updated successfully!'))
                     return redirect('case_detail', case_id=case.id)
-            
+
+            elif 'status_update' in request.POST:
+                # Le chemin par defaut : un menu, un bouton, tous les specimens.
+                status_form = CaseStatusForm(request.POST, case=case)
+                if status_form.is_valid():
+                    touches = status_form.apply()
+                    if touches:
+                        messages.success(
+                            request,
+                            _('{count} specimen(s) moved to {status}.').format(
+                                count=touches,
+                                status=statuses.LABEL_OF[status_form.cleaned_data['status']],
+                            ))
+                    else:
+                        messages.info(request, _('Nothing to change: already at that status.'))
+                    return redirect('case_detail', case_id=case.id)
+
+            elif 'specimen_update' in request.POST:
+                specimen_formset = SpecimenFormSet(request.POST, instance=case)
+                if specimen_formset.is_valid():
+                    specimen_formset.save()
+                    # Les couvertures des specimens viennent de changer : le cas
+                    # doit reprendre ses miroirs et recalculer son tier.
+                    case.sync_from_specimens()
+                    messages.success(request, _('Specimens updated.'))
+                    return redirect('case_detail', case_id=case.id)
+
             elif 'accession_update' in request.POST:
                 accession_formset = AccessionFormSet(request.POST, instance=case)
                 if accession_formset.is_valid():
                     accession_formset.save()
                     messages.success(request, _('Accession numbers updated successfully!'))
                     return redirect('case_detail', case_id=case.id)
-        
-        # Initialize forms if not POST
+
         if comment_form is None:
             comment_form = CommentForm()
         if case_form is None:
             case_form = CaseForm(instance=case)
+        if status_form is None:
+            status_form = CaseStatusForm(case=case, initial={'status': case.status})
+        if specimen_formset is None:
+            specimen_formset = SpecimenFormSet(instance=case)
         if accession_formset is None:
             accession_formset = AccessionFormSet(instance=case)
-    
+
     return render(request, 'core/case_detail.html', {
         'case': case,
         'project': case.project,
+        'specimens': case.specimens_in_order(),
+        'blocking': case.blocking_specimen(),
+        'to_classify': case.specimens_to_classify(),
+        'stages': statuses.ORDERED_STAGES,
         'comments': comments,
         'accessions': accessions,
         'can_edit': can_edit,
         'comment_form': comment_form,
         'case_form': case_form,
+        'status_form': status_form,
+        'specimen_formset': specimen_formset,
         'accession_formset': accession_formset,
     })
+
 
 # Opérations CRUD pour les Projets, uniquement pour les utilisateurs 'editor'
 @login_required
@@ -360,7 +416,12 @@ def case_create(request, project_id):
             case = form.save(commit=False)
             case.project = project
             case.save()
-            messages.success(request, _('Case created successfully!'))
+            case.ensure_specimens(form.cleaned_data.get('specimen_types'))
+            messages.success(
+                request,
+                _('Case {acc} created with {n} specimen(s).').format(
+                    acc=case.name, n=case.specimens.count()),
+            )
             return redirect('case_detail', case_id=case.id)
     else:
         form = CaseForm()
@@ -400,6 +461,10 @@ def batch_case_create(request, project_id):
                         dna_n_coverage=form.cleaned_data['dna_n_coverage'],
                     )
                     case.save()
+                    case.ensure_specimens(
+                        form.cleaned_data['specimen_types'],
+                        status=form.cleaned_data['status'],
+                    )
                     cases.append(case)
 
             messages.success(
@@ -574,13 +639,10 @@ def csv_case_import(request, project_id):
                 preserved_count = 0  # valeurs existantes protegees d'un ecrasement par une cellule vide
                 error_rows = []
                 
-                # Map CSV status to model status
-                # Accept both lowercase (from export) and display values (legacy)
-                status_mapping = {}
-                for status_value, status_display in Case.STATUS_CHOICES:
-                    status_mapping[status_display] = status_value  # Accept display values (e.g., "Completed")
-                    status_mapping[status_value] = status_value    # Accept storage values (e.g., "completed")
-                
+                # Les statuts acceptes couvrent le vocabulaire v1 comme le v2 :
+                # les equipes ont des fichiers existants, rien ne justifie de les
+                # invalider. Voir statuses.from_any.
+
                 # Process each row
                 for row_num, row in enumerate(reader, start=2):  # Start at 2 to account for header row
                     case_id = row['CaseID'].strip()
@@ -595,10 +657,11 @@ def csv_case_import(request, project_id):
                     # Get source_other_comments (optional field)
                     source_comment = row.get('source_other_comments', '').strip() if 'source_other_comments' in row else None
                     
-                    # Map CSV status to model status
-                    status = row['Status'].strip()
-                    if status not in status_mapping:
-                        error_rows.append(f"Row {row_num}: Invalid status '{status}'")
+                    # Statut : accepte un slug v2, un slug v1 ou un libelle v1.
+                    status = statuses.from_any(row.get('Status'))
+                    if status is None:
+                        error_rows.append(
+                            f"Row {row_num}: Invalid status '{row.get('Status')}'")
                         continue
                     
                     # Parse coverage values
@@ -610,53 +673,54 @@ def csv_case_import(request, project_id):
                         error_rows.append(f"Row {row_num}: Invalid numeric values")
                         continue
                     
-                    # Check if case exists
-                    case, created = Case.objects.get_or_create(
-                        project=project,
-                        name=case_id,
-                        defaults={
-                            'biobank_id': biobank_id,
-                            'status': status_mapping[status],
-                            'dna_t_coverage': dna_t,
-                            'dna_n_coverage': dna_n,
-                            'rna_coverage': rna
-                        }
-                    )
-                    
+                    # Les couvertures et le statut appartiennent desormais aux
+                    # specimens ; les colonnes de Case n'en sont qu'un miroir,
+                    # recalcule a chaque ecriture. Ecrire sur le cas serait sans
+                    # effet, l'import doit donc viser les specimens.
+                    case = Case.objects.filter(project=project, name=case_id).first()
+                    created = case is None
+
                     if created:
+                        case = Case(project=project, name=case_id, biobank_id=biobank_id)
+                        match = re.fullmatch(r'ACC-(\d+)', case_id or '')
+                        if match:
+                            case.acc_number = int(match.group(1))
+                        case.save()
+                        case.ensure_specimens(status=status)
                         created_count += 1
                     else:
-                        # Update existing case.
-                        #
-                        # GARDE-FOU DONNEES : une cellule vide veut dire "inchange",
-                        # jamais "efface". Avant ce correctif, re-importer un CSV
-                        # partiellement rempli ecrasait les couvertures par NULL, et
-                        # comme Case.save() recalcule le tier, les cas concernes
-                        # basculaient silencieusement en FAIL.
-                        # Effacer une valeur doit rester un geste explicite, fait
-                        # depuis le formulaire du cas.
-                        case.status = status_mapping[status]
                         if biobank_id is not None:
                             case.biobank_id = biobank_id
-                        if dna_t is not None:
-                            case.dna_t_coverage = dna_t
-                        if dna_n is not None:
-                            case.dna_n_coverage = dna_n
-                        if rna is not None:
-                            case.rna_coverage = rna
-
-                        for field, incoming in (
-                            ('biobank_id', biobank_id),
-                            ('dna_t_coverage', dna_t),
-                            ('dna_n_coverage', dna_n),
-                            ('rna_coverage', rna),
-                        ):
-                            if incoming is None and getattr(case, field) is not None:
-                                preserved_count += 1
-
-                        case.save()
+                            case.save(update_fields=['biobank_id', 'updated_at'])
+                        elif case.biobank_id is not None:
+                            preserved_count += 1
+                        # Un cas d'avant la v2 peut ne pas encore avoir de
+                        # specimens : on les cree plutot que d'ignorer la ligne.
+                        case.ensure_specimens()
                         updated_count += 1
-                    
+
+                    couvertures = {
+                        Specimen.TYPE_TUMOUR_DNA: dna_t,
+                        Specimen.TYPE_NORMAL_DNA: dna_n,
+                        Specimen.TYPE_TUMOUR_RNA: rna,
+                    }
+                    for specimen in case.specimens.all():
+                        champs = []
+                        valeur = couvertures.get(specimen.specimen_type)
+                        if valeur is not None:
+                            specimen.coverage = valeur
+                            champs.append('coverage')
+                        elif not created and specimen.coverage is not None:
+                            # GARDE-FOU : cellule vide = inchange, jamais efface.
+                            preserved_count += 1
+                        if specimen.status != status:
+                            specimen.status = status
+                            champs.append('status')
+                        if champs:
+                            specimen.save(update_fields=champs + ['updated_at'])
+
+                    case.sync_from_specimens()
+
                     # Add comment if source_other_comments is provided
                     if source_comment:
                         # Store only the comment text, timestamp and user info are handled by the model

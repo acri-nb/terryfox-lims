@@ -141,6 +141,28 @@
             color: white;
         }
         
+        /* Barre de progression d'un specimen : trois segments, une etape
+           chacun. Dix couleurs de badge n'apprennent a personne que
+           « QC complete » precede « Library complete » ; des segments pleins,
+           si -- et cela se lit sans lire. */
+        .track { display: inline-flex; gap: 3px; vertical-align: middle; }
+        .track i { display: block; height: 7px; width: 26px;
+                   background: #d3dae0; border-radius: 1px; }
+        .track i.on { background: #1c5d99; }
+
+        /* Statuts : une teinte par ETAPE, pas par statut. Quatre couleurs a
+           apprendre au lieu de dix, et immunise contre le prochain changement
+           de vocabulaire. */
+        .badge-case_created, .badge-sent_to_sequencing {
+            background-color: #eef2f5; color: #44555f; border: 1px solid #a9b6bf; }
+        .badge-received, .badge-qc_complete, .badge-library_complete,
+        .badge-iseq_finished, .badge-sequencing_complete {
+            background-color: #e8f0f8; color: #1c5d99; border: 1px solid #1c5d99; }
+        .badge-transferred_to_cair, .badge-analyzing, .badge-analysis_complete {
+            background-color: #e6f4ec; color: #16733f; border: 1px solid #16733f; }
+        .badge-unknown_legacy {
+            background-color: #fdf1dc; color: #8a5300; border: 1px solid #8a5300; }
+
         /* Cas prioritaires : un filet ambre et un fanion, lisibles d'un coup
            d'oeil sur 100 lignes. Jamais une ligne rouge : le rouge signale
            l'echec, pas l'urgence, et un mur de rouge ne se lit plus. */

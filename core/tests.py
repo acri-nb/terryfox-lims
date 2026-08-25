@@ -19,7 +19,10 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Case, Comment, IdentifierSequence, Project, ProjectLead, format_acc
+from . import statuses
+from .models import (
+    Case, Comment, IdentifierSequence, Project, ProjectLead, Specimen, format_acc,
+)
 
 
 def make_editor(username="editor1"):
@@ -263,7 +266,7 @@ class ProjectListingTests(TestCase):
     def test_filters_survive_pagination(self):
         response = self.client.get(self.url, {"status": Case.STATUS_COMPLETED, "page": 2})
         self.assertEqual(response.status_code, 200)
-        self.assertIn("status=completed", response.context["querystring"])
+        self.assertIn(f"status={Case.STATUS_COMPLETED}", response.context["querystring"])
 
     def test_statistics_cover_all_cases_not_just_the_page(self):
         response = self.client.get(self.url)
@@ -328,7 +331,7 @@ class IdentifierTests(TestCase):
         existing = Case.objects.create(project=self.project, biobank_id="N-BBN 42")
         response = self.client.post(
             reverse("case_create", kwargs={"project_id": self.project.id}),
-            {"biobank_id": "n-bbn 42", "status": Case.STATUS_CREATED},
+            {"biobank_id": "n-bbn 42", "specimen_types": ["normal_dna", "tumour_dna", "tumour_rna"]},
         )
         body = response.content.decode()
         self.assertIn(existing.name, body, "le message doit nommer le cas en conflit")
@@ -338,7 +341,7 @@ class IdentifierTests(TestCase):
         Case.objects.create(project=self.project, biobank_id="N-BBN 43")
         self.client.post(
             reverse("case_create", kwargs={"project_id": self.project.id}),
-            {"biobank_id": "N-BBN 43", "status": Case.STATUS_CREATED, "confirm_duplicate": "1"},
+            {"biobank_id": "N-BBN 43", "specimen_types": ["normal_dna"], "confirm_duplicate": "1"},
         )
         self.assertEqual(Case.objects.filter(biobank_id="N-BBN 43").count(), 2)
 
@@ -360,7 +363,7 @@ class IdentifierTests(TestCase):
     def test_batch_paste_creates_one_case_per_line(self):
         self.client.post(
             reverse("batch_case_create", kwargs={"project_id": self.project.id}),
-            {"biobank_ids": "L-1\nL-2\n\n  L-3  ", "status": Case.STATUS_CREATED},
+            {"biobank_ids": "L-1\nL-2\n\n  L-3  ", "status": Case.STATUS_CREATED, "specimen_types": ["normal_dna", "tumour_dna", "tumour_rna"]},
         )
         created = Case.objects.filter(biobank_id__startswith="L-").order_by("acc_number")
         self.assertEqual([c.biobank_id for c in created], ["L-1", "L-2", "L-3"])
@@ -370,7 +373,7 @@ class IdentifierTests(TestCase):
     def test_batch_refuses_a_list_repeating_itself(self):
         self.client.post(
             reverse("batch_case_create", kwargs={"project_id": self.project.id}),
-            {"biobank_ids": "D-1\nD-2\nD-1", "status": Case.STATUS_CREATED},
+            {"biobank_ids": "D-1\nD-2\nD-1", "status": Case.STATUS_CREATED, "specimen_types": ["normal_dna", "tumour_dna", "tumour_rna"]},
         )
         self.assertEqual(Case.objects.count(), 0, "aucun cas ne doit etre cree")
 
@@ -410,7 +413,7 @@ class PriorityTests(TestCase):
     def test_batch_can_flag_the_whole_batch(self):
         self.client.post(
             reverse("batch_case_create", kwargs={"project_id": self.project.id}),
-            {"biobank_ids": "U-1\nU-2", "status": Case.STATUS_CREATED, "is_priority": "on"},
+            {"biobank_ids": "U-1\nU-2", "status": Case.STATUS_CREATED, "is_priority": "on", "specimen_types": ["normal_dna"]},
         )
         created = Case.objects.filter(biobank_id__startswith="U-")
         self.assertEqual(created.count(), 2)
@@ -420,14 +423,11 @@ class PriorityTests(TestCase):
         url = reverse("case_detail", kwargs={"case_id": self.ordinaire.id})
         self.client.post(url, {
             "case_update": "1", "biobank_id": "B-1", "is_priority": "on",
-            "status": Case.STATUS_CREATED,
         })
         self.ordinaire.refresh_from_db()
         self.assertTrue(self.ordinaire.is_priority)
 
-        self.client.post(url, {
-            "case_update": "1", "biobank_id": "B-1", "status": Case.STATUS_CREATED,
-        })
+        self.client.post(url, {"case_update": "1", "biobank_id": "B-1"})
         self.ordinaire.refresh_from_db()
         self.assertFalse(self.ordinaire.is_priority)
 
@@ -447,6 +447,127 @@ class ReferredProjectTests(TestCase):
         referred = Project.objects.create(
             name="Referred Cases", kind=Project.KIND_REFERRED, created_by=user)
         self.assertEqual(referred.get_kind_display(), "Referred cases")
+
+
+class SpecimenTests(TestCase):
+    """Tumeur et normal sont des entites distinctes, suivies independamment.
+
+    Le statut du cas en est DERIVE, comme le tier l'est deja des couvertures.
+    """
+
+    def setUp(self):
+        self.editor = make_editor("editor6")
+        self.project = Project.objects.create(name="P spec", created_by=self.editor)
+        self.case = Case.objects.create(project=self.project, biobank_id="S-1")
+        self.case.ensure_specimens()
+        self.client = Client()
+        self.client.force_login(self.editor)
+        self.url = reverse("case_detail", kwargs={"case_id": self.case.id})
+
+    def _set(self, specimen_type, **kwargs):
+        specimen = self.case.specimens.get(specimen_type=specimen_type)
+        for key, value in kwargs.items():
+            setattr(specimen, key, value)
+        specimen.save()
+        self.case.refresh_from_db()
+        return specimen
+
+    def test_a_case_gets_the_three_specimens_by_default(self):
+        self.assertEqual(
+            [s.specimen_type for s in self.case.specimens_in_order()],
+            Specimen.ORDERED_TYPES,
+        )
+
+    def test_a_case_is_never_forced_to_three_specimens(self):
+        """Sinon un protocole sans ARN resterait 'en attente' a perpetuite."""
+        autre = Case.objects.create(project=self.project, biobank_id="S-2")
+        autre.ensure_specimens([Specimen.TYPE_NORMAL_DNA, Specimen.TYPE_TUMOUR_DNA])
+        self.assertEqual(autre.specimens.count(), 2)
+        self.assertFalse(autre.specimens.filter(specimen_type=Specimen.TYPE_TUMOUR_RNA).exists())
+
+    def test_case_status_is_the_least_advanced_specimen(self):
+        self._set(Specimen.TYPE_NORMAL_DNA, status=statuses.ANALYSIS_COMPLETE)
+        self._set(Specimen.TYPE_TUMOUR_DNA, status=statuses.ANALYSIS_COMPLETE)
+        self._set(Specimen.TYPE_TUMOUR_RNA, status=statuses.RECEIVED)
+        self.assertEqual(self.case.status, statuses.RECEIVED)
+
+    def test_a_specimen_to_classify_does_not_drag_the_case_backwards(self):
+        """Le point qui evite de faire regresser 855 cas a l'ecran.
+
+        Un cas dont l'ADN est analyse et dont l'ARN reste a classer doit
+        continuer d'afficher l'avancee reelle de son ADN.
+        """
+        self._set(Specimen.TYPE_NORMAL_DNA, status=statuses.ANALYSIS_COMPLETE)
+        self._set(Specimen.TYPE_TUMOUR_DNA, status=statuses.ANALYSIS_COMPLETE)
+        self._set(Specimen.TYPE_TUMOUR_RNA, status=statuses.UNKNOWN_LEGACY)
+        self.assertEqual(self.case.status, statuses.ANALYSIS_COMPLETE)
+        self.assertEqual(self.case.specimens_to_classify(), 1)
+
+    def test_everything_to_classify_shows_as_such(self):
+        for specimen_type in Specimen.ORDERED_TYPES:
+            self._set(specimen_type, status=statuses.UNKNOWN_LEGACY)
+        self.assertEqual(self.case.status, statuses.UNKNOWN_LEGACY)
+
+    def test_coverage_mirrors_onto_the_case_and_drives_the_tier(self):
+        self._set(Specimen.TYPE_TUMOUR_DNA, coverage=85)
+        self._set(Specimen.TYPE_NORMAL_DNA, coverage=35)
+        self._set(Specimen.TYPE_TUMOUR_RNA, coverage=120)
+
+        self.assertEqual(self.case.dna_t_coverage, 85)
+        self.assertEqual(self.case.dna_n_coverage, 35)
+        self.assertEqual(self.case.rna_coverage, 120)
+        self.assertEqual(self.case.tier, "A")
+
+        self._set(Specimen.TYPE_TUMOUR_DNA, coverage=12)
+        self.assertEqual(self.case.tier, "FAIL", "sous 30X le tier doit tomber")
+
+    def test_one_dropdown_moves_every_specimen(self):
+        """L'action la plus frequente du systeme ne doit pas tripler."""
+        self.client.post(self.url, {
+            "status_update": "1",
+            "status": statuses.SEQUENCING_COMPLETE,
+            "apply_to": "all",
+        })
+        self.case.refresh_from_db()
+        self.assertTrue(all(s.status == statuses.SEQUENCING_COMPLETE
+                            for s in self.case.specimens_in_order()))
+        self.assertEqual(self.case.status, statuses.SEQUENCING_COMPLETE)
+
+    def test_a_single_specimen_can_be_targeted(self):
+        self.client.post(self.url, {
+            "status_update": "1", "status": statuses.ANALYZING, "apply_to": "all"})
+        self.client.post(self.url, {
+            "status_update": "1", "status": statuses.RECEIVED,
+            "apply_to": Specimen.TYPE_TUMOUR_RNA})
+
+        self.case.refresh_from_db()
+        par_type = {s.specimen_type: s.status for s in self.case.specimens_in_order()}
+        self.assertEqual(par_type[Specimen.TYPE_TUMOUR_RNA], statuses.RECEIVED)
+        self.assertEqual(par_type[Specimen.TYPE_TUMOUR_DNA], statuses.ANALYZING)
+        self.assertEqual(self.case.status, statuses.RECEIVED)
+
+    def test_apply_to_only_offers_specimens_that_exist(self):
+        autre = Case.objects.create(project=self.project, biobank_id="S-3")
+        autre.ensure_specimens([Specimen.TYPE_NORMAL_DNA])
+        response = self.client.get(reverse("case_detail", kwargs={"case_id": autre.id}))
+        choix = dict(response.context["status_form"].fields["apply_to"].choices)
+        self.assertIn(Specimen.TYPE_NORMAL_DNA, choix)
+        self.assertNotIn(Specimen.TYPE_TUMOUR_RNA, choix)
+
+    def test_legacy_status_is_never_offered_for_entry(self):
+        self.assertNotIn(statuses.UNKNOWN_LEGACY, statuses.SELECTABLE)
+        proposables = [
+            slug
+            for _groupe, options in statuses.GROUPED_CHOICES
+            for slug, _label in options
+        ]
+        self.assertNotIn(statuses.UNKNOWN_LEGACY, proposables)
+
+    def test_legacy_status_stays_findable_in_filters(self):
+        """Sinon personne ne peut retrouver les cas qu'on lui demande de reclasser."""
+        from .forms import CaseFilterForm
+        choix = [slug for slug, _ in CaseFilterForm().fields["status"].choices]
+        self.assertIn(statuses.UNKNOWN_LEGACY, choix)
 
 
 class SmokeTests(TestCase):

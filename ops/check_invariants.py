@@ -25,6 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 COUNT_TABLES = [
     "core_project",
     "core_case",
+    "core_specimen",
     "core_comment",
     "core_projectlead",
     "core_accession",
@@ -64,7 +65,12 @@ def snapshot(db_path):
             try:
                 snap[table] = conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
             except sqlite3.Error:
-                snap[table] = "ABSENTE"
+                # Table absente de cette version du schema : on omet la cle
+                # plutot que d'y mettre un marqueur. Elle apparaitra alors comme
+                # mesure NOUVELLE apres la migration qui la cree, sans bloquer --
+                # tandis qu'une table qui DISPARAIT reste signalee, sa valeur
+                # tombant a zero.
+                pass
 
         # Lignes visibles dans l'application, par opposition aux lignes presentes
         # en base. Depuis la suppression douce, les deux peuvent diverger : une

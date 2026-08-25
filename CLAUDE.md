@@ -95,6 +95,24 @@ uniqueness is a **soft** check in `Case.find_biobank_id_conflict()` that names t
 case and can be overridden. `Case.is_priority` pins cases to the top of every list;
 `Project.kind` separates research projects from `Referred Cases`.
 
+### Specimens and the derived case status
+
+`Specimen` holds the three independently-trackable entities inside a case —
+`normal_dna`, `tumour_dna`, `tumour_rna` — which map 1:1 onto the old flat coverage columns
+(`dna_n`, `dna_t`, `rna`). Those columns stay on `Case` as a **mirror**, refreshed by
+`Case.sync_from_specimens()`, so `calculate_tier()` is untouched and the tier distribution is
+provably unchanged by the migration.
+
+`Case.status` is now derived too (`editable=False`): it is the least advanced specimen status
+**among those whose state is known**, so a case whose DNA is analysed and whose RNA is still
+`unknown_legacy` keeps reading "Analysis complete" instead of regressing. The pending specimen
+is surfaced by the `to_classify` annotation and its filter, not by dragging the badge down.
+
+The vocabulary lives in `core/statuses.py`: 10 statuses in 3 stages, plus `unknown_legacy` for
+rows inherited from V1. `statuses.from_any()` accepts v1 slugs and v1 labels so existing CSVs
+still import. A case is never forced to three specimens — `ensure_specimens(types)` takes the
+list, and P10_Prostate has no RNA specimen at all.
+
 ### Soft delete
 
 `Project` and `Case` inherit `SoftDeleteModel`: the delete views set `deleted_at` instead of
