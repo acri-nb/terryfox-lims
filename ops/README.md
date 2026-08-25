@@ -25,6 +25,25 @@ L'ancienne base est seulement renommée, jamais supprimée.
 git rm --cached db.sqlite3 && git commit -m "chore: la base de production sort du depot"
 ```
 
+## Archive V1
+
+```bash
+sudo ./ops/install_v1_archive.sh          # a monter AVANT la decoupe en specimens
+```
+
+La V1 reste consultable apres la bascule, **figee** : le code du commit
+`v1.0-final` sur un instantane des donnees d'avant migration, servi sur le port
+8443. Elle n'est pas branchee sur la base vivante — le code V1 lit des colonnes
+que la v2 a renommees et ignore les specimens ; sur des donnees courantes il
+afficherait des cas incomplets, et une V1 qui ment est pire que pas de V1.
+
+Lecture seule sur trois couches : fichier en `444 root`, SQLite ouvert en
+`mode=ro`, et un middleware qui rejette tout ce qui n'est pas GET ou HEAD.
+L'installateur verifie les trois, et verifie aussi qu'on peut encore **se
+connecter** : une base en lecture seule casse la connexion de deux facons
+discretes (sessions ecrites en base, mise a jour de `last_login`), toutes deux
+neutralisees.
+
 ## Usage courant
 
 ```bash

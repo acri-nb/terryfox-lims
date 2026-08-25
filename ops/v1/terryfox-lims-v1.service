@@ -1,0 +1,38 @@
+[Unit]
+Description=TerryFox LIMS - archive V1 (lecture seule)
+Documentation=file:///home/hadriengt/project/lims/terryfox-lims/ops/README.md
+After=network.target
+
+[Service]
+Type=exec
+User=root
+Group=root
+WorkingDirectory=/opt/terryfox-lims-v1
+Environment=PYTHONUNBUFFERED=1
+Environment=DJANGO_SETTINGS_MODULE=terryfox_lims.settings_archive
+ExecStart=/home/hadriengt/miniconda/envs/django/bin/gunicorn \
+    terryfox_lims.wsgi_archive:application \
+    --bind=0.0.0.0:8443 \
+    --workers=2 \
+    --timeout=60 \
+    --access-logfile=/var/log/terryfox-lims/v1-access.log \
+    --error-logfile=/var/log/terryfox-lims/v1-error.log \
+    --log-level=info \
+    --certfile=/root/ssl/v1-archive.crt \
+    --keyfile=/root/ssl/v1-archive.key
+Restart=on-failure
+RestartSec=15
+
+# Une archive n'a besoin ni d'ecrire ni de beaucoup de memoire.
+MemoryMax=512M
+TasksMax=40
+PrivateTmp=true
+ProtectSystem=full
+NoNewPrivileges=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=terryfox-lims-v1
+
+[Install]
+WantedBy=multi-user.target
