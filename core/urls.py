@@ -14,6 +14,11 @@ urlpatterns = [
     path('projects/<int:project_id>/update/', views.project_update, name='project_update'),
     path('projects/<int:project_id>/delete/', views.project_delete, name='project_delete'),
     
+    # Changement de statut en lot
+    path('projects/<int:project_id>/cases/bulk-status/',
+         views.bulk_status_update, name='bulk_status_update'),
+    path('batch/<int:batch_id>/undo/', views.bulk_status_undo, name='bulk_status_undo'),
+
     # Case URLs
     path('cases/<int:case_id>/', views.case_detail, name='case_detail'),
     path('projects/<int:project_id>/cases/create/', views.case_create, name='case_create'),

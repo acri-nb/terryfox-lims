@@ -663,3 +663,37 @@ class SpecimenForm(forms.ModelForm):
 SpecimenFormSet = forms.inlineformset_factory(
     Case, Specimen, form=SpecimenForm, extra=0, can_delete=False,
 )
+
+
+class BulkStatusForm(forms.Form):
+    """Barre d'action du changement en lot.
+
+    Deux menus, pas un : « passer 40 cas a Sequencing Complete » est ambigu des
+    lors que le statut vit sur le specimen. Il faut dire a QUOI on l'applique.
+    """
+
+    APPLY_ALL = 'all'
+
+    apply_to = forms.ChoiceField(
+        label=_('Apply to'),
+        choices=[(APPLY_ALL, _('All specimens'))] + list(Specimen.TYPE_CHOICES),
+        initial=APPLY_ALL,
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'}),
+    )
+    status = forms.ChoiceField(
+        label=_('Set status to'),
+        choices=statuses.GROUPED_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'}),
+    )
+    case_ids = forms.CharField(widget=forms.HiddenInput, required=False)
+
+    def selected_ids(self):
+        """Les identifiants coches, nettoyes."""
+        brut = self.data.getlist('case_ids') if hasattr(self.data, 'getlist') else []
+        ids = []
+        for valeur in brut:
+            try:
+                ids.append(int(valeur))
+            except (TypeError, ValueError):
+                continue
+        return ids

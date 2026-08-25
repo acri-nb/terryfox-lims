@@ -1,4 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required, permission_required
 from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
@@ -15,9 +16,9 @@ import string
 import random
 
 from . import statuses
-from .models import Project, Case, Specimen, Accession, Comment, ProjectLead, IdentifierSequence
+from .models import BatchOperation, SpecimenStatusChange, Project, Case, Specimen, Accession, Comment, ProjectLead, IdentifierSequence
 
-from .forms import ProjectForm, CaseForm, CaseStatusForm, SpecimenFormSet, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, CSVImportForm, UserCreateForm, BatchUserCreateForm, UserUpdateForm
+from .forms import ProjectForm, CaseForm, CaseStatusForm, SpecimenFormSet, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, BulkStatusForm, CSVImportForm, UserCreateForm, BatchUserCreateForm, UserUpdateForm
 
 # Nombre de cas affiches par page. Le plus gros projet en compte 256 ; a 100 par
 # page la recherche et les filtres restent le chemin principal pour retrouver un
@@ -156,7 +157,10 @@ def project_detail(request, project_id):
     # Les compteurs affiches sur chaque carte ({{ case.accessions.count }} et
     # {{ case.comments.count }}) declenchaient une requete chacun, par cas :
     # 522 requetes et 1,1 s sur P06 et ses 256 cas. Deux annotations suffisent.
-    cases = cases.annotate(
+    # prefetch des specimens : le tableau en affiche la progression sur chaque
+    # ligne. Sans cela on remplacerait le N+1 des compteurs par celui des
+    # specimens, soit 3 requetes par cas.
+    cases = cases.prefetch_related('specimens').annotate(
         accessions_count=Count('accessions', distinct=True),
         comments_count=Count('comments', distinct=True),
         # Le statut du cas vaut celui du specimen le moins avance PARMI CEUX
@@ -210,7 +214,20 @@ def project_detail(request, project_id):
     # Check if user is part of the 'editor' group for editing permissions
     can_edit = request.user.groups.filter(name='editor').exists() or request.user.is_superuser
 
+    # Derniere application en lot de cet utilisateur, si elle est encore
+    # annulable : la banniere d'annulation ne doit apparaitre qu'une fois, et
+    # seulement a qui vient de la declencher.
+    last_batch = None
+    batch_id = request.session.get('last_batch_id')
+    if can_edit and batch_id:
+        last_batch = BatchOperation.objects.filter(
+            id=batch_id, project=project, undone_at__isnull=True).first()
+        if last_batch is None:
+            request.session.pop('last_batch_id', None)
+
     return render(request, 'core/project_detail.html', {
+        'bulk_form': BulkStatusForm() if can_edit else None,
+        'last_batch': last_batch,
         'project': project,
         'cases': page_obj,          # iterable comme avant : le template ne change pas
         'page_obj': page_obj,
@@ -324,6 +341,117 @@ def case_detail(request, case_id):
 
 
 # Opérations CRUD pour les Projets, uniquement pour les utilisateurs 'editor'
+@login_required
+@permission_required('core.change_case', raise_exception=True)
+def bulk_status_update(request, project_id):
+    """Applique un statut a tous les cas coches, en une transaction.
+
+    Remplace l'aller-retour CSV : plus de telechargement, plus de re-televersement.
+    Chaque specimen touche laisse une ligne de journal, ce qui rend l'operation
+    annulable -- une modification de masse sans retour possible est un piege.
+    """
+    project = get_object_or_404(Project, id=project_id)
+    retour = request.POST.get('next') or reverse('project_detail', args=[project.id])
+
+    if request.method != 'POST':
+        return redirect(retour)
+
+    form = BulkStatusForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, _('Pick a status before applying.'))
+        return redirect(retour)
+
+    ids = form.selected_ids()
+    if not ids:
+        messages.warning(request, _('No case was selected.'))
+        return redirect(retour)
+
+    cible = form.cleaned_data['apply_to']
+    nouveau = form.cleaned_data['status']
+
+    cases = Case.objects.filter(project=project, id__in=ids).prefetch_related('specimens')
+
+    with transaction.atomic():
+        operation = BatchOperation.objects.create(
+            project=project,
+            performed_by=request.user,
+            status_set=nouveau,
+            applied_to=cible,
+        )
+
+        journal, touches, cas_touches = [], 0, set()
+        for case in cases:
+            for specimen in case.specimens.all():
+                if cible != BulkStatusForm.APPLY_ALL and specimen.specimen_type != cible:
+                    continue
+                if specimen.status == nouveau:
+                    continue
+                journal.append(SpecimenStatusChange(
+                    batch=operation, specimen=specimen,
+                    old_status=specimen.status, new_status=nouveau,
+                ))
+                specimen.status = nouveau
+                specimen.save(update_fields=['status', 'updated_at'])
+                cas_touches.add(case.id)
+                touches += 1
+
+        SpecimenStatusChange.objects.bulk_create(journal, batch_size=500)
+
+        for case in Case.objects.filter(id__in=cas_touches):
+            case.sync_from_specimens()
+
+        if touches:
+            operation.case_count = len(cas_touches)
+            operation.save(update_fields=['case_count'])
+        else:
+            operation.delete()
+
+    if touches:
+        messages.success(
+            request,
+            _('{cases} case(s) moved to {status} ({specimens} specimen(s)).').format(
+                cases=len(cas_touches),
+                status=statuses.LABEL_OF[nouveau],
+                specimens=touches,
+            ))
+        request.session['last_batch_id'] = operation.id
+    else:
+        messages.info(request, _('Nothing to change: those cases were already there.'))
+
+    return redirect(retour)
+
+
+@login_required
+@permission_required('core.change_case', raise_exception=True)
+def bulk_status_undo(request, batch_id):
+    """Annule une application en lot, sans ecraser ce qui a bouge depuis."""
+    operation = get_object_or_404(BatchOperation, id=batch_id)
+    retour = request.POST.get('next') or reverse('project_detail', args=[operation.project_id])
+
+    if request.method != 'POST':
+        return redirect(retour)
+
+    if operation.is_undone:
+        messages.info(request, _('That change was already undone.'))
+        return redirect(retour)
+
+    total = operation.changes.count()
+    rendus = operation.undo(user=request.user)
+    intacts = total - rendus
+
+    if intacts:
+        messages.warning(
+            request,
+            _('{done} specimen(s) restored. {kept} were left alone because they '
+              'changed again after this operation.').format(done=rendus, kept=intacts))
+    else:
+        messages.success(
+            request, _('{done} specimen(s) restored.').format(done=rendus))
+
+    request.session.pop('last_batch_id', None)
+    return redirect(retour)
+
+
 @login_required
 @permission_required('core.add_project', raise_exception=True)
 def project_create(request):

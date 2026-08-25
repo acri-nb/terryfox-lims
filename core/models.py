@@ -540,3 +540,99 @@ class Specimen(models.Model):
         # Le cas reste la source de verite affichee dans les listes : on le
         # remet en phase des qu'un specimen bouge.
         self.case.sync_from_specimens()
+
+
+# ---------------------------------------------------------------------------
+# Changement de statut en lot
+#
+# Remplace l'aller-retour CSV : cases a cocher dans la liste, un statut, un
+# bouton. Chaque application est journalisee ligne par ligne -- c'est ce qui
+# rend l'annulation possible. Sans trace, « annuler » ne pourrait que deviner.
+# ---------------------------------------------------------------------------
+
+class BatchOperation(models.Model):
+    """Une application de statut en lot, annulable."""
+
+    APPLY_ALL = 'all'
+
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name='batch_operations')
+    performed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name='batch_operations')
+    performed_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    status_set = models.CharField(max_length=32, choices=statuses.ALL_CHOICES)
+    applied_to = models.CharField(max_length=16, default=APPLY_ALL)
+    case_count = models.PositiveIntegerField(default=0)
+
+    undone_at = models.DateTimeField(null=True, blank=True)
+    undone_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='batch_undos')
+
+    class Meta:
+        ordering = ['-performed_at']
+        verbose_name = _('Batch operation')
+        verbose_name_plural = _('Batch operations')
+
+    def __str__(self):
+        return f"{self.case_count} cases -> {self.status_set}"
+
+    @property
+    def is_undone(self):
+        return self.undone_at is not None
+
+    @property
+    def target_label(self):
+        if self.applied_to == self.APPLY_ALL:
+            return _('all specimens')
+        return dict(Specimen.TYPE_CHOICES).get(self.applied_to, self.applied_to)
+
+    def undo(self, user=None):
+        """Remet chaque specimen a sa valeur d'avant -- s'il n'a pas rebouge.
+
+        Un specimen modifie depuis n'est PAS touche : annuler une operation ne
+        doit pas ecraser le travail fait apres elle. C'est la difference entre
+        une annulation et un retour en arriere aveugle.
+        """
+        if self.is_undone:
+            return 0
+
+        rendus = 0
+        with transaction.atomic():
+            cas_touches = set()
+            for change in self.changes.select_related('specimen'):
+                specimen = change.specimen
+                if specimen.status != change.new_status:
+                    continue  # a rebouge depuis : on n'y touche pas
+                specimen.status = change.old_status
+                specimen.save(update_fields=['status', 'updated_at'])
+                cas_touches.add(specimen.case_id)
+                rendus += 1
+
+            for case in Case.objects.filter(id__in=cas_touches):
+                case.sync_from_specimens()
+
+            self.undone_at = timezone.now()
+            self.undone_by = user
+            self.save(update_fields=['undone_at', 'undone_by'])
+
+        return rendus
+
+
+class SpecimenStatusChange(models.Model):
+    """Une ligne de journal : ce specimen, de cet etat vers celui-la."""
+
+    batch = models.ForeignKey(
+        BatchOperation, on_delete=models.CASCADE, related_name='changes')
+    specimen = models.ForeignKey(
+        Specimen, on_delete=models.CASCADE, related_name='status_changes')
+    old_status = models.CharField(max_length=32)
+    new_status = models.CharField(max_length=32)
+
+    class Meta:
+        verbose_name = _('Specimen status change')
+        verbose_name_plural = _('Specimen status changes')
+
+    def __str__(self):
+        return f"{self.specimen_id}: {self.old_status} -> {self.new_status}"

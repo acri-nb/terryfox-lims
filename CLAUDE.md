@@ -113,6 +113,15 @@ rows inherited from V1. `statuses.from_any()` accepts v1 slugs and v1 labels so 
 still import. A case is never forced to three specimens — `ensure_specimens(types)` takes the
 list, and P10_Prostate has no RNA specimen at all.
 
+### Bulk status change
+
+`bulk_status_update` (checkboxes on the project table) applies one status to every selected
+case inside a transaction, writing a `BatchOperation` plus one `SpecimenStatusChange` per
+touched specimen. `BatchOperation.undo()` restores each specimen **only if it is still at the
+value the batch set** — a specimen edited afterwards is left alone, so undo never overwrites
+later work. Selection is ~60 lines of plain JS (select-all, shift-click range, sticky bar);
+without JS the checkboxes and submit button still work.
+
 ### Soft delete
 
 `Project` and `Case` inherit `SoftDeleteModel`: the delete views set `deleted_at` instead of

@@ -21,7 +21,8 @@ from django.utils import timezone
 
 from . import statuses
 from .models import (
-    Case, Comment, IdentifierSequence, Project, ProjectLead, Specimen, format_acc,
+    BatchOperation, Case, Comment, IdentifierSequence, Project, ProjectLead,
+    Specimen, format_acc,
 )
 
 
@@ -568,6 +569,125 @@ class SpecimenTests(TestCase):
         from .forms import CaseFilterForm
         choix = [slug for slug, _ in CaseFilterForm().fields["status"].choices]
         self.assertIn(statuses.UNKNOWN_LEGACY, choix)
+
+
+class BulkStatusTests(TestCase):
+    """Changement de statut en lot : ce que Mathieu a demande pour tuer l'aller-retour CSV."""
+
+    def setUp(self):
+        self.editor = make_editor("editor7")
+        self.project = Project.objects.create(name="P lot", created_by=self.editor)
+        self.cases = []
+        for i in range(40):
+            case = Case.objects.create(project=self.project, biobank_id=f"L-{i:03d}")
+            case.ensure_specimens()
+            self.cases.append(case)
+        self.client = Client()
+        self.client.force_login(self.editor)
+        self.url = reverse("bulk_status_update", kwargs={"project_id": self.project.id})
+
+    def _apply(self, cases, status, apply_to="all"):
+        return self.client.post(self.url, {
+            "case_ids": [c.id for c in cases],
+            "apply_to": apply_to,
+            "status": status,
+        }, follow=True)
+
+    def test_forty_cases_move_in_one_request(self):
+        self._apply(self.cases, statuses.SEQUENCING_COMPLETE)
+        moved = Case.objects.filter(
+            project=self.project, status=statuses.SEQUENCING_COMPLETE).count()
+        self.assertEqual(moved, 40)
+
+    def test_only_selected_cases_move(self):
+        self._apply(self.cases[:10], statuses.RECEIVED)
+        self.assertEqual(
+            Case.objects.filter(project=self.project, status=statuses.RECEIVED).count(), 10)
+        self.assertEqual(
+            Case.objects.filter(project=self.project, status=statuses.DEFAULT).count(), 30)
+
+    def test_a_single_specimen_type_can_be_targeted(self):
+        self._apply(self.cases[:5], statuses.ANALYZING, apply_to=Specimen.TYPE_TUMOUR_RNA)
+        case = Case.objects.get(id=self.cases[0].id)
+        par_type = {s.specimen_type: s.status for s in case.specimens_in_order()}
+        self.assertEqual(par_type[Specimen.TYPE_TUMOUR_RNA], statuses.ANALYZING)
+        self.assertEqual(par_type[Specimen.TYPE_TUMOUR_DNA], statuses.DEFAULT)
+
+    def test_the_operation_is_logged_line_by_line(self):
+        self._apply(self.cases[:3], statuses.RECEIVED)
+        operation = BatchOperation.objects.get()
+        self.assertEqual(operation.case_count, 3)
+        self.assertEqual(operation.changes.count(), 9, "3 cas x 3 specimens")
+        self.assertEqual(operation.performed_by, self.editor)
+
+    def test_undo_restores_every_specimen(self):
+        self._apply(self.cases[:5], statuses.RECEIVED)
+        operation = BatchOperation.objects.get()
+
+        self.client.post(reverse("bulk_status_undo", kwargs={"batch_id": operation.id}),
+                         follow=True)
+
+        for case in Case.objects.filter(id__in=[c.id for c in self.cases[:5]]):
+            self.assertEqual(case.status, statuses.DEFAULT)
+        operation.refresh_from_db()
+        self.assertTrue(operation.is_undone)
+
+    def test_undo_leaves_alone_what_changed_afterwards(self):
+        """Annuler ne doit pas ecraser le travail fait apres l'operation."""
+        self._apply(self.cases[:5], statuses.RECEIVED)
+        operation = BatchOperation.objects.get()
+
+        touche = Case.objects.get(id=self.cases[0].id)
+        specimen = touche.specimens_in_order()[0]
+        specimen.status = statuses.ANALYZING
+        specimen.save()
+
+        self.client.post(reverse("bulk_status_undo", kwargs={"batch_id": operation.id}),
+                         follow=True)
+
+        specimen.refresh_from_db()
+        self.assertEqual(specimen.status, statuses.ANALYZING)
+        # les autres sont bien revenus
+        autre = Case.objects.get(id=self.cases[1].id)
+        self.assertEqual(autre.status, statuses.DEFAULT)
+
+    def test_undoing_twice_changes_nothing_more(self):
+        self._apply(self.cases[:3], statuses.RECEIVED)
+        operation = BatchOperation.objects.get()
+        url = reverse("bulk_status_undo", kwargs={"batch_id": operation.id})
+        self.client.post(url, follow=True)
+        self.assertEqual(operation.undo(), 0)
+
+    def test_an_empty_selection_changes_nothing(self):
+        self.client.post(self.url, {"case_ids": [], "apply_to": "all",
+                                    "status": statuses.RECEIVED}, follow=True)
+        self.assertEqual(BatchOperation.objects.count(), 0)
+        self.assertEqual(
+            Case.objects.filter(project=self.project, status=statuses.DEFAULT).count(), 40)
+
+    def test_applying_the_status_they_already_have_records_nothing(self):
+        self._apply(self.cases[:3], statuses.DEFAULT)
+        self.assertEqual(BatchOperation.objects.count(), 0,
+                         "une operation sans effet ne doit pas polluer le journal")
+
+    def test_a_viewer_cannot_apply_a_batch(self):
+        viewer = User.objects.create_user("viewer2", password="x")
+        viewer.groups.add(Group.objects.get_or_create(name="viewer")[0])
+        client = Client()
+        client.force_login(viewer)
+        response = client.post(self.url, {
+            "case_ids": [self.cases[0].id], "apply_to": "all",
+            "status": statuses.RECEIVED})
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Case.objects.get(id=self.cases[0].id).status, statuses.DEFAULT)
+
+    def test_the_table_carries_checkboxes_and_the_action_bar(self):
+        body = self.client.get(
+            reverse("project_detail", kwargs={"project_id": self.project.id})
+        ).content.decode()
+        self.assertIn('name="case_ids"', body)
+        self.assertIn('id="select-all"', body)
+        self.assertIn('id="bulk-bar"', body)
 
 
 class SmokeTests(TestCase):
