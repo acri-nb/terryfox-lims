@@ -6,8 +6,13 @@
     <meta name="color-scheme" content="light">
     <title>{% block title %}TerryFox LIMS{% endblock %}</title>
 
-    {# Tout est servi localement : un serveur de laboratoire interne ne doit pas
-       dependre d'un CDN pour s'afficher. #}
+    {% comment %}
+    Tout est servi localement : un serveur de laboratoire interne ne doit pas
+    dependre d'un CDN pour s'afficher.
+
+    {# ... #} ne fonctionne que sur UNE ligne : sur plusieurs, Django ne le
+    reconnait pas comme un commentaire et le sert tel quel dans la page.
+    {% endcomment %}
     <link href="{% static 'vendor/bootstrap/bootstrap.min.css' %}" rel="stylesheet">
     <link href="{% static 'vendor/fontawesome/css/all.min.css' %}" rel="stylesheet">
     <link href="{% static 'css/lims.css' %}" rel="stylesheet">

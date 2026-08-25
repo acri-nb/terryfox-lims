@@ -980,6 +980,21 @@ class StaticAssetTests(TestCase):
             response = Client().get(reverse("login"))
             self.assertEqual(response.status_code, 200)
 
+    def test_no_template_syntax_leaks_into_the_page(self):
+        """Un commentaire {# ... #} sur PLUSIEURS lignes n'en est pas un.
+
+        Django ne reconnait cette syntaxe que sur une seule ligne : etalee sur
+        deux, elle n'est pas interpretee et le texte part tel quel dans la page.
+        Le meme piege vaut pour une balise mal fermee.
+        """
+        for url in self._pages():
+            with self.subTest(url=url):
+                body = self.client.get(url).content.decode()
+                for marqueur in ("{#", "{%", "{{"):
+                    self.assertNotIn(
+                        marqueur, body,
+                        f"syntaxe de gabarit non interpretee servie par {url}")
+
     def test_no_asset_is_loaded_from_a_cdn(self):
         """Un serveur de laboratoire interne ne doit pas dependre d'un CDN."""
         body = self.client.get(reverse("home")).content.decode()
