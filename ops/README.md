@@ -106,7 +106,7 @@ corrompue, et qu'il ne bloque pas une migration purement additive. C'est ce
 script qui decide d'annuler une migration de production : s'il se degrade en
 silence, personne ne s'en apercoit avant l'incident.
 
-
-13 tests couvrent le calcul du tier (fichier de référence des critères du consortium),
-la suppression douce, l'import CSV et la réponse de chaque page. Ils tournent sur une base
-de test créée puis détruite par Django : `db.sqlite3` n'est jamais touchée.
+33 tests couvrent le calcul du tier (fichier de référence des critères du consortium),
+la suppression douce, l'import CSV, la pagination, les identifiants générés et la
+recherche, ainsi que la réponse de chaque page. Ils tournent sur une base de test créée
+puis détruite par Django : la base de production n'est jamais touchée.
