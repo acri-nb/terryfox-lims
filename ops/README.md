@@ -122,6 +122,17 @@ python3 ops/check_invariants.py --db /tmp/essai.sqlite3
 DATABASE_PATH=/tmp/essai.sqlite3 python manage.py runserver 8001
 ```
 
+## Rapport
+
+```bash
+python3 ops/render_report.py docs/RAPPORT_V2.md
+```
+
+Rend un Markdown en PDF avec les jetons et les polices IBM Plex de
+l'application : le document imprime ressemble a l'interface qu'il decrit, et
+rien n'est telecharge au moment du rendu. Necessite `markdown` et `weasyprint`,
+qui ne servent qu'a cela et ne sont pas des dependances de l'application.
+
 ## Tests
 
 ```bash
