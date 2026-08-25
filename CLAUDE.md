@@ -113,6 +113,20 @@ rows inherited from V1. `statuses.from_any()` accepts v1 slugs and v1 labels so 
 still import. A case is never forced to three specimens — `ensure_specimens(types)` takes the
 list, and P10_Prostate has no RNA specimen at all.
 
+### Design layer
+
+`static/css/lims.css` replaced the ~265 lines of inline 2013 Flat-UI CSS in `base.html`.
+Borders, never resting shadows; one hue per status **stage** (four colours, not ten); tier
+semantics fixed (A green, B amber, FAIL red) with the letter always present — amber and red
+are indistinguishable under deuteranopia, so colour never carries identity alone. IBM Plex
+Sans/Mono, Bootstrap and FontAwesome are all **vendored under `static/`**: no CDN at runtime.
+
+`base.html` starts with `{% load static %}` — without it every page, login included, raises
+`TemplateSyntaxError`. `settings_prod` now configures whitenoise through `STORAGES`:
+`STATICFILES_STORAGE` was **removed in Django 5.1** and had been silently inert. The manifest
+storage means a missing `{% static %}` path 500s at render, so `StaticAssetTests` renders every
+page with that storage active — run it before touching templates or assets.
+
 ### Exports
 
 `core/exports.py`, stdlib only. `cases.csv` is **wide** — one row per case with a fixed block

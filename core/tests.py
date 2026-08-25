@@ -11,11 +11,13 @@ Ils couvrent en priorite ce qui, en cas de regression, fait perdre ou fausser
 des donnees : le calcul du tier, la suppression douce, et l'import CSV.
 """
 
+from pathlib import Path
+
 from django.contrib.auth.models import Group, Permission, User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
 from django.test import Client, TestCase
-from django.test.utils import CaptureQueriesContext
+from django.test.utils import CaptureQueriesContext, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -912,6 +914,86 @@ class ExportTests(TestCase):
                                     kwargs={"project_id": self.project.id}))
         self.assertLess(len(ctx.captured_queries), 25,
                         "un N+1 dans l'export ferait exploser le temps sur 1329 cas")
+
+
+# Reglages statiques de PRODUCTION, reproduits pour les tests.
+#
+# STATIC_ROOT en fait partie : sans lui le stockage a manifeste ne trouve pas
+# staticfiles.json et echoue pour une raison qui n'a rien a voir avec ce qu'on
+# veut verifier. Les reglages de developpement ne definissent pas STATIC_ROOT.
+MANIFEST_SETTINGS = {
+    "STORAGES": {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+    },
+    "STATIC_ROOT": str(Path(__file__).resolve().parent.parent / "staticfiles"),
+}
+
+
+class StaticAssetTests(TestCase):
+    """Les ressources statiques, avec le stockage de PRODUCTION.
+
+    Le reste de la suite tourne avec StaticFilesStorage, qui ne verifie rien :
+    un chemin {% static %} inexistant y passe inapercu et ne casse qu'en
+    production, sur toutes les pages a la fois. Ces tests activent le stockage a
+    manifeste, qui leve au rendu -- exactement comme le serveur.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("admin4", password="x")
+        self.project = Project.objects.create(name="P static", created_by=self.admin)
+        self.case = Case.objects.create(project=self.project, biobank_id="ST-1")
+        self.case.ensure_specimens()
+        self.lead = ProjectLead.objects.create(name="Dr Static")
+        self.client = Client()
+        self.client.force_login(self.admin)
+
+    def _pages(self):
+        return [
+            reverse("home"),
+            reverse("project_detail", kwargs={"project_id": self.project.id}),
+            reverse("case_detail", kwargs={"case_id": self.case.id}),
+            reverse("case_search"),
+            reverse("case_create", kwargs={"project_id": self.project.id}),
+            reverse("batch_case_create", kwargs={"project_id": self.project.id}),
+            reverse("csv_case_import", kwargs={"project_id": self.project.id}),
+            reverse("case_resubmit", kwargs={"case_id": self.case.id}),
+            reverse("project_lead_list"),
+            reverse("project_lead_update", kwargs={"lead_id": self.lead.id}),
+            reverse("user_list"),
+            reverse("user_create"),
+            reverse("project_update", kwargs={"project_id": self.project.id}),
+            reverse("project_delete", kwargs={"project_id": self.project.id}),
+            reverse("case_delete", kwargs={"case_id": self.case.id}),
+        ]
+
+    def test_every_page_renders_with_the_production_storage(self):
+        """Un {% static %} manquant renvoie des 500 sur TOUT le site."""
+        with override_settings(**MANIFEST_SETTINGS):
+            for url in self._pages():
+                with self.subTest(url=url):
+                    self.assertIn(self.client.get(url).status_code, (200, 302))
+
+    def test_the_login_page_renders_for_an_anonymous_visitor(self):
+        """Si base.html casse, plus personne ne peut meme se connecter."""
+        with override_settings(**MANIFEST_SETTINGS):
+            response = Client().get(reverse("login"))
+            self.assertEqual(response.status_code, 200)
+
+    def test_no_asset_is_loaded_from_a_cdn(self):
+        """Un serveur de laboratoire interne ne doit pas dependre d'un CDN."""
+        body = self.client.get(reverse("home")).content.decode()
+        for hote in ("cdn.jsdelivr.net", "cdnjs.cloudflare.com", "fonts.googleapis.com"):
+            self.assertNotIn(hote, body)
+
+    def test_the_stylesheet_and_fonts_are_collectible(self):
+        from django.contrib.staticfiles import finders
+        for chemin in ("css/lims.css", "fonts/plex-sans-400.woff2",
+                       "fonts/plex-mono-400.woff2",
+                       "vendor/bootstrap/bootstrap.min.css",
+                       "vendor/bootstrap/bootstrap.bundle.min.js"):
+            with self.subTest(chemin=chemin):
+                self.assertIsNotNone(finders.find(chemin), f"{chemin} introuvable")
 
 
 class SmokeTests(TestCase):

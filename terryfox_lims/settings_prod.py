@@ -84,7 +84,24 @@ DATABASES = {
 # --------------------------------------------------------------------------
 
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Django 5.1 a RETIRE le reglage STATICFILES_STORAGE : il etait toujours present
+# ici, silencieusement sans effet depuis la montee de version. Les fichiers
+# statiques etaient donc servis sans compression, sans hachage et sans en-tete
+# de cache immuable. La configuration se fait desormais par STORAGES.
+#
+# Le hachage impose une regle : tout chemin {% static %} doit exister au moment
+# du rendu, sinon la page leve une ValueError. C'est pour cela que ops/deploy.sh
+# lance collectstatic apres migrate, et pourquoi la suite de tests rend chaque
+# page avec ce stockage actif.
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
 
 # --------------------------------------------------------------------------
 # Courriel

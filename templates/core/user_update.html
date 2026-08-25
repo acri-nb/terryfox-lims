@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="mb-0"><i class="fas fa-user-edit me-2"></i> {{ title }}</h1>
+    <h1 class="mb-0">{{ title }}</h1>
     <a href="{% url 'user_list' %}" class="btn btn-outline-secondary">
         <i class="fas fa-arrow-left me-1"></i> Back to User List
     </a>
@@ -15,7 +15,7 @@
     <div class="col-md-8">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-user me-2"></i> Update User Information</h5>
+                <h5 class="mb-0">Update User Information</h5>
             </div>
             <div class="card-body">
                 <div class="alert alert-info">
@@ -137,10 +137,10 @@
     <div class="col-md-4">
         <div class="card bg-light">
             <div class="card-header">
-                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i> Current User Info</h6>
+                <h6 class="mb-0">Current User Info</h6>
             </div>
             <div class="card-body">
-                <h6><i class="fas fa-user me-1"></i> Current Details</h6>
+                <h6>Current Details</h6>
                 <div class="small">
                     <strong>Username:</strong> {{ user_to_update.username }}<br>
                     <strong>Full Name:</strong> 
@@ -161,7 +161,7 @@
                 
                 <hr>
                 
-                <h6><i class="fas fa-calendar me-1"></i> Account Info</h6>
+                <h6>Account Info</h6>
                 <div class="small text-muted">
                     <strong>Date Joined:</strong> {{ user_to_update.date_joined|date:"M d, Y" }}<br>
                     <strong>Last Login:</strong> 
@@ -174,7 +174,7 @@
                 
                 <hr>
                 
-                <h6><i class="fas fa-user me-1"></i> Username Generation</h6>
+                <h6>Username Generation</h6>
                 <p class="small text-muted">
                     Username will be updated automatically if you change the first or last name.
                 </p>
@@ -184,7 +184,7 @@
                 
                 <hr>
                 
-                <h6><i class="fas fa-key me-1"></i> Password Reset</h6>
+                <h6>Password Reset</h6>
                 <p class="small text-muted">
                     Check "Reset Password" to generate a new temporary password. The new password will be displayed after saving.
                 </p>
@@ -193,7 +193,7 @@
         
         <div class="card bg-warning bg-opacity-10 border-warning mt-3">
             <div class="card-body">
-                <h6 class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i> Important</h6>
+                <h6 class="text-warning">Important</h6>
                 <p class="small text-muted mb-0">
                     If you reset the password, make sure to save the new password as it will not be shown again.
                 </p>

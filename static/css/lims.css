@@ -1,0 +1,459 @@
+/* ==========================================================================
+   TerryFox LIMS — couche de style
+   ==========================================================================
+
+   Remplace les ~265 lignes de CSS en ligne de base.html, qui reprenaient la
+   palette Flat UI Colors de 2013 et posaient une ombre plus un survol
+   « levitant » sur chaque carte, y compris celles qui ne sont pas cliquables.
+
+   Trois principes :
+
+   1. BORDURES, PAS D'OMBRES. Un filet de 1 px, zero ombre au repos. L'ombre est
+      reservee aux couches reellement flottantes : menu deroulant, modale, barre
+      collante. Un systeme a filets s'imprime, une ombre non.
+
+   2. LA COULEUR PORTE DU SENS. Une teinte par ETAPE de statut, pas par statut :
+      quatre couleurs a apprendre au lieu de dix, et immunise contre le prochain
+      changement de vocabulaire. Tous les couples texte/fond ont ete mesures
+      au-dessus du seuil WCAG AA de 4,5:1 -- les anciens badges tenaient entre
+      2,10 et 3,82:1.
+
+   3. LA DENSITE EST UNE FONCTIONNALITE. C'est un outil de donnees : chiffres en
+      chasse tabulaire alignes a droite, identifiants en chasse fixe. « ACC-0142 »
+      et « ACC-0412 » se distinguent en mono, pas en proportionnel.
+
+   Pas de mode sombre en v2.0 : personne ne l'a demande, il doublerait la surface
+   de verification visuelle, et un mode sombre non sollicite fait partie des
+   signes du travail genere. C'est une decision, pas un oubli.
+   ========================================================================== */
+
+/* --------------------------------------------------------------- polices */
+
+@font-face {
+  font-family: 'Plex Sans';
+  src: url('../fonts/plex-sans-400.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Plex Sans';
+  src: url('../fonts/plex-sans-500.woff2') format('woff2');
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Plex Sans';
+  src: url('../fonts/plex-sans-600.woff2') format('woff2');
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Plex Mono';
+  src: url('../fonts/plex-mono-400.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Plex Mono';
+  src: url('../fonts/plex-mono-500.woff2') format('woff2');
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+
+/* --------------------------------------------------------------- jetons */
+
+:root {
+  /* Neutres a biais froid : un gris pur se lit comme non choisi. */
+  --ink:          #12222e;
+  --ink-2:        #44555f;
+  --ink-3:        #6b7a84;
+  --rule:         #dde3e7;
+  --rule-strong:  #b6c1c8;
+  --surface:      #ffffff;
+  --surface-2:    #f7f9fa;
+  --ground:       #f1f4f6;
+
+  /* Accent : un bleu clinique, pas un dégradé. */
+  --accent:       #1c5d99;
+  --accent-dark:  #164a7a;
+  --accent-bg:    #e8f0f8;
+
+  /* Semantique. Mesures sur fond teinte : 5,20 / 5,66 / 5,59 : 1. */
+  --good:         #16733f;  --good-bg:  #e6f4ec;
+  --warn:         #8a5300;  --warn-bg:  #fdf1dc;
+  --bad:          #b3261e;  --bad-bg:   #fce9e7;
+
+  /* Grille de 4 px. L'espacement est ce qui separe le plus visiblement une
+     interface soignee d'une interface seulement fonctionnelle. */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 24px; --s6: 32px; --s7: 48px;
+
+  /* Echelle typographique fermee : rien en dehors. */
+  --t-xs: 11.5px; --t-sm: 13px; --t-base: 14.5px;
+  --t-md: 16px;   --t-lg: 19px; --t-xl: 24px;
+
+  --radius: 4px;
+  --font-ui: 'Plex Sans', ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Reserve aux couches flottantes. */
+  --shadow-float: 0 6px 16px rgba(18, 34, 46, .12);
+}
+
+/* --------------------------------------------------------------- socle */
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--t-base);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 { font-weight: 600; letter-spacing: -.011em; color: var(--ink); }
+h1 { font-size: var(--t-xl); }
+h2 { font-size: var(--t-lg); }
+h3, h4, h5 { font-size: var(--t-md); }
+h6 { font-size: var(--t-base); }
+
+a { color: var(--accent); text-underline-offset: 2px; }
+a:hover { color: var(--accent-dark); }
+
+/* Tout ce qui recoit le focus doit se voir. Non negociable. */
+a:focus-visible, button:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible, summary:focus-visible,
+.form-check-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.font-monospace, code, kbd { font-family: var(--font-mono); }
+
+/* --------------------------------------------------------- navigation */
+
+.navbar {
+  background: var(--ink) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, .09);
+  padding-top: var(--s2);
+  padding-bottom: var(--s2);
+  box-shadow: none;
+}
+.navbar-brand {
+  font-weight: 600;
+  font-size: var(--t-md);
+  letter-spacing: -.01em;
+  color: #fff !important;
+}
+.navbar .nav-link {
+  color: rgba(255, 255, 255, .74) !important;
+  font-size: var(--t-base);
+  padding: var(--s1) var(--s3) !important;
+  border-radius: var(--radius);
+}
+.navbar .nav-link:hover { color: #fff !important; background: rgba(255, 255, 255, .08); }
+.navbar .form-control {
+  background: rgba(255, 255, 255, .1);
+  border-color: rgba(255, 255, 255, .18);
+  color: #fff;
+  font-size: var(--t-sm);
+}
+.navbar .form-control::placeholder { color: rgba(255, 255, 255, .5); }
+.navbar .form-control:focus {
+  background: rgba(255, 255, 255, .16);
+  color: #fff;
+  border-color: rgba(255, 255, 255, .4);
+}
+
+/* ------------------------------------------------------------ surfaces */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: none;
+  /* L'ancienne feuille faisait leviter CHAQUE carte au survol, y compris les
+     conteneurs de mise en page : le signal « kit de template » le plus fort de
+     l'application, et un mensonge sur ce qui est cliquable. */
+  transition: border-color .12s ease;
+  margin-bottom: var(--s5);
+}
+.card:hover { transform: none; box-shadow: none; }
+.card-header {
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--rule);
+  padding: var(--s3) var(--s4);
+  font-weight: 600;
+  font-size: var(--t-base);
+}
+.card-body { padding: var(--s4); }
+.card-footer { background: transparent; border-top: 1px solid var(--rule); }
+
+.dropdown-menu, .modal-content {
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-float);
+}
+
+/* -------------------------------------------------------------- tables */
+
+.table { font-size: var(--t-base); color: var(--ink); margin-bottom: 0; }
+.table > thead > tr > th {
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--rule-strong);
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: var(--s2) var(--s3);
+}
+.table > tbody > tr > td {
+  border-bottom: 1px solid var(--rule);
+  padding: var(--s2) var(--s3);
+  vertical-align: middle;
+}
+.table-hover > tbody > tr:hover > td { background: var(--accent-bg); }
+/* Les chiffres d'une colonne doivent s'aligner. */
+.table td.num, .table th.num, .table .text-end { font-variant-numeric: tabular-nums; }
+
+/* En-tete collant : l'ombre n'apparait que quand il flotte reellement. */
+.table-sticky thead th { position: sticky; top: 0; z-index: 2; box-shadow: 0 1px 0 var(--rule-strong); }
+
+/* -------------------------------------------------------------- badges */
+
+.badge {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  letter-spacing: .03em;
+  padding: 3px var(--s2);
+  border-radius: 3px;
+  border: 1px solid transparent;
+}
+
+/* Statuts : une teinte par ETAPE. Quatre couleurs, pas dix. */
+.badge-case_created, .badge-sent_to_sequencing {
+  background: var(--surface-2); color: var(--ink-2); border-color: var(--rule-strong);
+}
+.badge-received, .badge-qc_complete, .badge-library_complete,
+.badge-iseq_finished, .badge-sequencing_complete {
+  background: var(--accent-bg); color: var(--accent); border-color: var(--accent);
+}
+.badge-transferred_to_cair, .badge-analyzing, .badge-analysis_complete {
+  background: var(--good-bg); color: var(--good); border-color: var(--good);
+}
+.badge-unknown_legacy, .badge-priority {
+  background: var(--warn-bg); color: var(--warn); border-color: var(--warn);
+}
+
+/* Tier : la semantique etait INVERSEE -- A en rouge, FAIL en gris. Un PI qui
+   survolait un projet voyait un mur de rouge et lisait une catastrophe.
+   Forme carree et casse haute, pour ne pas confondre avec un statut. */
+.badge-A, .badge-B, .badge-FAIL {
+  border-radius: 2px;
+  text-transform: uppercase;
+  min-width: 2.6rem;
+  text-align: center;
+  display: inline-block;
+}
+.badge-A    { background: var(--good-bg); color: var(--good); border-color: var(--good); }
+.badge-B    { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+.badge-FAIL { background: var(--bad-bg);  color: var(--bad);  border-color: var(--bad); }
+
+/* --------------------------------------------- progression d'un specimen */
+
+/* Dix couleurs n'ont pas d'ordre : on ne devine pas que « QC complete »
+   precede « Library complete ». Des segments pleins l'encodent sans lecture. */
+.track { display: inline-flex; gap: 2px; vertical-align: middle; }
+.track i {
+  display: block; height: 6px; width: 22px;
+  background: var(--rule-strong); border-radius: 1px;
+}
+.track i.on { background: var(--accent); }
+
+/* ------------------------------------------------------ cas prioritaire */
+
+/* Un filet ambre et un fanion. Jamais une ligne rouge : le rouge signale
+   l'echec, pas l'urgence, et un mur de rouge ne se lit plus. */
+tr.is-priority > td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
+.case-card.is-priority { border-left: 3px solid var(--warn); }
+
+/* ------------------------------------------------------------ commandes */
+
+.btn {
+  font-size: var(--t-base);
+  font-weight: 500;
+  border-radius: var(--radius);
+  padding: var(--s2) var(--s3);
+  /* Cibles de clic d'au moins 32 px de haut. */
+  min-height: 32px;
+  transition: background-color .12s ease, border-color .12s ease;
+}
+.btn-sm { font-size: var(--t-sm); padding: var(--s1) var(--s2); min-height: 28px; }
+.btn-primary {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+.btn-primary:hover, .btn-primary:focus { background: var(--accent-dark); border-color: var(--accent-dark); }
+.btn-outline-primary { color: var(--accent); border-color: var(--rule-strong); }
+.btn-outline-primary:hover { background: var(--accent-bg); color: var(--accent-dark); border-color: var(--accent); }
+.btn-danger { background: var(--bad); border-color: var(--bad); }
+.btn-success { background: var(--good); border-color: var(--good); }
+.btn-outline-success { color: var(--good); border-color: var(--rule-strong); }
+.btn-outline-success:hover { background: var(--good-bg); color: var(--good); border-color: var(--good); }
+.btn-warning, .btn-outline-warning { color: var(--warn); }
+.btn-outline-warning { border-color: var(--rule-strong); }
+.btn-outline-warning:hover { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+.btn-secondary, .btn-outline-secondary { color: var(--ink-2); }
+.btn-secondary { background: var(--surface-2); border-color: var(--rule-strong); }
+.btn-outline-secondary { border-color: var(--rule-strong); }
+.btn-outline-secondary:hover { background: var(--surface-2); color: var(--ink); border-color: var(--rule-strong); }
+
+/* ---------------------------------------------------------- formulaires */
+
+.form-label { font-size: var(--t-sm); font-weight: 500; color: var(--ink-2); margin-bottom: var(--s1); }
+.form-control, .form-select {
+  font-size: var(--t-base);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  padding: var(--s2) var(--s3);
+  color: var(--ink);
+  background-color: var(--surface);
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+.form-text { font-size: var(--t-sm); color: var(--ink-3); }
+.form-control-plaintext { color: var(--ink); padding-left: 0; }
+.input-group-text {
+  background: var(--surface-2); border-color: var(--rule-strong);
+  color: var(--ink-3); font-size: var(--t-sm); font-family: var(--font-mono);
+}
+
+/* ------------------------------------------------------------- alertes */
+
+.alert {
+  border: 1px solid;
+  border-radius: var(--radius);
+  font-size: var(--t-base);
+  padding: var(--s3) var(--s4);
+}
+.alert-success { background: var(--good-bg); border-color: var(--good); color: var(--good); }
+.alert-info    { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+.alert-warning { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+.alert-danger  { background: var(--bad-bg); border-color: var(--bad); color: var(--bad); }
+.alert-secondary { background: var(--surface-2); border-color: var(--rule-strong); color: var(--ink-2); }
+
+/* ----------------------------------------------------- etats intermediaires */
+
+/* Listes vides, chargements, confirmations : c'est leur absence qui faisait
+   paraitre l'interface inachevee, plus encore que la palette. */
+.empty-state {
+  text-align: center;
+  padding: var(--s7) var(--s4);
+  color: var(--ink-3);
+  border: 1px dashed var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.empty-state h6 { color: var(--ink-2); margin-bottom: var(--s2); }
+.empty-state p { font-size: var(--t-sm); max-width: 42ch; margin: 0 auto var(--s4); }
+
+/* Un bouton qui a declenche un envoi doit le montrer. */
+.is-busy { pointer-events: none; opacity: .65; }
+
+/* -------------------------------------------------------- fil d'Ariane */
+
+.breadcrumb { font-size: var(--t-sm); margin-bottom: var(--s4); }
+.breadcrumb-item + .breadcrumb-item::before { color: var(--ink-3); }
+.breadcrumb-item.active { color: var(--ink-3); }
+
+/* ------------------------------------------------------- statistiques */
+
+/* Barres monochromes plutot que des cartes arc-en-ciel. */
+.stat-row { display: flex; align-items: center; gap: var(--s3); padding: var(--s1) 0; }
+.stat-label { flex: 0 0 auto; font-size: var(--t-sm); color: var(--ink-2); min-width: 11rem; }
+.stat-bar { flex: 1 1 auto; height: 8px; background: var(--rule); border-radius: 2px; overflow: hidden; }
+.stat-bar > span { display: block; height: 100%; background: var(--accent); }
+.stat-bar.good > span { background: var(--good); }
+.stat-bar.warn > span { background: var(--warn); }
+.stat-bar.bad  > span { background: var(--bad); }
+.stat-value {
+  flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums; color: var(--ink); min-width: 3.5rem; text-align: right;
+}
+
+.metric { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); padding: var(--s4); }
+.metric-value { font-family: var(--font-mono); font-size: var(--t-xl); font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.metric-label { font-size: var(--t-sm); color: var(--ink-3); margin-top: var(--s1); }
+
+/* ---------------------------------------------------------- pagination */
+
+.pagination { font-size: var(--t-sm); }
+.page-link { color: var(--accent); border-color: var(--rule); padding: var(--s1) var(--s3); }
+.page-item.active .page-link { background: var(--accent); border-color: var(--accent); }
+.page-item.disabled .page-link { color: var(--ink-3); background: var(--surface-2); }
+
+/* ------------------------------------------------------------ footer */
+
+.footer {
+  background: transparent;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-3);
+  font-size: var(--t-sm);
+  padding: var(--s5) 0;
+  margin-top: var(--s7);
+}
+
+/* ---------------------------------------------------------- mouvement */
+
+/* 120 ms sur les seuls elements interactifs. Aucune animation decorative :
+   c'est la que le « moderne » bascule dans le clinquant. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* ---------------------------------------------------------- impression */
+
+/* Les PI impriment les fiches de cas. */
+@media print {
+  body { background: #fff; font-size: 11pt; }
+  .navbar, .breadcrumb, .footer, .pagination,
+  form, .btn, #bulk-bar, .alert-dismissible .btn-close { display: none !important; }
+  .card { border: 1px solid #999; break-inside: avoid; margin-bottom: 8pt; }
+  .card-header { background: #fff; border-bottom: 1px solid #999; }
+  .badge { border: 1px solid #666 !important; color: #000 !important; background: #fff !important; }
+  .track i { border: 1px solid #999; background: #fff; }
+  .track i.on { background: #666; }
+  a[href]::after { content: ""; }
+  .table > thead > tr > th { background: #fff; }
+}
+
+/* ------------------------------------------------------- commentaires */
+
+/* Reprises de l'ancienne feuille en ligne, retravaillees : le narratif d'un cas
+   est ce qu'on relit le plus, il merite une mise en page lisible. */
+.comment {
+  border-left: 2px solid var(--rule-strong);
+  padding: var(--s1) 0 var(--s1) var(--s3);
+  margin-bottom: var(--s3);
+}
+.comment-header { font-weight: 500; font-size: var(--t-sm); color: var(--ink-2); }
+.comment-time { font-size: var(--t-xs); color: var(--ink-3); font-family: var(--font-mono); }
+
+.acc-list { list-style: none; padding-left: 0; margin-bottom: 0; }
+.acc-list li {
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: var(--s2) var(--s3);
+  margin-bottom: var(--s2);
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+}
+
+.tier-info { border-top: 1px solid var(--rule); padding-top: var(--s3); }
+.coverage-section { background: var(--surface-2); border-radius: var(--radius); padding: var(--s4); }
+.coverage-label { font-size: var(--t-sm); color: var(--ink-3); }
+.coverage-value { font-family: var(--font-mono); font-size: var(--t-md); font-variant-numeric: tabular-nums; }

@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="mb-0"><i class="fas fa-users me-2"></i> {{ title }}</h1>
+    <h1 class="mb-0">{{ title }}</h1>
     <a href="{% url 'user_list' %}" class="btn btn-outline-secondary">
         <i class="fas fa-arrow-left me-1"></i> Back to User List
     </a>
@@ -15,7 +15,7 @@
     <div class="col-md-8">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-users me-2"></i> Batch User Creation</h5>
+                <h5 class="mb-0">Batch User Creation</h5>
             </div>
             <div class="card-body">
                 <form method="post">
@@ -73,16 +73,16 @@
     <div class="col-md-4">
         <div class="card bg-light">
             <div class="card-header">
-                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i> Instructions</h6>
+                <h6 class="mb-0">Instructions</h6>
             </div>
             <div class="card-body">
-                <h6><i class="fas fa-format-list-bulleted me-1"></i> Format</h6>
+                <h6>Format</h6>
                 <p class="small text-muted">
                     Enter one user per line in the format:<br>
                     <code>First Name, Last Name</code>
                 </p>
                 
-                <h6><i class="fas fa-lightbulb me-1"></i> Example</h6>
+                <h6>Example</h6>
                 <div class="bg-white p-2 rounded border small">
                     <code>
                         Alex, Brousseau<br>
@@ -94,7 +94,7 @@
                 
                 <hr>
                 
-                <h6><i class="fas fa-user me-1"></i> Username Generation</h6>
+                <h6>Username Generation</h6>
                 <p class="small text-muted">
                     Usernames will be automatically generated as:<br>
                     <strong>first name + first letter of last name</strong>
@@ -108,14 +108,14 @@
                 
                 <hr>
                 
-                <h6><i class="fas fa-key me-1"></i> Passwords</h6>
+                <h6>Passwords</h6>
                 <p class="small text-muted">
                     Temporary passwords will be automatically generated for all users and provided in a downloadable file.
                 </p>
                 
                 <hr>
                 
-                <h6><i class="fas fa-shield-alt me-1"></i> User Role</h6>
+                <h6>User Role</h6>
                 <p class="small text-muted">
                     All users in this batch will be assigned the same role. You can create different batches for different roles.
                 </p>
@@ -124,7 +124,7 @@
         
         <div class="card bg-warning bg-opacity-10 border-warning mt-3">
             <div class="card-body">
-                <h6 class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i> Important</h6>
+                <h6 class="text-warning">Important</h6>
                 <p class="small text-muted mb-0">
                     Make sure to save the credentials file that will be downloaded after user creation. Passwords cannot be retrieved later.
                 </p>

@@ -31,59 +31,88 @@ logger = logging.getLogger(__name__)
 
 @login_required
 def home(request):
+    """Tableau de bord : ou en est le consortium, en un coup d'oeil.
+
+    Les repartitions sont dessinees en barres d'une SEULE teinte : elles
+    encodent une magnitude, pas une identite. Les couleurs de tier
+    n'apparaissent qu'en pastille, toujours accompagnees de leur lettre --
+    l'ambre et le rouge sont indistinguables en deuteranopie, la couleur ne
+    peut donc jamais porter seule l'information.
     """
-    Home page view showing all projects
-    """
-    # Initialize filter form
     filter_form = ProjectFilterForm(request.GET)
-    
-    # Start with all projects
     projects = Project.objects.all()
-    
-    # Apply filters if the form is valid
+
     if filter_form.is_valid():
         project_name = filter_form.cleaned_data.get('name')
         project_lead = filter_form.cleaned_data.get('project_lead')
-        
         if project_name:
             projects = projects.filter(name__icontains=project_name)
-            
         if project_lead:
             projects = projects.filter(project_lead=project_lead)
-    
-    # Annotate with case count
-    projects = projects.annotate(cases_count=Count('cases'))
-    
-    # Statistics for all projects
+
+    projects = (projects
+                .select_related('project_lead')
+                .annotate(
+                    cases_count=Count('cases', distinct=True),
+                    priority_count=Count(
+                        'cases', distinct=True, filter=Q(cases__is_priority=True)),
+                )
+                .order_by('name'))
+
     total_projects = Project.objects.count()
     total_cases = Case.objects.count()
-    
-    # Projects by project lead
-    projects_by_lead = Project.objects.values('project_lead__name').annotate(count=Count('id')).order_by('-count')
-    
-    # Cases by status and tier
-    # Get status statistics with proper display names
-    cases_by_status_raw = Case.objects.values('status').annotate(count=Count('id')).order_by('-count')
-    cases_by_status = []
-    status_choices_dict = dict(statuses.ALL_CHOICES)
-    for stat in cases_by_status_raw:
-        cases_by_status.append({
-            'status': stat['status'],
-            'status_display': status_choices_dict.get(stat['status'], stat['status']),
-            'count': stat['count']
-        })
-    
-    cases_by_tier = Case.objects.values('tier').annotate(count=Count('id')).order_by('-count')
-    
+    total_priority = Case.objects.filter(is_priority=True).count()
+    total_to_classify = (Case.objects
+                         .filter(specimens__status=statuses.UNKNOWN_LEGACY)
+                         .distinct().count())
+
+    # Repartition par ETAPE plutot que par statut : trois barres se lisent,
+    # onze n'apprennent rien de plus.
+    par_statut = dict(Case.objects.values_list('status')
+                      .annotate(n=Count('id')).order_by())
+    par_etape = []
+    for etape in statuses.ORDERED_STAGES + [statuses.STAGE_LEGACY]:
+        n = sum(v for slug, v in par_statut.items()
+                if statuses.STAGE_OF.get(slug) == etape)
+        if n or etape != statuses.STAGE_LEGACY:
+            par_etape.append({
+                'label': statuses.STAGE_LABELS[etape],
+                'count': n,
+                'pct': round(100 * n / total_cases) if total_cases else 0,
+            })
+
+    cases_by_status = [
+        {'status': slug,
+         'status_display': statuses.LABEL_OF.get(slug, slug),
+         'count': n,
+         'pct': round(100 * n / total_cases) if total_cases else 0}
+        for slug, n in sorted(par_statut.items(), key=lambda kv: -kv[1])
+    ]
+
+    cases_by_tier = [
+        {'tier': tier, 'count': n,
+         'pct': round(100 * n / total_cases) if total_cases else 0}
+        for tier, n in sorted(
+            Case.objects.values_list('tier').annotate(n=Count('id')).order_by(),
+            key=lambda kv: ['A', 'B', 'FAIL'].index(kv[0]) if kv[0] in ('A', 'B', 'FAIL') else 9)
+    ]
+
+    projects_by_lead = (Project.objects.values('project_lead__name')
+                        .annotate(count=Count('id')).order_by('-count'))
+
     return render(request, 'core/home.html', {
         'projects': projects,
         'total_projects': total_projects,
         'total_cases': total_cases,
-        'projects_by_lead': projects_by_lead,
+        'total_priority': total_priority,
+        'total_to_classify': total_to_classify,
+        'stages': par_etape,
         'cases_by_status': cases_by_status,
         'cases_by_tier': cases_by_tier,
+        'projects_by_lead': projects_by_lead,
         'filter_form': filter_form,
     })
+
 
 SEARCH_LIMIT = 200
 

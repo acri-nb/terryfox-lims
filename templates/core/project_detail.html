@@ -109,7 +109,7 @@
     </div>
 </div>
 
-<h2 class="mb-3"><i class="fas fa-folder-open me-2"></i> Cases
+<h2 class="mb-3">Cases
 {% if request.GET.name or request.GET.status or request.GET.tier %}
     <span class="badge bg-info ms-2">Filtered</span>
     <small class="text-muted ms-2">({{ cases|length }} results)</small>
@@ -208,7 +208,7 @@
                 </thead>
                 <tbody>
                 {% for case in cases %}
-                    <tr{% if case.is_priority %} class="table-warning"{% endif %}>
+                    <tr{% if case.is_priority %} class="is-priority"{% endif %}>
                         {% if can_edit %}
                         <td>
                             <input type="checkbox" class="form-check-input case-check"
@@ -341,11 +341,26 @@
     </nav>
     {% endif %}
 {% else %}
-    <div class="alert alert-info" role="alert">
-        <i class="fas fa-info-circle me-2"></i> No cases available for this project yet.
-        {% if can_edit %}
-            <a href="{% url 'case_create' project_id=project.id %}" class="alert-link">Add the first case</a>.
-        {% endif %}
+    <div class="card">
+        <div class="card-body">
+            <div class="empty-state">
+                {% if request.GET.name or request.GET.status or request.GET.tier or request.GET.priority or request.GET.to_classify %}
+                <h6>No case matches these filters</h6>
+                <p>The search looks at both the ACC and the Biobank ID, anywhere in the value.</p>
+                <a href="{% url 'project_detail' project_id=project.id %}" class="btn btn-sm btn-outline-secondary">
+                    Clear filters
+                </a>
+                {% else %}
+                <h6>No case in this project yet</h6>
+                <p>Paste a list of biobank identifiers and the LIMS assigns the ACC numbers itself.</p>
+                {% if can_edit %}
+                <a href="{% url 'batch_case_create' project_id=project.id %}" class="btn btn-sm btn-primary">
+                    Add cases in batch
+                </a>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
     </div>
 {% endif %}
 
