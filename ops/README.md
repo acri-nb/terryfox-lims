@@ -28,6 +28,9 @@ git rm --cached db.sqlite3 && git commit -m "chore: la base de production sort d
 ## Usage courant
 
 ```bash
+# Etat complet : services, migrations, sauvegardes, invariants (lecture seule)
+sudo ./ops/status.sh
+
 # État de la base : comptages, tiers, orphelins, doublons
 python3 ops/check_invariants.py
 
