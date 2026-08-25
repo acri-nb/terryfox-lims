@@ -106,6 +106,35 @@ def snapshot(db_path):
             "SELECT count(*) FROM (SELECT name FROM core_case GROUP BY name HAVING count(*) > 1)"
         ).fetchone()[0]
 
+        # Remplissage des colonnes d'identifiants.
+        #
+        # C'est la mesure qui aurait revele un renommage rate : makemigrations
+        # avait genere RemoveField + AddField pour other_id -> biobank_id, ce qui
+        # aurait vide la colonne par laquelle la biobanque recherche. Les
+        # comptages de lignes, eux, n'auraient rien vu -- 1329 cas avant, 1329
+        # apres, tous vides.
+        for colonne in ("biobank_id", "acc_number", "other_id"):
+            try:
+                snap[f"remplis:{colonne}"] = conn.execute(
+                    f"SELECT count(*) FROM core_case "
+                    f"WHERE {colonne} IS NOT NULL AND {colonne} != ''"
+                ).fetchone()[0]
+            except sqlite3.Error:
+                pass  # colonne absente selon la version du schema
+
+        # Le Biobank ID n'a volontairement PAS de contrainte d'unicite : deux
+        # projets partagent un espace de numerotation nu. Le compte est donc un
+        # rapport, pas une alarme -- mais un bond soudain merite un regard.
+        try:
+            snap["doublons:biobank_id"] = conn.execute(
+                "SELECT count(*) FROM ("
+                "  SELECT lower(trim(biobank_id)) AS b FROM core_case"
+                "  WHERE biobank_id IS NOT NULL AND biobank_id != ''"
+                "  GROUP BY b HAVING count(*) > 1)"
+            ).fetchone()[0]
+        except sqlite3.Error:
+            pass
+
         return snap
     finally:
         conn.close()
