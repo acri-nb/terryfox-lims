@@ -41,12 +41,13 @@ class CaseForm(forms.ModelForm):
     class Meta:
         model = Case
         # 'name' (l'ACC) n'est plus saisissable : le LIMS l'attribue.
-        fields = ['biobank_id', 'status', 'rna_coverage', 'dna_t_coverage', 'dna_n_coverage', 'tier']
+        fields = ['biobank_id', 'is_priority', 'status', 'rna_coverage', 'dna_t_coverage', 'dna_n_coverage', 'tier']
         widgets = {
             'biobank_id': forms.TextInput(attrs={
                 'class': 'form-control', 'placeholder': 'e.g. N-BBN 440',
                 'autocomplete': 'off', 'autocapitalize': 'off', 'spellcheck': 'false',
             }),
+            'is_priority': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'status': forms.Select(attrs={'class': 'form-select'}),
             'rna_coverage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'RNA Coverage in M'}),
             'dna_t_coverage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'DNA (T) Coverage in X'}),
@@ -127,6 +128,11 @@ class BatchCaseForm(forms.Form):
         help_text=_('One per line. The LIMS assigns the ACC identifiers.'),
     )
 
+    is_priority = forms.BooleanField(
+        required=False,
+        label=_('Mark every case in this batch as priority'),
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
     status = forms.ChoiceField(
         label=_('Status for every case'),
         choices=Case.STATUS_CHOICES,
@@ -292,6 +298,11 @@ class CaseFilterForm(forms.Form):
         choices=[('', _('All Tiers'))] + Case.TIER_CHOICES,
         required=False,
         widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    priority = forms.BooleanField(
+        required=False,
+        label=_('Priority only'),
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
     )
 
 class UserCreateForm(forms.ModelForm):

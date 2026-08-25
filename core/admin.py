@@ -19,8 +19,8 @@ class CaseInline(admin.TabularInline):
 
 @admin.register(Case)
 class CaseAdmin(admin.ModelAdmin):
-    list_display = ('name', 'biobank_id', 'project', 'status', 'tier', 'created_at', 'updated_at')
-    list_filter = ('status', 'tier', 'project')
+    list_display = ('name', 'biobank_id', 'is_priority', 'project', 'status', 'tier', 'created_at', 'updated_at')
+    list_filter = ('is_priority', 'status', 'tier', 'project')
     search_fields = ('name', 'biobank_id', 'project__name')
     readonly_fields = ('created_at', 'updated_at')
     date_hierarchy = 'created_at'

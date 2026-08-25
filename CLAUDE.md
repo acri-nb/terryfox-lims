@@ -84,6 +84,17 @@ undeclared drift**. `ops/check_invariants.py` is the gate; `ops/selftest.py` pro
 still works. Hourly verified backups run from `terryfox-lims-backup.timer`. Full details in
 `ops/README.md`.
 
+### Identifiers, priority, project kind
+
+`Case.acc_number` carries the LIMS-generated number; `Case.name` is the derived
+`ACC-%04d` string kept for display and exports. `IdentifierSequence.allocate(n)` hands out
+numbers with UPDATE-then-SELECT (SQLite has no `select_for_update`) and never reuses a freed
+one. `other_id` is now `biobank_id`, indexed and searched alongside the ACC by both the
+project filter and the global `/search/` view. ACC uniqueness is a DB constraint; biobank ID
+uniqueness is a **soft** check in `Case.find_biobank_id_conflict()` that names the conflicting
+case and can be overridden. `Case.is_priority` pins cases to the top of every list;
+`Project.kind` separates research projects from `Referred Cases`.
+
 ### Soft delete
 
 `Project` and `Case` inherit `SoftDeleteModel`: the delete views set `deleted_at` instead of

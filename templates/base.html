@@ -141,6 +141,21 @@
             color: white;
         }
         
+        /* Cas prioritaires : un filet ambre et un fanion, lisibles d'un coup
+           d'oeil sur 100 lignes. Jamais une ligne rouge : le rouge signale
+           l'echec, pas l'urgence, et un mur de rouge ne se lit plus. */
+        .case-card.is-priority {
+            border-left-color: #b8860b !important;
+            border-left-width: 5px;
+        }
+
+        .badge-priority {
+            background-color: #fdf1dc;
+            color: #8a5300;
+            border: 1px solid #8a5300;
+            font-weight: 600;
+        }
+
         /* Tier badges */
         .badge-A {
             background-color: #e74c3c;

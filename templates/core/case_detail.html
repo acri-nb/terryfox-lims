@@ -46,6 +46,7 @@
                         </div>
                         <div class="col-md-4">
                             {{ case_form.biobank_id|as_crispy_field }}
+                            {{ case_form.is_priority|as_crispy_field }}
                         </div>
                         <div class="col-md-4">
                             {{ case_form.status|as_crispy_field }}
@@ -78,6 +79,7 @@
                     <div class="col-md-6">
                         <p class="mb-2"><strong>Project:</strong> {{ case.project.name }}</p>
                         <p class="mb-2"><strong>Status:</strong> <span class="badge badge-{{ case.status }}">{{ case.get_status_display }}</span></p>
+                        <p class="mb-2">{% if case.is_priority %}<p class="mb-2"><span class="badge badge-priority"><i class="fas fa-flag me-1"></i> Priority case</span></p>{% endif %}
                         <p class="mb-2"><strong>Biobank ID:</strong> <span class="font-monospace">{{ case.biobank_id|default:"--" }}</span></p>
                         <p class="mb-0"><strong>Tier:</strong> <span class="badge badge-{{ case.tier }}">{{ case.tier }}</span></p>
                     </div>

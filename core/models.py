@@ -124,7 +124,22 @@ class ProjectLead(models.Model):
 
 class Project(SoftDeleteModel):
     """Model representing a research project in the LIMS."""
+
+    # Les cas referes par des medecins n'appartiennent a aucun projet de
+    # recherche de la phase 1 : ils ont besoin d'une categorie a part, ou le
+    # Biobank ID peut manquer a la creation puisqu'il arrive parfois apres.
+    KIND_RESEARCH = 'research'
+    KIND_REFERRED = 'referred'
+    KIND_CHOICES = [
+        (KIND_RESEARCH, _('Research project')),
+        (KIND_REFERRED, _('Referred cases')),
+    ]
+
     name = models.CharField(max_length=255)
+    kind = models.CharField(
+        max_length=16, choices=KIND_CHOICES, default=KIND_RESEARCH,
+        verbose_name=_('Project type'),
+    )
     description = models.TextField(blank=True)
     project_lead = models.ForeignKey(
         ProjectLead, 
@@ -231,6 +246,13 @@ class Case(SoftDeleteModel):
     dna_t_coverage = models.FloatField(null=True, blank=True, verbose_name=_('DNA (T) Coverage (X)'))
     dna_n_coverage = models.FloatField(null=True, blank=True, verbose_name=_('DNA (N) Coverage (X)'))
     
+    # Drapeau pose a la discretion de la biobanque, pour les patients dont le
+    # pronostic impose de trouver un traitement ou un test tres vite.
+    is_priority = models.BooleanField(
+        default=False, db_index=True, verbose_name=_('Priority case'),
+        help_text=_('Flags a patient whose prognosis makes this urgent.'),
+    )
+
     tier = models.CharField(max_length=4, choices=TIER_CHOICES, default=TIER_A)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -301,6 +323,9 @@ class Case(SoftDeleteModel):
         return f"{self.project.name} - {self.name}"
 
     class Meta(SoftDeleteModel.Meta):
+        # Les cas prioritaires remontent en tete de toute liste. Un cas urgent
+        # sorti de l'ecran par le defilement vide la demande de sa substance.
+        ordering = ['-is_priority', 'acc_number', 'name']
         constraints = [
             # Unicite DURE sur l'ACC : il est genere par le LIMS, donc gratuite
             # (0 doublon sur les 1329 cas existants). Conditionnee sur les cas

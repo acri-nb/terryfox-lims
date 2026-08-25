@@ -375,6 +375,80 @@ class IdentifierTests(TestCase):
         self.assertEqual(Case.objects.count(), 0, "aucun cas ne doit etre cree")
 
 
+class PriorityTests(TestCase):
+    """Un cas urgent qui sort de l'ecran par le defilement vide la demande."""
+
+    def setUp(self):
+        self.editor = make_editor("editor5")
+        self.project = Project.objects.create(name="P prio", created_by=self.editor)
+        # Cree dans l'ordre alphabetique inverse de la priorite, pour que seul
+        # l'epinglage puisse expliquer l'ordre obtenu.
+        self.ordinaire = Case.objects.create(project=self.project, biobank_id="B-1")
+        self.urgent = Case.objects.create(project=self.project, biobank_id="B-2", is_priority=True)
+        self.client = Client()
+        self.client.force_login(self.editor)
+        self.url = reverse("project_detail", kwargs={"project_id": self.project.id})
+
+    def test_priority_defaults_to_false(self):
+        self.assertFalse(self.ordinaire.is_priority)
+
+    def test_priority_cases_are_pinned_first(self):
+        listed = [c.name for c in self.client.get(self.url).context["cases"]]
+        self.assertEqual(listed[0], self.urgent.name)
+        self.assertLess(self.urgent.acc_number, 10 ** 9)
+        self.assertGreater(self.urgent.acc_number, self.ordinaire.acc_number,
+                           "l'urgent a pourtant un ACC plus grand")
+
+    def test_priority_filter_narrows_the_list(self):
+        response = self.client.get(self.url, {"priority": "on"})
+        self.assertEqual([c.name for c in response.context["cases"]], [self.urgent.name])
+
+    def test_priority_is_visible_in_the_list(self):
+        body = self.client.get(self.url).content.decode()
+        self.assertIn("is-priority", body, "le filet ambre doit etre pose sur la carte")
+
+    def test_batch_can_flag_the_whole_batch(self):
+        self.client.post(
+            reverse("batch_case_create", kwargs={"project_id": self.project.id}),
+            {"biobank_ids": "U-1\nU-2", "status": Case.STATUS_CREATED, "is_priority": "on"},
+        )
+        created = Case.objects.filter(biobank_id__startswith="U-")
+        self.assertEqual(created.count(), 2)
+        self.assertTrue(all(c.is_priority for c in created))
+
+    def test_case_form_can_set_and_clear_the_flag(self):
+        url = reverse("case_detail", kwargs={"case_id": self.ordinaire.id})
+        self.client.post(url, {
+            "case_update": "1", "biobank_id": "B-1", "is_priority": "on",
+            "status": Case.STATUS_CREATED,
+        })
+        self.ordinaire.refresh_from_db()
+        self.assertTrue(self.ordinaire.is_priority)
+
+        self.client.post(url, {
+            "case_update": "1", "biobank_id": "B-1", "status": Case.STATUS_CREATED,
+        })
+        self.ordinaire.refresh_from_db()
+        self.assertFalse(self.ordinaire.is_priority)
+
+
+class ReferredProjectTests(TestCase):
+    """Les cas referes par un medecin ont leur propre categorie."""
+
+    def test_project_defaults_to_research(self):
+        user = User.objects.create_user("u9", password="x")
+        self.assertEqual(
+            Project.objects.create(name="P", created_by=user).kind,
+            Project.KIND_RESEARCH,
+        )
+
+    def test_referred_kind_is_available(self):
+        user = User.objects.create_user("u10", password="x")
+        referred = Project.objects.create(
+            name="Referred Cases", kind=Project.KIND_REFERRED, created_by=user)
+        self.assertEqual(referred.get_kind_display(), "Referred cases")
+
+
 class SmokeTests(TestCase):
     """Chaque page repond. Le filet minimal avant toute refonte."""
 

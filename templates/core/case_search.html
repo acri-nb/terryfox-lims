@@ -50,6 +50,7 @@
                         {% for case in results %}
                         <tr>
                             <td class="font-monospace">
+                                {% if case.is_priority %}<i class="fas fa-flag text-warning me-1" title="Priority case"></i>{% endif %}
                                 <a href="{% url 'case_detail' case_id=case.id %}">{{ case.name }}</a>
                             </td>
                             <td class="font-monospace">{{ case.biobank_id|default:"--" }}</td>

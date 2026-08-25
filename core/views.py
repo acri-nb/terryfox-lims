@@ -144,6 +144,9 @@ def project_detail(request, project_id):
             
         if case_tier:
             cases = cases.filter(tier=case_tier)
+
+        if filter_form.cleaned_data.get('priority'):
+            cases = cases.filter(is_priority=True)
     
     # Les compteurs affiches sur chaque carte ({{ case.accessions.count }} et
     # {{ case.comments.count }}) declenchaient une requete chacun, par cas :
@@ -151,7 +154,7 @@ def project_detail(request, project_id):
     cases = cases.annotate(
         accessions_count=Count('accessions', distinct=True),
         comments_count=Count('comments', distinct=True),
-    ).order_by('name')
+    ).order_by('-is_priority', 'name')
 
     # Pagination : la page renvoyait jusqu'a 926 Ko de HTML d'un coup.
     paginator = Paginator(cases, CASES_PER_PAGE)
@@ -390,6 +393,7 @@ def batch_case_create(request, project_id):
                         project=project,
                         acc_number=numero,
                         biobank_id=biobank_id,
+                        is_priority=form.cleaned_data['is_priority'],
                         status=form.cleaned_data['status'],
                         rna_coverage=form.cleaned_data['rna_coverage'],
                         dna_t_coverage=form.cleaned_data['dna_t_coverage'],
