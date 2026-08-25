@@ -697,3 +697,49 @@ class BulkStatusForm(forms.Form):
             except (TypeError, ValueError):
                 continue
         return ids
+
+
+class ResubmitForm(forms.Form):
+    """Re-soumission : nouveau specimen physique pour le meme patient.
+
+    A distinguer du top-up, ou l'on relance le sequencage du MEME specimen :
+    celui-la se fait en reculant le statut du specimen concerne, sur le meme
+    cas. La re-soumission ouvre une tentative, le top-up non.
+    """
+
+    carry_forward = forms.MultipleChoiceField(
+        label=_('Specimens still good'),
+        required=False,
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+        help_text=_('Their coverage and status carry over. Leave unchecked what '
+                    'must be sequenced again.'),
+    )
+    note = forms.CharField(
+        label=_('Why is this being resubmitted?'),
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3,
+                                     'placeholder': _('e.g. RNA library failed QC')}),
+        help_text=_('Recorded on both attempts.'),
+    )
+    confirm = forms.CharField(
+        label=_('Type RESUBMIT to confirm'),
+        widget=forms.TextInput(attrs={'class': 'form-control', 'autocomplete': 'off'}),
+    )
+
+    def __init__(self, *args, case=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.case = case
+        presents = case.specimens_in_order() if case else []
+        self.fields['carry_forward'].choices = [
+            (s.specimen_type,
+             f"{s.get_specimen_type_display()} — {s.get_status_display()}"
+             + (f", {s.coverage} {s.unit}" if s.coverage is not None else ", no coverage"))
+            for s in presents
+        ]
+
+    def clean_confirm(self):
+        valeur = (self.cleaned_data.get('confirm') or '').strip()
+        if valeur != 'RESUBMIT':
+            raise forms.ValidationError(
+                _('Type RESUBMIT exactly to confirm. Nothing was changed.'))
+        return valeur

@@ -23,6 +23,23 @@
     </div>
 </div>
 
+{% if case.is_archived %}
+<div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>
+        <i class="fas fa-archive me-1"></i>
+        <strong>Archived attempt {{ case.attempt }}</strong> &mdash; read only.
+        {% if case.superseded_by %}It was replaced by attempt {{ case.superseded_by.attempt }}.{% endif %}
+    </span>
+    {% if case.superseded_by %}
+    <a href="{% url 'case_detail' case_id=case.superseded_by.id %}" class="btn btn-sm btn-outline-secondary">
+        Go to the current attempt &rarr;
+    </a>
+    {% endif %}
+</div>
+{% elif case.attempt > 1 %}
+<p class="text-muted"><i class="fas fa-redo me-1"></i> Attempt {{ case.attempt }} for this ACC.</p>
+{% endif %}
+
 <div class="row">
     <!-- Main Case Information -->
     <div class="col-lg-8 mb-4">
@@ -142,6 +159,13 @@
                     </div>
                 </form>
 
+                <div class="d-flex justify-content-end mb-3">
+                    <a href="{% url 'case_resubmit' case_id=case.id %}"
+                       class="btn btn-sm btn-outline-warning">
+                        <i class="fas fa-redo me-1"></i> Resubmit &mdash; new specimen for this patient
+                    </a>
+                </div>
+
                 <!-- Le reglage fin, replie : coverage et identifiant du centre. -->
                 <details class="mb-3">
                     <summary class="text-muted small" style="cursor:pointer">
@@ -217,6 +241,36 @@
             </div>
         </div>
             
+        {% if previous_attempts %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-history me-2"></i> Previous attempts</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">
+                    Their comments and coverage are kept with them. That narrative is usually
+                    where the reason for the resubmission is written.
+                </p>
+                <ul class="list-unstyled mb-0">
+                {% for attempt in previous_attempts %}
+                    <li class="d-flex justify-content-between align-items-center border-bottom py-2">
+                        <span>
+                            <strong>Attempt {{ attempt.attempt }}</strong>
+                            <span class="text-muted small ms-2">
+                                tier {{ attempt.tier }} &middot;
+                                {{ attempt.comment_total }} comment{{ attempt.comment_total|pluralize }} &middot;
+                                {{ attempt.updated_at|date:"M d, Y" }}
+                            </span>
+                        </span>
+                        <a href="{% url 'case_detail' case_id=attempt.id %}"
+                           class="btn btn-sm btn-outline-secondary">Open</a>
+                    </li>
+                {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Accession Numbers -->
         <div class="card shadow-sm mb-4">
             <div class="card-header">

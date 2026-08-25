@@ -17,10 +17,19 @@ from . import statuses
 # ---------------------------------------------------------------------------
 
 class AliveManager(models.Manager):
-    """Gestionnaire par defaut : ne voit que les lignes non supprimees."""
+    """Gestionnaire par defaut : ne voit que les lignes non supprimees.
+
+    Sur Case, il ecarte aussi les tentatives archivees par une re-soumission :
+    l'affichage doit montrer la soumission en cours, pas celle qui a echoue.
+    Rien n'est perdu pour autant -- all_objects les voit, et la fiche du cas en
+    cours les liste.
+    """
 
     def get_queryset(self):
-        return super().get_queryset().filter(deleted_at__isnull=True)
+        queryset = super().get_queryset().filter(deleted_at__isnull=True)
+        if any(f.name == 'is_archived' for f in self.model._meta.get_fields()):
+            queryset = queryset.filter(is_archived=False)
+        return queryset
 
 
 class SoftDeleteModel(models.Model):
@@ -240,6 +249,19 @@ class Case(SoftDeleteModel):
     dna_t_coverage = models.FloatField(null=True, blank=True, verbose_name=_('DNA (T) Coverage (X)'))
     dna_n_coverage = models.FloatField(null=True, blank=True, verbose_name=_('DNA (N) Coverage (X)'))
     
+    # Re-soumission : quand un sequencage echoue, la biobanque soumet un
+    # nouveau specimen pour le MEME patient. La nouvelle tentative reprend le
+    # meme ACC ; l'ancienne est archivee, avec son historique, ses notes et ses
+    # commentaires, qui restent physiquement attaches a elle.
+    attempt = models.PositiveSmallIntegerField(
+        default=1, verbose_name=_('Attempt'))
+    is_archived = models.BooleanField(
+        default=False, db_index=True, verbose_name=_('Superseded'),
+        help_text=_('A later attempt replaced this one.'))
+    superseded_by = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='supersedes', verbose_name=_('Superseded by'))
+
     # Drapeau pose a la discretion de la biobanque, pour les patients dont le
     # pronostic impose de trouver un traitement ou un test tres vite.
     is_priority = models.BooleanField(
@@ -341,6 +363,81 @@ class Case(SoftDeleteModel):
         """Nombre de specimens herites de la v1 dont l'etat reste a etablir."""
         return sum(1 for s in self.specimens.all() if s.needs_classification)
 
+    def resubmit(self, user=None, carry_forward=(), note=''):
+        """Archive cette tentative et en ouvre une nouvelle, meme ACC.
+
+        L'ordre compte : on archive AVANT de creer. L'unicite de l'ACC ne porte
+        que sur les cas actifs, donc creer d'abord ferait exister deux cas
+        actifs avec le meme numero, ne serait-ce qu'un instant -- et la
+        contrainte tomberait.
+
+        Rien n'est deplace : commentaires, couvertures et statuts restent
+        physiquement attaches a la tentative archivee. C'est exactement ce que
+        demande « l'historique de l'ancien cas est archive » -- aucune copie,
+        donc aucune perte possible dans la copie.
+
+        `carry_forward` liste les types de specimen encore exploitables, dont la
+        couverture et le statut sont repris : quand seul l'ARN a echoue, le
+        Normal n'a pas a etre reseqUence.
+        """
+        with transaction.atomic():
+            types = [s.specimen_type for s in self.specimens_in_order()]
+            repris = {
+                s.specimen_type: (s.coverage, s.status, s.external_id)
+                for s in self.specimens.all()
+                if s.specimen_type in carry_forward
+            }
+
+            self.is_archived = True
+            self.save(update_fields=['is_archived', 'updated_at'])
+
+            suivant = Case(
+                project=self.project,
+                acc_number=self.acc_number,
+                biobank_id=self.biobank_id,
+                is_priority=self.is_priority,
+                attempt=self.attempt + 1,
+            )
+            suivant.save()
+            suivant.ensure_specimens(types)
+
+            for specimen in suivant.specimens.all():
+                if specimen.specimen_type in repris:
+                    couverture, statut, externe = repris[specimen.specimen_type]
+                    specimen.coverage = couverture
+                    specimen.status = statut
+                    specimen.external_id = externe
+                    specimen.save()
+
+            suivant.sync_from_specimens()
+
+            self.superseded_by = suivant
+            self.save(update_fields=['superseded_by', 'updated_at'])
+
+            # Deux commentaires, pour que le lien se lise dans les deux sens :
+            # c'est generalement dans le narratif de la tentative echouee que se
+            # trouve la raison de la re-soumission.
+            if user is not None:
+                raison = f" Reason: {note}" if note else ""
+                Comment.objects.create(
+                    case=self, user=user,
+                    text=f"Resubmitted as attempt {suivant.attempt}.{raison}")
+                Comment.objects.create(
+                    case=suivant, user=user,
+                    text=f"Attempt {suivant.attempt}, replacing attempt {self.attempt}.{raison}")
+
+        return suivant
+
+    def previous_attempts(self):
+        """Les tentatives archivees portant le meme ACC, de la plus recente."""
+        if self.acc_number is None:
+            return Case.all_objects.none()
+        return (Case.all_objects
+                .filter(acc_number=self.acc_number, is_archived=True)
+                .exclude(pk=self.pk)
+                .annotate(comment_total=models.Count('comments'))
+                .order_by('-attempt'))
+
     def find_biobank_id_conflict(self):
         """Renvoie le cas actif portant deja ce Biobank ID, ou None.
 
@@ -397,7 +494,11 @@ class Case(SoftDeleteModel):
             # vivants pour qu'un cas retire ne bloque rien.
             models.UniqueConstraint(
                 fields=['acc_number'],
-                condition=models.Q(deleted_at__isnull=True),
+                # Resout la contradiction entre « la re-soumission reprend le
+                # MEME ACC » et « le LIMS bloque les identifiants dupliques » :
+                # l'unicite porte sur la tentative EN COURS. Un seul cas actif
+                # par ACC, mais les tentatives archivees le partagent librement.
+                condition=models.Q(deleted_at__isnull=True, is_archived=False),
                 name='uniq_active_acc_number',
                 violation_error_message=_(
                     'This ACC identifier is already used by another case.'),

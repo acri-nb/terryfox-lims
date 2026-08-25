@@ -18,7 +18,7 @@ import random
 from . import statuses
 from .models import BatchOperation, SpecimenStatusChange, Project, Case, Specimen, Accession, Comment, ProjectLead, IdentifierSequence
 
-from .forms import ProjectForm, CaseForm, CaseStatusForm, SpecimenFormSet, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, BulkStatusForm, CSVImportForm, UserCreateForm, BatchUserCreateForm, UserUpdateForm
+from .forms import ProjectForm, CaseForm, CaseStatusForm, SpecimenFormSet, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, BulkStatusForm, ResubmitForm, CSVImportForm, UserCreateForm, BatchUserCreateForm, UserUpdateForm
 
 # Nombre de cas affiches par page. Le plus gros projet en compte 256 ; a 100 par
 # page la recherche et les filtres restent le chemin principal pour retrouver un
@@ -247,14 +247,20 @@ def project_detail(request, project_id):
 @login_required
 def case_detail(request, case_id):
     """Fiche d'un cas : identite, statut, specimens, accessions, commentaires."""
+    # all_objects : une tentative archivee reste consultable par son URL, un
+    # vieux lien ou un commentaire doit continuer de mener quelque part.
     case = get_object_or_404(
-        Case.objects.select_related('project').prefetch_related('specimens'),
+        Case.all_objects.select_related('project', 'superseded_by')
+                        .prefetch_related('specimens'),
         id=case_id,
     )
     comments = case.comments.select_related('user').order_by('-created_at')
     accessions = case.accessions.all()
 
     can_edit = request.user.groups.filter(name='editor').exists() or request.user.is_superuser
+    # Une tentative archivee est en lecture seule : proposer des formulaires qui
+    # ne changeront rien de visible est pire que ne rien proposer.
+    can_edit = can_edit and not case.is_archived
 
     comment_form = case_form = accession_formset = None
     status_form = specimen_formset = None
@@ -326,6 +332,7 @@ def case_detail(request, case_id):
         'case': case,
         'project': case.project,
         'specimens': case.specimens_in_order(),
+        'previous_attempts': case.previous_attempts(),
         'blocking': case.blocking_specimen(),
         'to_classify': case.specimens_to_classify(),
         'stages': statuses.ORDERED_STAGES,
@@ -450,6 +457,44 @@ def bulk_status_undo(request, batch_id):
 
     request.session.pop('last_batch_id', None)
     return redirect(retour)
+
+
+@login_required
+@permission_required('core.add_case', raise_exception=True)
+def case_resubmit(request, case_id):
+    """Ouvre une nouvelle tentative pour le meme patient, sous le meme ACC."""
+    case = get_object_or_404(
+        Case.all_objects.select_related('project').prefetch_related('specimens'),
+        id=case_id)
+
+    if case.is_archived:
+        messages.error(
+            request,
+            _('This attempt was already superseded. Resubmit from the current one.'))
+        return redirect('case_detail', case_id=case.superseded_by_id or case.id)
+
+    if request.method == 'POST':
+        form = ResubmitForm(request.POST, case=case)
+        if form.is_valid():
+            suivant = case.resubmit(
+                user=request.user,
+                carry_forward=form.cleaned_data['carry_forward'],
+                note=form.cleaned_data['note'],
+            )
+            messages.success(
+                request,
+                _('{acc} is now attempt {n}. The previous attempt is archived with '
+                  'its comments and coverage.').format(acc=suivant.name, n=suivant.attempt))
+            return redirect('case_detail', case_id=suivant.id)
+    else:
+        form = ResubmitForm(case=case)
+
+    return render(request, 'core/case_resubmit.html', {
+        'case': case,
+        'project': case.project,
+        'specimens': case.specimens_in_order(),
+        'form': form,
+    })
 
 
 @login_required

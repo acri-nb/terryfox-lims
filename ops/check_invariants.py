@@ -78,8 +78,17 @@ def snapshot(db_path):
         # bruts ci-dessus, mais se voit ici.
         for table in ("core_project", "core_case"):
             try:
+                condition = "deleted_at IS NULL"
+                if table == "core_case":
+                    # Meme definition que le gestionnaire par defaut de Django :
+                    # ni supprime, ni archive par une re-soumission.
+                    try:
+                        conn.execute("SELECT is_archived FROM core_case LIMIT 1")
+                        condition += " AND is_archived = 0"
+                    except sqlite3.Error:
+                        pass
                 snap[f"vivants:{table}"] = conn.execute(
-                    f"SELECT count(*) FROM {table} WHERE deleted_at IS NULL"
+                    f"SELECT count(*) FROM {table} WHERE {condition}"
                 ).fetchone()[0]
             except sqlite3.Error:
                 # Colonne deleted_at absente : base anterieure a la migration 0019.
@@ -111,6 +120,16 @@ def snapshot(db_path):
         snap["doublons:nom_de_cas"] = conn.execute(
             "SELECT count(*) FROM (SELECT name FROM core_case GROUP BY name HAVING count(*) > 1)"
         ).fetchone()[0]
+
+        # Tentatives archivees par une re-soumission : masquees des listes mais
+        # bien presentes. Sans cette mesure, archiver 100 cas par erreur
+        # ressemblerait a une simple baisse de vivants:core_case sans cause.
+        try:
+            snap["archives:core_case"] = conn.execute(
+                "SELECT count(*) FROM core_case WHERE is_archived = 1"
+            ).fetchone()[0]
+        except sqlite3.Error:
+            pass
 
         # Remplissage des colonnes d'identifiants.
         #

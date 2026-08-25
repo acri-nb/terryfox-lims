@@ -690,6 +690,114 @@ class BulkStatusTests(TestCase):
         self.assertIn('id="bulk-bar"', body)
 
 
+class ResubmitTests(TestCase):
+    """Meme ACC, nouvelle tentative, ancienne archivee avec son historique."""
+
+    def setUp(self):
+        self.editor = make_editor("editor8")
+        self.project = Project.objects.create(name="P resub", created_by=self.editor)
+        self.case = Case.objects.create(project=self.project, biobank_id="R-1")
+        self.case.ensure_specimens()
+        for specimen in self.case.specimens.all():
+            specimen.coverage = 85 if specimen.specimen_type != Specimen.TYPE_TUMOUR_RNA else 120
+            specimen.status = statuses.ANALYSIS_COMPLETE
+            specimen.save()
+        self.case.refresh_from_db()
+        Comment.objects.create(case=self.case, text="note d'origine", user=self.editor)
+        self.client = Client()
+        self.client.force_login(self.editor)
+        self.url = reverse("case_resubmit", kwargs={"case_id": self.case.id})
+
+    def _resubmit(self, carry=(), confirm="RESUBMIT"):
+        return self.client.post(self.url, {
+            "confirm": confirm, "carry_forward": list(carry), "note": "RNA failed QC",
+        }, follow=True)
+
+    def test_the_new_attempt_keeps_the_same_acc(self):
+        self._resubmit()
+        ancien = Case.all_objects.get(id=self.case.id)
+        nouveau = ancien.superseded_by
+        self.assertEqual(nouveau.acc_number, ancien.acc_number)
+        self.assertEqual(nouveau.name, ancien.name)
+        self.assertEqual(nouveau.attempt, 2)
+
+    def test_two_active_cases_can_never_share_an_acc(self):
+        """La contrainte porte sur la tentative EN COURS, pas sur l'ACC nu."""
+        from django.db.utils import IntegrityError
+        with self.assertRaises(IntegrityError):
+            Case.objects.create(project=self.project, acc_number=self.case.acc_number)
+
+    def test_the_old_attempt_is_archived_not_deleted(self):
+        self._resubmit()
+        ancien = Case.all_objects.get(id=self.case.id)
+        self.assertTrue(ancien.is_archived)
+        self.assertFalse(Case.objects.filter(id=ancien.id).exists(), "masque des listes")
+        self.assertTrue(Case.all_objects.filter(id=ancien.id).exists(), "toujours en base")
+
+    def test_history_and_coverage_stay_with_the_archived_attempt(self):
+        """Rien n'est copie, donc rien ne peut se perdre dans la copie."""
+        avant = [s.coverage for s in self.case.specimens_in_order()]
+        self._resubmit()
+        ancien = Case.all_objects.get(id=self.case.id)
+        self.assertEqual([s.coverage for s in ancien.specimens_in_order()], avant)
+        self.assertTrue(ancien.comments.filter(text="note d'origine").exists())
+
+    def test_a_carried_forward_specimen_keeps_its_result(self):
+        self._resubmit(carry=[Specimen.TYPE_NORMAL_DNA])
+        nouveau = Case.all_objects.get(id=self.case.id).superseded_by
+        par_type = {s.specimen_type: s for s in nouveau.specimens_in_order()}
+        self.assertEqual(par_type[Specimen.TYPE_NORMAL_DNA].coverage, 85)
+        self.assertEqual(par_type[Specimen.TYPE_NORMAL_DNA].status, statuses.ANALYSIS_COMPLETE)
+        self.assertIsNone(par_type[Specimen.TYPE_TUMOUR_DNA].coverage,
+                          "un specimen non reporte repart de zero")
+
+    def test_the_new_attempt_keeps_the_same_specimen_types(self):
+        deux = Case.objects.create(project=self.project, biobank_id="R-2")
+        deux.ensure_specimens([Specimen.TYPE_NORMAL_DNA, Specimen.TYPE_TUMOUR_DNA])
+        self.client.post(reverse("case_resubmit", kwargs={"case_id": deux.id}),
+                         {"confirm": "RESUBMIT", "carry_forward": []}, follow=True)
+        nouveau = Case.all_objects.get(id=deux.id).superseded_by
+        self.assertEqual(nouveau.specimens.count(), 2)
+
+    def test_a_wrong_confirmation_changes_nothing(self):
+        avant = Case.all_objects.count()
+        self._resubmit(confirm="oui")
+        self.assertEqual(Case.all_objects.count(), avant)
+        self.case.refresh_from_db()
+        self.assertFalse(self.case.is_archived)
+
+    def test_both_attempts_get_a_trace_comment(self):
+        self._resubmit()
+        ancien = Case.all_objects.get(id=self.case.id)
+        nouveau = ancien.superseded_by
+        self.assertTrue(ancien.comments.filter(text__contains="Resubmitted as attempt 2").exists())
+        self.assertTrue(nouveau.comments.filter(text__contains="replacing attempt 1").exists())
+
+    def test_an_archived_attempt_is_read_only_but_still_reachable(self):
+        self._resubmit()
+        ancien = Case.all_objects.get(id=self.case.id)
+        response = self.client.get(reverse("case_detail", kwargs={"case_id": ancien.id}))
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["can_edit"])
+        self.assertIn("Archived attempt", response.content.decode())
+
+    def test_the_current_attempt_lists_the_previous_ones(self):
+        self._resubmit()
+        nouveau = Case.all_objects.get(id=self.case.id).superseded_by
+        response = self.client.get(reverse("case_detail", kwargs={"case_id": nouveau.id}))
+        precedentes = list(response.context["previous_attempts"])
+        self.assertEqual([p.attempt for p in precedentes], [1])
+        self.assertEqual(precedentes[0].comment_total, 2)
+
+    def test_resubmitting_an_archived_attempt_is_refused(self):
+        self._resubmit()
+        ancien = Case.all_objects.get(id=self.case.id)
+        response = self.client.get(
+            reverse("case_resubmit", kwargs={"case_id": ancien.id}), follow=True)
+        self.assertEqual(Case.all_objects.filter(acc_number=ancien.acc_number).count(), 2,
+                         "aucune troisieme tentative ne doit avoir ete ouverte")
+
+
 class SmokeTests(TestCase):
     """Chaque page repond. Le filet minimal avant toute refonte."""
 

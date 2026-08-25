@@ -113,6 +113,16 @@ rows inherited from V1. `statuses.from_any()` accepts v1 slugs and v1 labels so 
 still import. A case is never forced to three specimens — `ensure_specimens(types)` takes the
 list, and P10_Prostate has no RNA specimen at all.
 
+### Resubmit
+
+`Case.resubmit()` archives the current attempt and opens the next one under the **same ACC**.
+It archives *before* creating: the ACC uniqueness constraint is conditioned on
+`deleted_at IS NULL AND is_archived = False`, so creating first would briefly leave two active
+cases sharing a number and trip it. Nothing is copied — comments, coverage and statuses stay
+physically on the archived row, which is what "the old case's history is archived" asks for.
+`carry_forward` reuses the specimens that are still good. `Case.objects` hides archived
+attempts; `all_objects` and `previous_attempts()` reach them, and their pages render read-only.
+
 ### Bulk status change
 
 `bulk_status_update` (checkboxes on the project table) applies one status to every selected
