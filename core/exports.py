@@ -38,7 +38,7 @@ ENTETE_CAS = (
      'Case_Status', 'Tier']
     + [f'{nom}_{champ}' for _t, nom, unite in BLOCS
        for champ in ('Status', f'Coverage_{unite}')]
-    + ['Specimens_To_Classify', 'Comments', 'Created', 'Updated']
+    + ['Specimens_To_Classify', 'Comments', 'Created', 'Created_By', 'Updated']
 )
 
 ENTETE_SPECIMENS = [
@@ -58,7 +58,7 @@ def _cases_queryset(project=None, archived=False):
     gestionnaire = Case.all_objects if archived else Case.objects
     queryset = (gestionnaire
                 .filter(deleted_at__isnull=True)
-                .select_related('project', 'project__project_lead')
+                .select_related('project', 'project__project_lead', 'created_by')
                 .prefetch_related('specimens', 'comments'))
     if archived:
         queryset = queryset.filter(is_archived=True)
@@ -95,6 +95,9 @@ def ligne_cas(case):
         sum(1 for s in case.specimens.all() if s.needs_classification),
         len(case.comments.all()),
         _date(case.created_at),
+        # Vide pour les cas anterieurs a la v2 : ils n'ont pas de createur, et
+        # en inventer un fausserait une colonne dont l'interet est l'audit.
+        case.created_by.get_username() if case.created_by else '',
         _date(case.updated_at),
     ]
     return ligne

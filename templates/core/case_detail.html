@@ -68,7 +68,18 @@
                         <p class="mb-2"><strong>Tier:</strong>
                             <span class="badge badge-{{ case.tier }}">{{ case.tier }}</span>
                             <small class="text-muted">derived from coverage</small></p>
-                        <p class="mb-2"><strong>Created:</strong> {{ case.created_at|date:"F d, Y" }}</p>
+                        <p class="mb-2"><strong>Created:</strong> {{ case.created_at|date:"F d, Y" }}
+                            {% comment %}
+                            Les cas anterieurs a la v2 n'ont pas de createur. On
+                            le dit, plutot que de laisser un blanc qui se lirait
+                            comme une donnee manquante par negligence.
+                            {% endcomment %}
+                            {% if case.created_by %}
+                                by <strong>{{ case.created_by.get_username }}</strong>
+                            {% else %}
+                                <span class="text-muted">(intake not recorded)</span>
+                            {% endif %}
+                        </p>
                         <p class="mb-0"><strong>Last updated:</strong> {{ case.updated_at|date:"F d, Y H:i" }}</p>
                     </div>
                 </div>

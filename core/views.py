@@ -621,6 +621,7 @@ def case_create(request, project_id):
         if form.is_valid():
             case = form.save(commit=False)
             case.project = project
+            case.created_by = request.user
             case.save()
             case.ensure_specimens(form.cleaned_data.get('specimen_types'))
             messages.success(
@@ -660,6 +661,7 @@ def batch_case_create(request, project_id):
                         project=project,
                         acc_number=numero,
                         biobank_id=biobank_id,
+                        created_by=request.user,
                         is_priority=form.cleaned_data['is_priority'],
                         status=form.cleaned_data['status'],
                         rna_coverage=form.cleaned_data['rna_coverage'],
@@ -887,7 +889,9 @@ def csv_case_import(request, project_id):
                     created = case is None
 
                     if created:
-                        case = Case(project=project, name=case_id, biobank_id=biobank_id)
+                        case = Case(project=project, name=case_id,
+                                    biobank_id=biobank_id,
+                                    created_by=request.user)
                         match = re.fullmatch(r'ACC-(\d+)', case_id or '')
                         if match:
                             case.acc_number = int(match.group(1))

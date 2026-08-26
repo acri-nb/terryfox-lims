@@ -231,6 +231,15 @@ class Case(SoftDeleteModel):
 
     # Anciennement other_id. C'est l'identifiant par lequel la biobanque
     # recherche reellement ; il est rempli sur les 1329 cas existants.
+    # SET_NULL et non CASCADE : supprimer un compte ne doit pas emporter les cas
+    # qu'il a saisis. Nullable parce que les 1 329 cas anterieurs n'ont pas de
+    # createur connu -- leur en attribuer un serait inventer une trace d'audit.
+    created_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='cases_created', verbose_name=_('Created by'),
+        help_text=_('The account that entered this case at intake.'),
+    )
+
     biobank_id = models.CharField(
         max_length=255, blank=True, null=True, db_index=True,
         verbose_name=_('Biobank ID'),
@@ -397,6 +406,10 @@ class Case(SoftDeleteModel):
                 biobank_id=self.biobank_id,
                 is_priority=self.is_priority,
                 attempt=self.attempt + 1,
+                # Celui qui relance, pas celui qui avait saisi la tentative
+                # precedente : la nouvelle tentative est un acte distinct, et
+                # c'est lui qu'il faut pouvoir retrouver.
+                created_by=user,
             )
             suivant.save()
             suivant.ensure_specimens(types)

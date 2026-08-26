@@ -11,6 +11,8 @@ Ils couvrent en priorite ce qui, en cas de regression, fait perdre ou fausser
 des donnees : le calcul du tier, la suppression douce, et l'import CSV.
 """
 
+import csv
+import io
 from pathlib import Path
 from unittest import mock
 
@@ -1233,3 +1235,96 @@ class LiveFilterTests(TestCase):
 
     def test_filtering_actually_narrows_the_result(self):
         self.assertIn("(1 result)", self._projet(name="LF-007"))
+
+
+class CaseAuthorshipTests(TestCase):
+    """Qui a saisi le cas, et depuis quel chemin.
+
+    La demande d'Eric : « est-ce qu'il y a un record du user qui a cree, au
+    minimum, comme ca ce serait affiche tout au long de la vie du case ». Il y a
+    quatre facons de creer un cas dans ce LIMS ; en couvrir trois laisserait un
+    trou qui ne se verrait qu'a l'usage, sur les cas passes par le chemin oublie.
+    """
+
+    def setUp(self):
+        self.editor = make_editor("saisie1")
+        self.project = Project.objects.create(name="P saisie", created_by=self.editor)
+        self.client = Client()
+        self.client.force_login(self.editor)
+
+    def test_a_single_case_records_who_entered_it(self):
+        self.client.post(
+            reverse("case_create", kwargs={"project_id": self.project.id}),
+            {"biobank_id": "AU-001", "specimen_types": ["normal_dna", "tumour_dna"]},
+        )
+        case = Case.objects.get(biobank_id="AU-001")
+        self.assertEqual(case.created_by, self.editor)
+
+    def test_a_batch_records_it_on_every_case(self):
+        self.client.post(
+            reverse("batch_case_create", kwargs={"project_id": self.project.id}),
+            {"biobank_ids": "AU-010\nAU-011\nAU-012",
+             "specimen_types": ["normal_dna", "tumour_dna"],
+             "status": statuses.CASE_CREATED},
+        )
+        cases = Case.objects.filter(biobank_id__startswith="AU-01")
+        self.assertEqual(cases.count(), 3)
+        for case in cases:
+            self.assertEqual(case.created_by, self.editor, case.biobank_id)
+
+    def test_a_csv_import_records_it(self):
+        contenu = (b"CaseID,Biobank_ID,Status,DNAT,DNAN,RNA\n"
+                   b"ACC-9001,AU-020,Received,,,\n")
+        self.client.post(
+            reverse("csv_case_import", kwargs={"project_id": self.project.id}),
+            {"csv_file": SimpleUploadedFile("c.csv", contenu, content_type="text/csv")},
+        )
+        case = Case.objects.get(biobank_id="AU-020")
+        self.assertEqual(case.created_by, self.editor)
+
+    def test_a_resubmit_records_whoever_relaunched_it(self):
+        """La nouvelle tentative est un acte distinct de la saisie initiale."""
+        case = Case.objects.create(project=self.project, biobank_id="AU-030",
+                                   created_by=self.editor)
+        case.ensure_specimens()
+        autre = make_editor("saisie2")
+        suivant = case.resubmit(user=autre)
+        self.assertEqual(suivant.created_by, autre)
+        case.refresh_from_db()
+        self.assertEqual(case.created_by, self.editor,
+                         "la tentative archivee garde son auteur d'origine")
+
+    def test_deleting_the_account_leaves_the_case_alone(self):
+        """SET_NULL et non CASCADE : un depart ne doit pas effacer la saisie."""
+        partant = make_editor("partant")
+        case = Case.objects.create(project=self.project, biobank_id="AU-040",
+                                   created_by=partant)
+        partant.delete()
+        case.refresh_from_db()
+        self.assertIsNone(case.created_by)
+        self.assertEqual(case.biobank_id, "AU-040")
+
+    def test_the_case_page_shows_the_author_all_along(self):
+        case = Case.objects.create(project=self.project, biobank_id="AU-050",
+                                   created_by=self.editor)
+        case.ensure_specimens()
+        page = self.client.get(
+            reverse("case_detail", kwargs={"case_id": case.id})).content.decode()
+        self.assertIn("saisie1", page)
+
+    def test_a_legacy_case_says_so_rather_than_showing_a_blank(self):
+        case = Case.objects.create(project=self.project, biobank_id="AU-060")
+        case.ensure_specimens()
+        page = self.client.get(
+            reverse("case_detail", kwargs={"case_id": case.id})).content.decode()
+        self.assertIn("intake not recorded", page)
+
+    def test_the_export_carries_the_author(self):
+        Case.objects.create(project=self.project, biobank_id="AU-070",
+                            created_by=self.editor).ensure_specimens()
+        texte = self.client.get(
+            reverse("csv_case_export", kwargs={"project_id": self.project.id})
+        ).content.decode()
+        lignes = list(csv.reader(io.StringIO(texte)))
+        self.assertIn("Created_By", lignes[0])
+        self.assertEqual(lignes[1][lignes[0].index("Created_By")], "saisie1")
