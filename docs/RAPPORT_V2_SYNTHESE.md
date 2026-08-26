@@ -151,10 +151,8 @@ attente sont comptés séparément, avec un filtre dédié.
 ### Refonte visuelle
 
 La refonte est sobre par choix, sans effets, avec une police lisible et des identifiants en
-chasse fixe pour qu'ACC-0142 ne se confonde plus avec ACC-0412. Un point mérite d'être
-signalé : aucune combinaison de vert, d'ambre et de rouge ne reste distinguable pour une
-personne daltonienne, quel que soit le réglage. Le tier affiche donc toujours sa lettre à
-côté de sa couleur.
+chasse fixe pour qu'ACC-0142 ne se confonde plus avec ACC-0412. Le tier affiche toujours sa
+lettre à côté de sa couleur.
 
 L'affichage sur téléphone a été repris en fin de chantier. Le problème était structurel et
 non cosmétique : la feuille de style ne prévoyait rien pour les petits écrans, et certaines
