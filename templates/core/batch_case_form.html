@@ -37,7 +37,15 @@
                 </div>
                 <div class="col-md-5">
                     {{ form.status|as_crispy_field }}
+                    {{ form.preservation|as_crispy_field }}
                     {{ form.is_priority|as_crispy_field }}
+                    {% comment %}
+                    specimen_types est obligatoire depuis le chantier des
+                    specimens mais n'avait jamais ete rendu ici : le formulaire
+                    refusait donc tout envoi venant du navigateur, et la
+                    creation en lot etait inutilisable.
+                    {% endcomment %}
+                    {{ form.specimen_types|as_crispy_field }}
                     <hr>
                     <p class="text-muted small mb-2">
                         Optional coverage values, applied to every case in the batch.

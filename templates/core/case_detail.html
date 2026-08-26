@@ -124,6 +124,7 @@
                                 <th>Specimen</th>
                                 <th class="d-none d-md-table-cell">Progress</th>
                                 <th>Status</th>
+                                <th class="d-none d-lg-table-cell">Preservation</th>
                                 <th class="text-end">Coverage</th>
                             </tr>
                         </thead>
@@ -144,13 +145,20 @@
                                         {{ specimen.get_status_display }}
                                     </span>
                                 </td>
+                                <td class="d-none d-lg-table-cell">
+                                    {% if specimen.preservation == 'unknown' %}
+                                    <span class="text-muted">&mdash;</span>
+                                    {% else %}
+                                    {{ specimen.get_preservation_display }}
+                                    {% endif %}
+                                </td>
                                 <td class="text-end font-monospace">
                                     {{ specimen.coverage|default:"--" }}
                                     <small class="text-muted">{{ specimen.unit }}</small>
                                 </td>
                             </tr>
                         {% empty %}
-                            <tr><td colspan="5" class="text-muted">No specimen recorded for this case.</td></tr>
+                            <tr><td colspan="6" class="text-muted">No specimen recorded for this case.</td></tr>
                         {% endfor %}
                         </tbody>
                     </table>
@@ -197,7 +205,8 @@
                                     {{ form.instance.get_specimen_type_display }}
                                 </label>
                             </div>
-                            <div class="col-md-3">{{ form.status }}</div>
+                            <div class="col-md-2">{{ form.status }}</div>
+                            <div class="col-md-2">{{ form.preservation }}</div>
                             <div class="col-md-3">
                                 <div class="input-group">
                                     {{ form.coverage }}

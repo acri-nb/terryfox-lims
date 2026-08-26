@@ -74,6 +74,19 @@ class CaseForm(forms.ModelForm):
         help_text=_('Uncheck what this protocol does not collect.'),
     )
 
+    #: Un seul menu, applique aux specimens du cas. Le champ vit sur le
+    #: specimen, mais en demander trois a la saisie ferait passer la creation
+    #: d'un cas de deux gestes a cinq pour une valeur qui, en pratique, est la
+    #: meme sur les trois. Le panneau par specimen permet de la corriger.
+    preservation = forms.ChoiceField(
+        label=_('Preservation'),
+        choices=Specimen.PRESERVATION_ENTRY_CHOICES,
+        initial=Specimen.PRESERVATION_FF,
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        help_text=_('Applies to every specimen of this case.'),
+    )
+
     # Case a cocher posee par le bouton "Create anyway" : elle permet de passer
     # outre le controle souple de doublon de Biobank ID.
     confirm_duplicate = forms.BooleanField(required=False, widget=forms.HiddenInput)
@@ -205,6 +218,19 @@ class BatchCaseForm(forms.Form):
         widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
         help_text=_('Uncheck what this protocol does not collect.'),
     )
+    #: Un seul menu, applique aux specimens du cas. Le champ vit sur le
+    #: specimen, mais en demander trois a la saisie ferait passer la creation
+    #: d'un cas de deux gestes a cinq pour une valeur qui, en pratique, est la
+    #: meme sur les trois. Le panneau par specimen permet de la corriger.
+    preservation = forms.ChoiceField(
+        label=_('Preservation'),
+        choices=Specimen.PRESERVATION_ENTRY_CHOICES,
+        initial=Specimen.PRESERVATION_FF,
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        help_text=_('Applies to every specimen of every case in this batch.'),
+    )
+
     is_priority = forms.BooleanField(
         required=False,
         label=_('Mark every case in this batch as priority'),
@@ -633,7 +659,7 @@ class SpecimenForm(forms.ModelForm):
 
     class Meta:
         model = Specimen
-        fields = ['status', 'coverage', 'external_id']
+        fields = ['status', 'preservation', 'coverage', 'external_id']
         widgets = {
             'coverage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'external_id': forms.TextInput(attrs={
@@ -643,6 +669,7 @@ class SpecimenForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['status'].widget = forms.Select(attrs={'class': 'form-select'})
+        self.fields['preservation'].widget = forms.Select(attrs={'class': 'form-select'})
 
         # Les statuts de transition ne sont pas proposes... sauf si le specimen
         # en porte deja un, sinon le formulaire refuserait sa propre valeur.

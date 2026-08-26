@@ -13,6 +13,7 @@ des donnees : le calcul du tier, la suppression douce, et l'import CSV.
 
 import csv
 import io
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -26,6 +27,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from . import statuses
+from .forms import CaseForm
 from .models import (
     BatchOperation, Case, Comment, IdentifierSequence, Project, ProjectLead,
     Specimen, format_acc,
@@ -1328,3 +1330,135 @@ class CaseAuthorshipTests(TestCase):
         lignes = list(csv.reader(io.StringIO(texte)))
         self.assertIn("Created_By", lignes[0])
         self.assertEqual(lignes[1][lignes[0].index("Created_By")], "saisie1")
+
+
+class PreservationTests(TestCase):
+    """FF / FFPE / autre, demande par Eric au moment de la saisie.
+
+    Le champ vit sur le SPECIMEN et non sur le cas : le normal est en general
+    du sang tandis que la tumeur peut etre FFPE, et une valeur unique par cas
+    en enregistrerait donc une fausse pour l'un des deux. La saisie n'en demande
+    qu'une, appliquee aux specimens du cas.
+    """
+
+    def setUp(self):
+        self.editor = make_editor("cons1")
+        self.project = Project.objects.create(name="P cons", created_by=self.editor)
+        self.client = Client()
+        self.client.force_login(self.editor)
+
+    def test_the_intake_menu_sets_every_specimen_of_the_case(self):
+        self.client.post(
+            reverse("case_create", kwargs={"project_id": self.project.id}),
+            {"biobank_id": "CO-001",
+             "specimen_types": ["normal_dna", "tumour_dna", "tumour_rna"],
+             "preservation": Specimen.PRESERVATION_FFPE},
+        )
+        case = Case.objects.get(biobank_id="CO-001")
+        self.assertEqual(case.specimens.count(), 3)
+        for specimen in case.specimens.all():
+            self.assertEqual(specimen.preservation, Specimen.PRESERVATION_FFPE)
+
+    def test_a_batch_sets_it_on_every_case(self):
+        self.client.post(
+            reverse("batch_case_create", kwargs={"project_id": self.project.id}),
+            {"biobank_ids": "CO-010\nCO-011",
+             "specimen_types": ["normal_dna", "tumour_dna"],
+             "status": statuses.CASE_CREATED,
+             "preservation": Specimen.PRESERVATION_FF},
+        )
+        specimens = Specimen.objects.filter(case__biobank_id__startswith="CO-01")
+        self.assertEqual(specimens.count(), 4)
+        for specimen in specimens:
+            self.assertEqual(specimen.preservation, Specimen.PRESERVATION_FF)
+
+    def test_one_specimen_can_differ_from_the_others(self):
+        """Le point meme qui justifie de porter le champ par le specimen."""
+        case = Case.objects.create(project=self.project, biobank_id="CO-020")
+        case.ensure_specimens(preservation=Specimen.PRESERVATION_FFPE)
+        normal = case.specimens.get(specimen_type=Specimen.TYPE_NORMAL_DNA)
+        normal.preservation = Specimen.PRESERVATION_OTHER
+        normal.save()
+        tumeur = case.specimens.get(specimen_type=Specimen.TYPE_TUMOUR_DNA)
+        self.assertEqual(tumeur.preservation, Specimen.PRESERVATION_FFPE)
+        self.assertEqual(case.specimens.get(pk=normal.pk).preservation,
+                         Specimen.PRESERVATION_OTHER)
+
+    def test_existing_specimens_read_as_not_recorded(self):
+        """Les 3 955 specimens anterieurs ne doivent pas se declarer 'Other'."""
+        case = Case.objects.create(project=self.project, biobank_id="CO-030")
+        case.ensure_specimens()
+        for specimen in case.specimens.all():
+            self.assertEqual(specimen.preservation, Specimen.PRESERVATION_UNKNOWN)
+
+    def test_not_recorded_is_never_offered_at_intake(self):
+        form = CaseForm()
+        proposes = [v for v, _l in form.fields["preservation"].choices]
+        self.assertNotIn(Specimen.PRESERVATION_UNKNOWN, proposes)
+        self.assertIn(Specimen.PRESERVATION_FFPE, proposes)
+
+    def test_a_carried_forward_specimen_keeps_its_preservation(self):
+        """C'est physiquement le meme echantillon : relancer ne le change pas."""
+        case = Case.objects.create(project=self.project, biobank_id="CO-040")
+        case.ensure_specimens(preservation=Specimen.PRESERVATION_FFPE)
+        suivant = case.resubmit(user=self.editor,
+                                carry_forward=[Specimen.TYPE_NORMAL_DNA])
+        repris = suivant.specimens.get(specimen_type=Specimen.TYPE_NORMAL_DNA)
+        self.assertEqual(repris.preservation, Specimen.PRESERVATION_FFPE)
+
+    def test_both_export_files_carry_it(self):
+        case = Case.objects.create(project=self.project, biobank_id="CO-050")
+        case.ensure_specimens(preservation=Specimen.PRESERVATION_FFPE)
+        texte = self.client.get(
+            reverse("csv_case_export", kwargs={"project_id": self.project.id})
+        ).content.decode()
+        lignes = list(csv.reader(io.StringIO(texte)))
+        self.assertIn("Tumour_DNA_Preservation", lignes[0])
+        self.assertEqual(lignes[1][lignes[0].index("Tumour_DNA_Preservation")], "FFPE")
+
+        archive = zipfile.ZipFile(io.BytesIO(self.client.get(
+            reverse("project_export_bundle",
+                    kwargs={"project_id": self.project.id})).content))
+        specimens = list(csv.reader(io.StringIO(
+            archive.read("specimens.csv").decode())))
+        self.assertIn("Preservation", specimens[0])
+        self.assertEqual(specimens[1][specimens[0].index("Preservation")], "FFPE")
+
+
+class BatchFormRenderingTests(TestCase):
+    """Le formulaire de lot doit rendre TOUT ce qu'il exige.
+
+    specimen_types est devenu obligatoire au chantier des specimens sans etre
+    ajoute au gabarit : le navigateur ne pouvait donc rien envoyer de valide et
+    la creation en lot etait inutilisable, sans que rien ne le signale. Les
+    tests de l'epoque postaient le champ directement et ne pouvaient pas le voir.
+    """
+
+    def setUp(self):
+        self.editor = make_editor("rendu1")
+        self.project = Project.objects.create(name="P rendu", created_by=self.editor)
+        self.client = Client()
+        self.client.force_login(self.editor)
+
+    def test_the_page_renders_every_required_field(self):
+        page = self.client.get(reverse("batch_case_create",
+                                       kwargs={"project_id": self.project.id}))
+        html = page.content.decode()
+        for nom, champ in page.context["form"].fields.items():
+            if champ.required:
+                self.assertIn(f'name="{nom}"', html,
+                              f"{nom} est obligatoire mais absent du gabarit")
+
+    def test_the_form_the_page_offers_is_actually_accepted(self):
+        """Poster ce que la page permet doit creer des cas."""
+        page = self.client.get(reverse("batch_case_create",
+                                       kwargs={"project_id": self.project.id}))
+        envoi = {"biobank_ids": "RE-1\nRE-2"}
+        for nom, champ in page.context["form"].fields.items():
+            if champ.required and nom not in envoi:
+                initial = champ.initial
+                envoi[nom] = initial if initial is not None else \
+                    champ.choices[0][0] if hasattr(champ, "choices") else "x"
+        self.client.post(reverse("batch_case_create",
+                                 kwargs={"project_id": self.project.id}), envoi)
+        self.assertEqual(Case.objects.filter(project=self.project).count(), 2)

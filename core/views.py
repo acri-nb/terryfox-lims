@@ -623,7 +623,10 @@ def case_create(request, project_id):
             case.project = project
             case.created_by = request.user
             case.save()
-            case.ensure_specimens(form.cleaned_data.get('specimen_types'))
+            case.ensure_specimens(
+                form.cleaned_data.get('specimen_types'),
+                preservation=form.cleaned_data.get('preservation'),
+            )
             messages.success(
                 request,
                 _('Case {acc} created with {n} specimen(s).').format(
@@ -672,6 +675,7 @@ def batch_case_create(request, project_id):
                     case.ensure_specimens(
                         form.cleaned_data['specimen_types'],
                         status=form.cleaned_data['status'],
+                        preservation=form.cleaned_data['preservation'],
                     )
                     cases.append(case)
 

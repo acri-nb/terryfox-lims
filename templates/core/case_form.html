@@ -37,8 +37,11 @@
 
             {% if form.specimen_types %}
             <div class="row">
-                <div class="col-12">
+                <div class="col-md-8">
                     {{ form.specimen_types|as_crispy_field }}
+                </div>
+                <div class="col-md-4">
+                    {{ form.preservation|as_crispy_field }}
                 </div>
             </div>
             {% endif %}

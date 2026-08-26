@@ -326,7 +326,7 @@ class Case(SoftDeleteModel):
             'updated_at',
         ])
 
-    def ensure_specimens(self, types=None, status=None):
+    def ensure_specimens(self, types=None, status=None, preservation=None):
         """Cree les specimens manquants pour ce cas. Ne touche pas aux existants.
 
         `types` par defaut : les trois. Un cas n'est jamais FORCE a trois pour
@@ -343,6 +343,7 @@ class Case(SoftDeleteModel):
                     case=self,
                     specimen_type=specimen_type,
                     status=status or statuses.DEFAULT,
+                    preservation=preservation or Specimen.PRESERVATION_UNKNOWN,
                     coverage=getattr(self, Specimen.MIRROR_FIELD[specimen_type]),
                 ))
         if crees:
@@ -391,8 +392,11 @@ class Case(SoftDeleteModel):
         """
         with transaction.atomic():
             types = [s.specimen_type for s in self.specimens_in_order()]
+            # La conservation suit les specimens reportes : ce sont
+            # physiquement les MEMES echantillons, dont le mode de conservation
+            # ne change pas parce qu'on relance un sequencage.
             repris = {
-                s.specimen_type: (s.coverage, s.status, s.external_id)
+                s.specimen_type: (s.coverage, s.status, s.external_id, s.preservation)
                 for s in self.specimens.all()
                 if s.specimen_type in carry_forward
             }
@@ -416,10 +420,11 @@ class Case(SoftDeleteModel):
 
             for specimen in suivant.specimens.all():
                 if specimen.specimen_type in repris:
-                    couverture, statut, externe = repris[specimen.specimen_type]
+                    couverture, statut, externe, conservation = repris[specimen.specimen_type]
                     specimen.coverage = couverture
                     specimen.status = statut
                     specimen.external_id = externe
+                    specimen.preservation = conservation
                     specimen.save()
 
             suivant.sync_from_specimens()
@@ -604,6 +609,23 @@ class Specimen(models.Model):
     #: Abreviation d'une lettre, pour les colonnes etroites.
     SHORT = {TYPE_NORMAL_DNA: 'N', TYPE_TUMOUR_DNA: 'D', TYPE_TUMOUR_RNA: 'R'}
 
+    #: Mode de conservation. « unknown » n'est pas un choix qu'on fait, c'est
+    #: l'etat des 3 955 specimens anterieurs a ce champ : les afficher comme
+    #: « Other » les aurait declares renseignes alors qu'ils ne le sont pas.
+    PRESERVATION_FF = 'ff'
+    PRESERVATION_FFPE = 'ffpe'
+    PRESERVATION_OTHER = 'other'
+    PRESERVATION_UNKNOWN = 'unknown'
+    PRESERVATION_CHOICES = [
+        (PRESERVATION_FF, _('Fresh frozen (FF)')),
+        (PRESERVATION_FFPE, _('FFPE')),
+        (PRESERVATION_OTHER, _('Other')),
+        (PRESERVATION_UNKNOWN, _('Not recorded')),
+    ]
+    #: Ce qu'on propose a la SAISIE : « Not recorded » est un constat, pas une
+    #: reponse, et le proposer reviendrait a offrir de ne pas repondre.
+    PRESERVATION_ENTRY_CHOICES = PRESERVATION_CHOICES[:3]
+
     case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name='specimens')
     specimen_type = models.CharField(
         max_length=16, choices=TYPE_CHOICES, verbose_name=_('Specimen type'))
@@ -617,6 +639,15 @@ class Specimen(models.Model):
         max_length=255, blank=True, null=True,
         verbose_name=_('Sequencing centre ID'),
         help_text=_('Identifier issued by the sequencing centre, if any.'))
+
+    # Sur le SPECIMEN et non sur le cas : le normal est en general du sang
+    # tandis que la tumeur peut etre FFPE. Un champ unique par cas enregistrerait
+    # donc une valeur fausse pour l'un des deux. La saisie n'en demande qu'une,
+    # appliquee aux trois, et le panneau par specimen permet de la corriger.
+    preservation = models.CharField(
+        max_length=16, choices=PRESERVATION_CHOICES, default=PRESERVATION_UNKNOWN,
+        verbose_name=_('Preservation'),
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -37,13 +37,14 @@ ENTETE_CAS = (
     ['ACC', 'Attempt', 'Biobank_ID', 'Project', 'Project_Lead', 'Priority',
      'Case_Status', 'Tier']
     + [f'{nom}_{champ}' for _t, nom, unite in BLOCS
-       for champ in ('Status', f'Coverage_{unite}')]
+       for champ in ('Status', 'Preservation', f'Coverage_{unite}')]
     + ['Specimens_To_Classify', 'Comments', 'Created', 'Created_By', 'Updated']
 )
 
 ENTETE_SPECIMENS = [
     'ACC', 'Attempt', 'Biobank_ID', 'Project', 'Specimen_Type', 'Status',
-    'Stage', 'Coverage', 'Unit', 'Sequencing_Centre_ID', 'Updated',
+    'Stage', 'Preservation', 'Coverage', 'Unit', 'Sequencing_Centre_ID',
+    'Updated',
 ]
 
 ENTETE_COMMENTAIRES = ['ACC', 'Attempt', 'Project', 'Author', 'Created', 'Comment']
@@ -85,10 +86,11 @@ def ligne_cas(case):
             # Colonnes vides plutot qu'absentes : l'en-tete doit rester
             # identique d'un projet a l'autre, sinon les fichiers ne
             # s'empilent plus. P10 n'a pas de specimen d'ARN.
-            ligne += ['not collected', '']
+            ligne += ['not collected', '', '']
         else:
             ligne += [
                 statuses.LABEL_OF.get(specimen.status, specimen.status),
+                specimen.get_preservation_display(),
                 '' if specimen.coverage is None else specimen.coverage,
             ]
     ligne += [
@@ -125,6 +127,7 @@ def ecrire_specimens(flux, project=None):
                 specimen.get_specimen_type_display(),
                 statuses.LABEL_OF.get(specimen.status, specimen.status),
                 etapes.get(statuses.STAGE_OF.get(specimen.status), ''),
+                specimen.get_preservation_display(),
                 '' if specimen.coverage is None else specimen.coverage,
                 specimen.unit,
                 specimen.external_id or '',
