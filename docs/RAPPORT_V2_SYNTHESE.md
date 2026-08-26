@@ -1,16 +1,17 @@
 # TerryFox LIMS, version 2
 
-Synthèse à l'intention du consortium · 25 août 2026
+Synthèse à l'intention du consortium · 26 août 2026
 
 ---
 
 ## Où nous en sommes
 
 La version 2 tourne en production. Les dix demandes formulées en réunion y sont, y compris
-la découpe par spécimen réclamée par Daniel, qui était de loin la plus lourde. La V1 reste
-consultable en lecture seule pour comparer ou retrouver des données d'avant la bascule.
+la découpe par spécimen, qui était de loin la plus lourde, ainsi que les quatre remarques
+faites depuis la mise en service. La V1 reste consultable en lecture seule pour comparer ou
+retrouver des données d'avant la bascule.
 
-Les 1 329 cas, les 1 550 commentaires et les 42 comptes ont traversé dix migrations sans
+Les 1 329 cas, les 1 550 commentaires et les 42 comptes ont traversé treize migrations sans
 qu'une ligne se perde. La répartition des tiers vaut toujours 552 A, 682 B et 95 FAIL,
 exactement comme au premier jour. Ce n'est pas de la chance : chaque migration compare ces
 chiffres avant et après, et s'annule d'elle-même si l'un d'eux bouge sans avoir été
@@ -37,8 +38,8 @@ identifiants, et une recherche transverse à tous les projets a été ajoutée d
 navigation.
 
 Quant aux « trois types de spécimen » demandés, ils se sont révélés être exactement la
-découpe réclamée par Daniel. Un seul concept nouveau à introduire dans l'interface au lieu
-de deux.
+découpe réclamée par ailleurs pour séparer tumeur et normal. Un seul concept nouveau à
+introduire dans l'interface au lieu de deux.
 
 ### Cas prioritaires
 
@@ -50,7 +51,7 @@ l'urgence.
 
 ### Changement de statut en lot
 
-Le besoin exprimé par Mathieu était de supprimer l'aller-retour par fichier CSV. Des cases
+Le besoin exprimé en réunion était de supprimer l'aller-retour par fichier CSV. Des cases
 à cocher figurent maintenant à côté de chaque cas, avec sélection par plage, et quarante
 cas passent d'un statut à l'autre en trois clics.
 
@@ -126,9 +127,9 @@ personne ne pourrait retrouver les cas qu'on lui demande de reclasser.
 
 ### Spécimens séparés dans un cas
 
-C'est la demande de Daniel, et la plus structurante du chantier : tumeur et normal doivent
-être des entités distinctes à l'intérieur d'un cas, la tumeur elle-même se divisant en ADN
-et en ARN, chacune suivie indépendamment bien qu'elles partagent un identifiant de cas.
+C'est la demande la plus structurante du chantier : tumeur et normal doivent être des
+entités distinctes à l'intérieur d'un cas, la tumeur elle-même se divisant en ADN et en ARN,
+chacune suivie indépendamment bien qu'elles partagent un identifiant de cas.
 
 Les trois entités correspondent exactement aux trois colonnes de couverture qui existaient
 déjà, ce qui a rendu la migration sans perte et laissé le calcul du tier intact. La
@@ -159,6 +160,73 @@ L'affichage sur téléphone a été repris en fin de chantier. Le problème éta
 non cosmétique : la feuille de style ne prévoyait rien pour les petits écrans, et certaines
 pages réclamaient trois fois la largeur disponible. Un contrôle automatique empêche
 désormais le défaut de revenir.
+
+---
+
+## Ce qui a suivi la mise en service
+
+Quatre remarques sont remontées une fois le système en usage. L'une portait sur une
+fonctionnalité qui existait déjà ; les trois autres ont été construites.
+
+### Un export pour toutes les cohortes à la fois
+
+Il existait depuis la refonte des exports, mais il est rangé dans le menu du compte et
+réservé aux administrateurs. La demande était donc satisfaite sans être visible : la
+réponse consiste à ouvrir le droit à qui en a besoin, pas à développer.
+
+### Qui a saisi le cas
+
+Le projet portait déjà le nom de son créateur, le cas non. C'est désormais enregistré, et
+la trace reste visible pendant toute la vie du cas.
+
+Il y a quatre façons de créer un cas dans ce LIMS : à l'unité, en lot, par import CSV et
+par re-soumission. En couvrir trois aurait laissé un trou qui ne se serait vu qu'à l'usage,
+sur les cas passés par le chemin oublié. Une re-soumission porte le nom de celui qui
+relance et non de la saisie initiale, parce que c'est un acte distinct et que c'est lui
+qu'on cherchera. Les 1 329 cas antérieurs affichent « non enregistré » plutôt qu'un auteur
+inventé.
+
+### Le mode de conservation, FF ou FFPE
+
+La demande était un menu de plus au moment de la saisie. C'est ce qui a été fait, mais la
+valeur est portée par le spécimen et non par le cas : le normal est en général du sang
+tandis que la tumeur peut être FFPE, si bien qu'une valeur unique par cas en enregistrerait
+une fausse pour l'un des deux. La saisie n'en demande donc qu'une, appliquée aux spécimens
+du cas, et le panneau par spécimen corrige celui qui diffère. C'est le même partage que
+pour le statut, déjà en place.
+
+« Non renseigné » n'est pas proposé à la saisie. C'est l'état des 3 955 spécimens antérieurs
+au champ, pas une réponse que l'on choisit ; les afficher comme « autre » les aurait
+déclarés renseignés alors qu'ils ne le sont pas.
+
+### Les favoris
+
+Une étoile sur la fiche d'un cas, une entrée dans la barre de navigation, et une liste
+personnelle qui traverse tous les projets. Deux choix méritent d'être signalés : un lecteur
+en consultation seule peut en avoir, un favori étant un signet et non une donnée du
+laboratoire ; et un cas archivé ou supprimé reste dans la liste, signalé comme tel, parce
+que le faire disparaître sans un mot se lirait comme un favori perdu.
+
+### Un défaut découvert au passage
+
+En modifiant le formulaire de création en lot pour y ajouter le mode de conservation, il
+est apparu que **cette page ne fonctionnait plus**. Un champ était devenu obligatoire lors
+du chantier des spécimens sans être ajouté à la page : le navigateur ne pouvait envoyer
+aucun formulaire valide, l'écran répondait « ce champ est obligatoire » et ne créait aucun
+cas.
+
+Les tests de l'époque ne pouvaient pas le voir : ils envoyaient le champ directement, ce
+qui validait le traitement mais jamais la page. Le contrôle lit désormais les champs
+obligatoires du formulaire, vérifie que la page les affiche tous, puis envoie ce que la
+page propose réellement. Vérifié en retirant le champ : le contrôle tombe.
+
+### Et le filtre, devenu vivant
+
+Sans rapport avec ces remarques, mais dans le même intervalle : filtrer demandait de saisir,
+de cliquer sur « Filtrer », puis de cliquer sur « Effacer » pour revenir en arrière. Le
+filtre s'applique désormais à la frappe, sur la liste des projets, la liste des cas et la
+recherche transverse. Le tri reste fait par le serveur, sans quoi il serait faux dès qu'une
+liste est paginée.
 
 ---
 
@@ -239,6 +307,12 @@ personnes ; la décision vous revient.
 **Une limite technique.** L'archive V1 est accessible depuis le réseau interne. Pour une
 adresse publique, il faudra une intervention sur le proxy de CAIR, qui n'est pas administré
 depuis cette machine.
+
+**Un choix de portée à confirmer.** L'import CSV ne transporte ni l'auteur de la saisie ni
+le mode de conservation : son en-tête est un contrat avec les fichiers déjà en circulation,
+et l'élargir les rendrait invalides. Les cas importés par ce chemin resteront donc sans
+auteur et en « non renseigné ». Ajouter deux colonnes facultatives est faisable si l'usage
+le demande.
 
 ---
 

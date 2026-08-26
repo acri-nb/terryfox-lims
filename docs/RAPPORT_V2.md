@@ -416,11 +416,11 @@ facile à utiliser.
 
 **Décidé**
 
-L'interface n'était pas laide, elle était datée d'une façon précise : `base.html` contenait
-265 lignes de CSS en ligne reprenant la palette Flat UI Colors de 2013, avec une ombre et
-un survol « lévitant » sur **chaque** carte, y compris celles qui ne sont pas cliquables —
-le signal « kit de template » le plus fort de l'application, et un mensonge sur ce qui est
-cliquable.
+L'interface de la V1, écrite en 2025, n'était pas laide : elle était datée d'une façon
+précise. `base.html` contenait 265 lignes de CSS en ligne reprenant une palette de type
+Flat UI, avec une ombre et un survol « lévitant » sur **chaque** carte, y compris celles qui
+ne sont pas cliquables — le signal « kit de template » le plus fort de l'application, et un
+mensonge sur ce qui est cliquable.
 
 Principes retenus :
 

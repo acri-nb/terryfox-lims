@@ -115,7 +115,8 @@ list, and P10_Prostate has no RNA specimen at all.
 
 ### Design layer
 
-`static/css/lims.css` replaced the ~265 lines of inline 2013 Flat-UI CSS in `base.html`.
+`static/css/lims.css` replaced the ~265 lines of inline Flat-UI-style CSS that V1 (2025)
+carried in `base.html`.
 Borders, never resting shadows; one hue per status **stage** (four colours, not ten); tier
 semantics fixed (A green, B amber, FAIL red) with the letter always present — amber and red
 are indistinguishable under deuteranopia, so colour never carries identity alone. IBM Plex
