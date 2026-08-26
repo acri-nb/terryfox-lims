@@ -97,6 +97,12 @@ class CaseForm(forms.ModelForm):
             # A l'edition, le panneau des specimens fait foi. Decocher une case
             # ici supprimerait des donnees sans le dire.
             self.fields.pop('specimen_types', None)
+            # Meme raison pour la conservation : le menu de saisie l'applique
+            # aux trois specimens, ce qui ecraserait celui qu'on aurait
+            # justement corrige a la main. Ce formulaire sert aussi a modifier
+            # le Biobank ID et le drapeau prioritaire d'un cas existant ; y
+            # laisser un champ obligatoire le rendrait invalide.
+            self.fields.pop('preservation', None)
 
     def clean_biobank_id(self):
         """Controle souple : nomme le cas en conflit plutot que de bloquer.

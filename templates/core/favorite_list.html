@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Favorites | TerryFox LIMS{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+        <li class="breadcrumb-item active">Favorites</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h1 class="mb-0">Favorites</h1>
+    <span class="text-muted">{{ favoris|length }} case{{ favoris|length|pluralize }}</span>
+</div>
+
+{% if favoris %}
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>ACC</th>
+                    <th>Biobank ID</th>
+                    <th>Project</th>
+                    <th class="d-none d-md-table-cell" style="min-width:9rem">Specimens</th>
+                    <th>Status</th>
+                    <th class="text-center">Tier</th>
+                    <th class="text-end">&nbsp;</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for favori in favoris %}
+                <tr{% if favori.case.is_priority %} class="is-priority"{% endif %}>
+                    <td class="font-monospace">
+                        <a href="{% url 'case_detail' case_id=favori.case.id %}"
+                           class="text-decoration-none">{{ favori.case.name }}</a>
+                        {% comment %}
+                        Un cas archive ou supprime reste dans la liste, signale.
+                        Le faire disparaitre sans un mot laisserait croire que le
+                        favori a ete perdu.
+                        {% endcomment %}
+                        {% if favori.case.deleted_at %}
+                        <span class="badge bg-danger ms-1">deleted</span>
+                        {% elif favori.case.is_archived %}
+                        <span class="badge bg-warning text-dark ms-1">attempt {{ favori.case.attempt }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="font-monospace small">{{ favori.case.biobank_id|default:"&mdash;" }}</td>
+                    <td>
+                        <a href="{% url 'project_detail' project_id=favori.case.project.id %}"
+                           class="text-decoration-none">{{ favori.case.project.name }}</a>
+                    </td>
+                    <td class="d-none d-md-table-cell">
+                        {% for specimen in favori.case.specimens_in_order %}
+                        <div class="d-flex align-items-center gap-1" style="line-height:1.1">
+                            <span class="font-monospace text-muted"
+                                  style="font-size:11px;width:.9rem">{{ specimen.short_code }}</span>
+                            <span class="track" title="{{ specimen.get_specimen_type_display }}: {{ specimen.get_status_display }}">
+                                {% for stage in stages %}
+                                <i class="{% if forloop.counter0 <= specimen.stage_index %}on{% endif %}"></i>
+                                {% endfor %}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        <span class="badge badge-{{ favori.case.status }} rounded-pill">
+                            {{ favori.case.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge badge-{{ favori.case.tier }}">{{ favori.case.tier }}</span>
+                    </td>
+                    <td class="text-end">
+                        <form method="post"
+                              action="{% url 'favorite_toggle' case_id=favori.case.id %}"
+                              class="mb-0 d-inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{% url 'favorite_list' %}">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                    title="Remove from your favorites"
+                                    aria-label="Remove {{ favori.case.name }} from your favorites">
+                                <i class="fas fa-star"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body">
+        <div class="empty-state">
+            <h6>No favorite yet</h6>
+            <p>
+                Open a case and use <strong>Add to favorites</strong> to keep it within
+                reach. Favorites are yours alone and span every project.
+            </p>
+            <a href="{% url 'home' %}" class="btn btn-sm btn-outline-secondary">Browse projects</a>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -28,6 +28,10 @@ urlpatterns = [
     path('projects/<int:project_id>/export/', views.project_export_bundle, name='project_export_bundle'),
     path('export/consortium/', views.consortium_export, name='consortium_export'),
     path('cases/<int:case_id>/resubmit/', views.case_resubmit, name='case_resubmit'),
+
+    # Favoris, propres a chaque utilisateur
+    path('favorites/', views.favorite_list, name='favorite_list'),
+    path('cases/<int:case_id>/favorite/', views.favorite_toggle, name='favorite_toggle'),
     path('cases/<int:case_id>/delete/', views.case_delete, name='case_delete'),
     
     # Project Lead URLs

@@ -206,6 +206,43 @@ npm install jsdom@24          # jsdom 25+ needs Node 20; 24 works on Node 18
 LIMS_JSDOM=$PWD/node_modules/jsdom python manage.py test core.test_e2e_livefilter
 ```
 
+### Intake: who, and how it was preserved
+
+`Case.created_by` is `SET_NULL` on a `User` FK — a departure must not delete the cases someone
+entered — and nullable, because the 1329 pre-V2 cases have no known author. The page says
+*intake not recorded* and the export leaves the column empty rather than inventing an audit
+trail. There are **four** creation paths (single, batch, CSV, resubmit); a resubmit records
+whoever relaunched it, not the original author, since that is a distinct act.
+
+`Specimen.preservation` (FF / FFPE / Other / Not recorded) lives on the **specimen**, not the
+case: the normal is usually blood while the tumour may be FFPE, so one value per case would
+record something false for one of them. Intake still asks only once and applies it to all —
+the same split already used for status — and the per-specimen panel corrects the odd one.
+`Not recorded` is never offered at entry: it is the state of the 3955 pre-existing specimens,
+not an answer. A `carry_forward` specimen keeps its preservation through a resubmit; it is
+physically the same sample.
+
+The CSV import does not carry either field: its header is a contract with existing files.
+Cases imported that way get no author and `Not recorded`.
+
+### Favorites
+
+`Favorite(user, case)` with a `UniqueConstraint` — a double submit must be a no-op, and the
+view uses `get_or_create` so the constraint never surfaces as an error. `favorite_toggle` is
+`@require_POST`: a GET link would be followed by browser prefetch or a crawler and would
+silently change someone's list. No edit permission is required — a favorite is a bookmark,
+not lab data, and a viewer needs it as much as an editor. Soft-deleted and archived cases
+**stay** in the list, labelled; dropping them silently would read as a lost favorite.
+
+### Template fields must actually be rendered
+
+`specimen_types` became required on `BatchCaseForm` during the specimens increment and was
+never added to `batch_case_form.html`. The browser could therefore not submit anything valid
+and batch creation was dead — while the tests passed, because they posted the field directly.
+`BatchFormRenderingTests` now walks the form's required fields and asserts the template
+renders each one, then posts what the page actually offers. Apply the same check to any form
+where a required field is added.
+
 ### Soft delete
 
 `Project` and `Case` inherit `SoftDeleteModel`: the delete views set `deleted_at` instead of

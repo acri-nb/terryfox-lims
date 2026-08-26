@@ -548,6 +548,46 @@ def create_groups():
     Group.objects.get_or_create(name='editor')
 
 # Create a signal to automatically create groups when Django starts
+class Favorite(models.Model):
+    """Un cas qu'un utilisateur veut retrouver vite, toutes cohortes confondues.
+
+    Demande d'Eric : « une liste de samples pour lesquels l'utilisateur voudrait
+    monitorer regulierement [...] peu importe la cohorte ».
+
+    La table est volontairement minuscule et ne porte AUCUNE donnee metier :
+    supprimer un favori ne doit jamais pouvoir toucher au cas. Le cas, lui,
+    tombe en CASCADE -- un favori qui pointe vers un cas disparu n'aurait aucun
+    sens, et il n'y a rien a conserver.
+
+    La suppression douce complique une chose : Case.objects masque les cas
+    retires, mais la ligne de favori subsiste. C'est voulu. Restaurer un cas
+    supprime par erreur rend ses favoris, ce qu'un nettoyage automatique aurait
+    detruit sans retour.
+    """
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='favorites')
+    case = models.ForeignKey(
+        Case, on_delete=models.CASCADE, related_name='favorited_by')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _('Favorite')
+        verbose_name_plural = _('Favorites')
+        # Deux clics sur l'etoile ne doivent pas creer deux lignes. La
+        # contrainte porte la garantie, pas la vue : un double envoi, un
+        # rechargement ou deux onglets passeraient a travers un simple test
+        # d'existence en Python.
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'case'],
+                                    name='favori_unique_par_utilisateur'),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.user.get_username()} -> {self.case.name}'
+
+
 from django.db.models.signals import post_migrate
 from django.dispatch import receiver
 

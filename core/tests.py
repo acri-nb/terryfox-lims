@@ -20,7 +20,8 @@ from unittest import mock
 from django.conf import settings
 from django.contrib.auth.models import Group, Permission, User
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import connection
+from django.db import connection, transaction
+from django.db.utils import IntegrityError
 from django.test import Client, TestCase
 from django.test.utils import CaptureQueriesContext, override_settings
 from django.urls import reverse
@@ -29,9 +30,26 @@ from django.utils import timezone
 from . import statuses
 from .forms import CaseForm
 from .models import (
-    BatchOperation, Case, Comment, IdentifierSequence, Project, ProjectLead,
+    BatchOperation, Case, Comment, Favorite, IdentifierSequence, Project, ProjectLead,
     Specimen, format_acc,
 )
+
+
+def envoi_creation(**champs):
+    """Un envoi valide vers case_create ou batch_case_create.
+
+    Les tests ecrivaient ce dictionnaire a la main. Chaque nouveau champ
+    obligatoire les cassait alors tous d'un coup, pour une raison sans rapport
+    avec ce qu'ils verifient -- ce qui rend le vrai signal difficile a lire.
+    Les surcharges passent en arguments nommes.
+    """
+    envoi = {
+        "specimen_types": [Specimen.TYPE_NORMAL_DNA, Specimen.TYPE_TUMOUR_DNA,
+                           Specimen.TYPE_TUMOUR_RNA],
+        "preservation": Specimen.PRESERVATION_FF,
+    }
+    envoi.update(champs)
+    return envoi
 
 
 def make_editor(username="editor1"):
@@ -340,7 +358,7 @@ class IdentifierTests(TestCase):
         existing = Case.objects.create(project=self.project, biobank_id="N-BBN 42")
         response = self.client.post(
             reverse("case_create", kwargs={"project_id": self.project.id}),
-            {"biobank_id": "n-bbn 42", "specimen_types": ["normal_dna", "tumour_dna", "tumour_rna"]},
+            envoi_creation(biobank_id="n-bbn 42"),
         )
         body = response.content.decode()
         self.assertIn(existing.name, body, "le message doit nommer le cas en conflit")
@@ -350,7 +368,8 @@ class IdentifierTests(TestCase):
         Case.objects.create(project=self.project, biobank_id="N-BBN 43")
         self.client.post(
             reverse("case_create", kwargs={"project_id": self.project.id}),
-            {"biobank_id": "N-BBN 43", "specimen_types": ["normal_dna"], "confirm_duplicate": "1"},
+            envoi_creation(biobank_id="N-BBN 43", specimen_types=["normal_dna"],
+                           confirm_duplicate="1"),
         )
         self.assertEqual(Case.objects.filter(biobank_id="N-BBN 43").count(), 2)
 
@@ -372,7 +391,7 @@ class IdentifierTests(TestCase):
     def test_batch_paste_creates_one_case_per_line(self):
         self.client.post(
             reverse("batch_case_create", kwargs={"project_id": self.project.id}),
-            {"biobank_ids": "L-1\nL-2\n\n  L-3  ", "status": Case.STATUS_CREATED, "specimen_types": ["normal_dna", "tumour_dna", "tumour_rna"]},
+            envoi_creation(biobank_ids="L-1\nL-2\n\n  L-3  ", status=Case.STATUS_CREATED),
         )
         created = Case.objects.filter(biobank_id__startswith="L-").order_by("acc_number")
         self.assertEqual([c.biobank_id for c in created], ["L-1", "L-2", "L-3"])
@@ -382,7 +401,7 @@ class IdentifierTests(TestCase):
     def test_batch_refuses_a_list_repeating_itself(self):
         self.client.post(
             reverse("batch_case_create", kwargs={"project_id": self.project.id}),
-            {"biobank_ids": "D-1\nD-2\nD-1", "status": Case.STATUS_CREATED, "specimen_types": ["normal_dna", "tumour_dna", "tumour_rna"]},
+            envoi_creation(biobank_ids="D-1\nD-2\nD-1", status=Case.STATUS_CREATED),
         )
         self.assertEqual(Case.objects.count(), 0, "aucun cas ne doit etre cree")
 
@@ -422,7 +441,8 @@ class PriorityTests(TestCase):
     def test_batch_can_flag_the_whole_batch(self):
         self.client.post(
             reverse("batch_case_create", kwargs={"project_id": self.project.id}),
-            {"biobank_ids": "U-1\nU-2", "status": Case.STATUS_CREATED, "is_priority": "on", "specimen_types": ["normal_dna"]},
+            envoi_creation(biobank_ids="U-1\nU-2", status=Case.STATUS_CREATED,
+                           is_priority="on", specimen_types=["normal_dna"]),
         )
         created = Case.objects.filter(biobank_id__startswith="U-")
         self.assertEqual(created.count(), 2)
@@ -1257,7 +1277,7 @@ class CaseAuthorshipTests(TestCase):
     def test_a_single_case_records_who_entered_it(self):
         self.client.post(
             reverse("case_create", kwargs={"project_id": self.project.id}),
-            {"biobank_id": "AU-001", "specimen_types": ["normal_dna", "tumour_dna"]},
+            envoi_creation(biobank_id="AU-001", specimen_types=["normal_dna", "tumour_dna"]),
         )
         case = Case.objects.get(biobank_id="AU-001")
         self.assertEqual(case.created_by, self.editor)
@@ -1265,9 +1285,9 @@ class CaseAuthorshipTests(TestCase):
     def test_a_batch_records_it_on_every_case(self):
         self.client.post(
             reverse("batch_case_create", kwargs={"project_id": self.project.id}),
-            {"biobank_ids": "AU-010\nAU-011\nAU-012",
-             "specimen_types": ["normal_dna", "tumour_dna"],
-             "status": statuses.CASE_CREATED},
+            envoi_creation(biobank_ids="AU-010\nAU-011\nAU-012",
+                           specimen_types=["normal_dna", "tumour_dna"],
+                           status=statuses.CASE_CREATED),
         )
         cases = Case.objects.filter(biobank_id__startswith="AU-01")
         self.assertEqual(cases.count(), 3)
@@ -1425,14 +1445,21 @@ class PreservationTests(TestCase):
         self.assertEqual(specimens[1][specimens[0].index("Preservation")], "FFPE")
 
 
-class BatchFormRenderingTests(TestCase):
-    """Le formulaire de lot doit rendre TOUT ce qu'il exige.
+class FormRenderingTests(TestCase):
+    """Un formulaire doit rendre TOUT ce qu'il exige.
 
     specimen_types est devenu obligatoire au chantier des specimens sans etre
-    ajoute au gabarit : le navigateur ne pouvait donc rien envoyer de valide et
-    la creation en lot etait inutilisable, sans que rien ne le signale. Les
-    tests de l'epoque postaient le champ directement et ne pouvaient pas le voir.
+    ajoute a batch_case_form.html : le navigateur ne pouvait donc rien envoyer
+    de valide et la creation en lot etait inutilisable, sans que rien ne le
+    signale. Les tests de l'epoque postaient le champ directement et ne
+    pouvaient pas le voir -- ils validaient la vue, jamais la page.
+
+    Ces deux tests ferment la classe entiere : ils lisent les champs
+    obligatoires du formulaire tel que la vue le construit, verifient que le
+    gabarit les rend, puis postent ce que la page offre reellement.
     """
+
+    PAGES = ("case_create", "batch_case_create")
 
     def setUp(self):
         self.editor = make_editor("rendu1")
@@ -1440,25 +1467,173 @@ class BatchFormRenderingTests(TestCase):
         self.client = Client()
         self.client.force_login(self.editor)
 
-    def test_the_page_renders_every_required_field(self):
-        page = self.client.get(reverse("batch_case_create",
-                                       kwargs={"project_id": self.project.id}))
-        html = page.content.decode()
-        for nom, champ in page.context["form"].fields.items():
-            if champ.required:
-                self.assertIn(f'name="{nom}"', html,
-                              f"{nom} est obligatoire mais absent du gabarit")
+    def test_every_creation_page_renders_every_required_field(self):
+        for nom_page in self.PAGES:
+            with self.subTest(page=nom_page):
+                page = self.client.get(
+                    reverse(nom_page, kwargs={"project_id": self.project.id}))
+                html = page.content.decode()
+                for nom, champ in page.context["form"].fields.items():
+                    if champ.required:
+                        self.assertIn(f'name="{nom}"', html,
+                                      f"{nom} est obligatoire mais absent de {nom_page}")
 
-    def test_the_form_the_page_offers_is_actually_accepted(self):
-        """Poster ce que la page permet doit creer des cas."""
-        page = self.client.get(reverse("batch_case_create",
-                                       kwargs={"project_id": self.project.id}))
-        envoi = {"biobank_ids": "RE-1\nRE-2"}
-        for nom, champ in page.context["form"].fields.items():
-            if champ.required and nom not in envoi:
-                initial = champ.initial
-                envoi[nom] = initial if initial is not None else \
-                    champ.choices[0][0] if hasattr(champ, "choices") else "x"
-        self.client.post(reverse("batch_case_create",
-                                 kwargs={"project_id": self.project.id}), envoi)
-        self.assertEqual(Case.objects.filter(project=self.project).count(), 2)
+    def test_posting_what_each_page_offers_actually_creates_cases(self):
+        """Le seul test qui echouerait si un champ obligatoire n'etait pas rendu."""
+        envois = {
+            "case_create": {"biobank_id": "RE-0"},
+            "batch_case_create": {"biobank_ids": "RE-1\nRE-2"},
+        }
+        attendus = {"case_create": 1, "batch_case_create": 2}
+        for nom_page in self.PAGES:
+            with self.subTest(page=nom_page):
+                Case.all_objects.filter(project=self.project).delete()
+                page = self.client.get(
+                    reverse(nom_page, kwargs={"project_id": self.project.id}))
+                envoi = dict(envois[nom_page])
+                for nom, champ in page.context["form"].fields.items():
+                    if not champ.required or nom in envoi:
+                        continue
+                    # La valeur initiale est celle que le navigateur enverrait
+                    # sans que l'utilisateur touche a rien.
+                    if champ.initial is not None:
+                        envoi[nom] = champ.initial
+                    elif hasattr(champ, "choices"):
+                        envoi[nom] = list(champ.choices)[0][0]
+                    else:
+                        envoi[nom] = "x"
+                self.client.post(
+                    reverse(nom_page, kwargs={"project_id": self.project.id}), envoi)
+                self.assertEqual(
+                    Case.objects.filter(project=self.project).count(),
+                    attendus[nom_page],
+                    f"{nom_page} n'a rien cree avec ce que sa page propose")
+
+
+class FavoriteTests(TestCase):
+    """Les favoris, propres a chaque utilisateur.
+
+    Demande d'Eric : « une liste de samples pour lesquels l'utilisateur voudrait
+    monitorer regulierement [...] il click add to favorites puis il peut y
+    acceder rapidement par apres, peu importe la cohorte ».
+    """
+
+    def setUp(self):
+        self.editor = make_editor("fav1")
+        self.projet_a = Project.objects.create(name="P fav A", created_by=self.editor)
+        self.projet_b = Project.objects.create(name="P fav B", created_by=self.editor)
+        self.cas_a = Case.objects.create(project=self.projet_a, biobank_id="FA-001")
+        self.cas_b = Case.objects.create(project=self.projet_b, biobank_id="FB-001")
+        for cas in (self.cas_a, self.cas_b):
+            cas.ensure_specimens()
+        self.client = Client()
+        self.client.force_login(self.editor)
+
+    def _basculer(self, case):
+        return self.client.post(
+            reverse("favorite_toggle", kwargs={"case_id": case.id}), follow=True)
+
+    def test_adding_then_clicking_again_removes_it(self):
+        self._basculer(self.cas_a)
+        self.assertTrue(Favorite.objects.filter(user=self.editor, case=self.cas_a).exists())
+        self._basculer(self.cas_a)
+        self.assertFalse(Favorite.objects.filter(user=self.editor, case=self.cas_a).exists())
+
+    def test_the_list_spans_every_project(self):
+        """« peu importe la cohorte » : c'est le point de la fonctionnalite."""
+        self._basculer(self.cas_a)
+        self._basculer(self.cas_b)
+        page = self.client.get(reverse("favorite_list")).content.decode()
+        self.assertIn("FA-001", page)
+        self.assertIn("FB-001", page)
+        self.assertIn("P fav A", page)
+        self.assertIn("P fav B", page)
+
+    def test_favorites_are_private_to_each_user(self):
+        self._basculer(self.cas_a)
+        autre = make_editor("fav2")
+        client = Client()
+        client.force_login(autre)
+        page = client.get(reverse("favorite_list")).content.decode()
+        self.assertNotIn("FA-001", page)
+        self.assertIn("No favorite yet", page)
+
+    def test_a_double_submit_does_not_create_two_rows(self):
+        """Deux onglets, un double clic ou un renvoi de formulaire."""
+        Favorite.objects.create(user=self.editor, case=self.cas_a)
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Favorite.objects.create(user=self.editor, case=self.cas_a)
+        self.assertEqual(Favorite.objects.filter(user=self.editor).count(), 1)
+
+    def test_a_get_never_changes_anything(self):
+        """Un prefetch de navigateur ne doit pas modifier les favoris."""
+        response = self.client.get(
+            reverse("favorite_toggle", kwargs={"case_id": self.cas_a.id}))
+        self.assertEqual(response.status_code, 405)
+        self.assertFalse(Favorite.objects.exists())
+
+    def test_a_viewer_can_keep_favorites(self):
+        """Un favori est un signet, pas une donnee du laboratoire."""
+        lecteur = User.objects.create_user("fav_lecteur", password="x")
+        lecteur.groups.add(Group.objects.get_or_create(name="viewer")[0])
+        client = Client()
+        client.force_login(lecteur)
+        client.post(reverse("favorite_toggle", kwargs={"case_id": self.cas_a.id}))
+        self.assertTrue(Favorite.objects.filter(user=lecteur, case=self.cas_a).exists())
+
+    def test_removing_a_favorite_leaves_the_case_alone(self):
+        self._basculer(self.cas_a)
+        Favorite.objects.filter(user=self.editor, case=self.cas_a).delete()
+        self.cas_a.refresh_from_db()
+        self.assertEqual(self.cas_a.biobank_id, "FA-001")
+        self.assertEqual(self.cas_a.specimens.count(), 3)
+
+    def test_deleting_the_case_takes_its_favorites_with_it(self):
+        """CASCADE : un favori vers un cas efface n'aurait aucun sens."""
+        self._basculer(self.cas_a)
+        identifiant = self.cas_a.id
+        Case.all_objects.filter(id=identifiant).delete()
+        self.assertFalse(Favorite.objects.filter(case_id=identifiant).exists())
+
+    def test_a_soft_deleted_case_stays_listed_and_says_so(self):
+        """Restaurer un cas retire par erreur doit rendre ses favoris."""
+        self._basculer(self.cas_a)
+        self.cas_a.deleted_at = timezone.now()
+        self.cas_a.save(update_fields=["deleted_at"])
+        page = self.client.get(reverse("favorite_list")).content.decode()
+        self.assertIn("FA-001", page)
+        self.assertIn("deleted", page)
+
+    def test_the_case_page_reflects_the_current_state(self):
+        page = self.client.get(
+            reverse("case_detail", kwargs={"case_id": self.cas_a.id})).content.decode()
+        self.assertIn("Add to favorites", page)
+        self._basculer(self.cas_a)
+        page = self.client.get(
+            reverse("case_detail", kwargs={"case_id": self.cas_a.id})).content.decode()
+        self.assertNotIn("Add to favorites", page)
+
+    def test_the_toggle_returns_where_it_was_clicked(self):
+        """Elaguer sa liste ne doit pas renvoyer sur la fiche a chaque retrait."""
+        self._basculer(self.cas_a)
+        response = self.client.post(
+            reverse("favorite_toggle", kwargs={"case_id": self.cas_a.id}),
+            {"next": reverse("favorite_list")})
+        self.assertEqual(response["Location"], reverse("favorite_list"))
+
+    def test_the_list_is_one_query_whatever_its_size(self):
+        for i in range(12):
+            cas = Case.objects.create(project=self.projet_a, biobank_id=f"FQ-{i:03d}")
+            cas.ensure_specimens()
+            Favorite.objects.create(user=self.editor, case=cas)
+        with CaptureQueriesContext(connection) as douze:
+            self.client.get(reverse("favorite_list"))
+        for i in range(12, 30):
+            cas = Case.objects.create(project=self.projet_a, biobank_id=f"FQ-{i:03d}")
+            cas.ensure_specimens()
+            Favorite.objects.create(user=self.editor, case=cas)
+        with CaptureQueriesContext(connection) as trente:
+            self.client.get(reverse("favorite_list"))
+        self.assertEqual(len(douze.captured_queries), len(trente.captured_queries),
+                         "la page repart en N+1 quand la liste grandit")

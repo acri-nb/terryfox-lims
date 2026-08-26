@@ -18,7 +18,8 @@ import random
 import logging
 
 from . import exports, statuses
-from .models import BatchOperation, SpecimenStatusChange, Project, Case, Specimen, Accession, Comment, ProjectLead, IdentifierSequence
+from django.views.decorators.http import require_POST
+from .models import BatchOperation, SpecimenStatusChange, Project, Case, Specimen, Accession, Comment, ProjectLead, IdentifierSequence, Favorite
 
 from .forms import ProjectForm, CaseForm, CaseStatusForm, SpecimenFormSet, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, BulkStatusForm, ResubmitForm, CSVImportForm, UserCreateForm, BatchUserCreateForm, UserUpdateForm
 
@@ -377,6 +378,59 @@ def case_detail(request, case_id):
         'status_form': status_form,
         'specimen_formset': specimen_formset,
         'accession_formset': accession_formset,
+        'is_favorite': request.user.favorites.filter(case=case).exists(),
+    })
+
+
+
+@login_required
+@require_POST
+def favorite_toggle(request, case_id):
+    """Ajoute ou retire un cas des favoris de CELUI qui clique.
+
+    En POST et non en GET : un lien suivi par un aspirateur de pages, un
+    prefetch de navigateur ou un scanner modifierait sinon les favoris de
+    l'utilisateur sans qu'il ait rien demande.
+
+    Aucune permission d'edition n'est exigee. Un favori n'est pas une donnee du
+    laboratoire, c'est un signet : un lecteur seul a autant besoin de retrouver
+    ses cas qu'un editeur.
+    """
+    case = get_object_or_404(Case.all_objects, id=case_id)
+
+    # get_or_create plutot qu'un test d'existence suivi d'une creation : deux
+    # onglets, un double clic ou un renvoi de formulaire arriveraient sinon a
+    # creer deux lignes malgre la contrainte, en levant une erreur au lieu de
+    # ne rien faire.
+    favori, cree = Favorite.objects.get_or_create(user=request.user, case=case)
+    if not cree:
+        favori.delete()
+
+    messages.success(request, _('{acc} added to your favorites.').format(acc=case.name)
+                     if cree else
+                     _('{acc} removed from your favorites.').format(acc=case.name))
+
+    # On revient d'ou l'on vient : l'etoile est cliquable depuis la fiche comme
+    # depuis la liste des favoris, et repartir toujours sur la fiche ferait
+    # perdre sa place a qui elague sa liste.
+    retour = request.POST.get('next')
+    return redirect(retour if retour else reverse('case_detail', kwargs={'case_id': case.id}))
+
+
+@login_required
+def favorite_list(request):
+    """Les cas suivis par l'utilisateur, toutes cohortes confondues."""
+    favoris = (Favorite.objects
+               .filter(user=request.user)
+               .select_related('case', 'case__project', 'case__project__project_lead')
+               .prefetch_related('case__specimens'))
+
+    # Une tentative archivee ou un cas supprime restent dans la liste mais sont
+    # signales : les faire disparaitre sans un mot laisserait croire que le
+    # favori a ete perdu.
+    return render(request, 'core/favorite_list.html', {
+        'favoris': favoris,
+        'stages': statuses.ORDERED_STAGES,
     })
 
 
