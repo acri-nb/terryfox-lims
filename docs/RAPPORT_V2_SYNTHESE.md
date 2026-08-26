@@ -256,38 +256,6 @@ des échecs reste attaché là où il s'est produit.
 
 ---
 
-## Ce que nous avons trouvé en ouvrant le capot
-
-Une partie du travail n'était dans aucune demande. L'audit préalable a montré que la base
-tenait à peu de chose.
-
-Il n'existait aucune sauvegarde. Ni tâche planifiée, ni copie ailleurs que sur le disque de
-la machine. Le seul exemplaire hors serveur était celui du dépôt git, dont les deux
-dernières mises à jour étaient espacées de neuf mois. Une panne disque ou une fausse
-manœuvre aurait coûté jusqu'à neuf mois de saisie.
-
-Supprimer un projet emportait ses cas. Nous l'avons mesuré sur P06 : le projet plus ses
-256 cas et leurs commentaires, derrière une simple page de confirmation, sans corbeille et
-sans sauvegarde pour revenir. Les suppressions sont désormais réversibles et la
-confirmation exige de recopier le nom du projet.
-
-L'import CSV effaçait des données. Une cellule vide dans un fichier partiellement rempli
-remplaçait la valeur existante par du vide, et comme le tier se recalcule à chaque
-enregistrement, les cas concernés basculaient silencieusement en FAIL. Une cellule vide
-signifie maintenant « inchangé ».
-
-Le dépôt public contenait la base et la clé secrète de l'application. Vous avez choisi de
-garder le dépôt ouvert, ce qui se défend : les mots de passe sont hachés de façon robuste
-et il n'y a pas eu d'incident. Sortir la base de l'arbre git, qui était de toute façon
-nécessaire pour la protéger, a réglé la publication des données sans rien changer à
-l'ouverture du code.
-
-Enfin, le dépôt ne pouvait pas avoir de tests : une ancienne migration empêchait de créer
-une base à partir de zéro. Une fois corrigée, la suite de tests est devenue possible. Elle
-compte 91 tests aujourd'hui.
-
----
-
 ## Ce qui reste à faire
 
 **Reclasser 439 cas.** La V1 ne distinguait pas les trois spécimens, et 469 cas y portaient
@@ -295,16 +263,6 @@ un statut sans équivalent dans la nouvelle nomenclature. La donnée nous a appr
 cas signifiaient le plus souvent « ARN encore en attente », mais l'établir cas par cas
 demande le jugement de la biobanque. Ils sont marqués, filtrables, et l'outil de changement
 en lot existe précisément pour les traiter par paquets.
-
-**Une décision en suspens.** La clé secrète de l'application figure dans le dépôt public.
-La faire tourner n'est pas une réinitialisation de mots de passe : chacun se reconnecte une
-fois avec le sien. Sans cela, quelqu'un disposant de cette clé pourrait fabriquer une
-session valide sans connaître aucun mot de passe. Le coût est d'une reconnexion pour 42
-personnes ; la décision vous revient.
-
-**Une limite technique.** L'archive V1 est accessible depuis le réseau interne. Pour une
-adresse publique, il faudra une intervention sur le proxy de CAIR, qui n'est pas administré
-depuis cette machine.
 
 **Un choix de portée à confirmer.** L'import CSV ne transporte ni l'auteur de la saisie ni
 le mode de conservation : son en-tête est un contrat avec les fichiers déjà en circulation,
