@@ -361,6 +361,17 @@ tr.is-priority > td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
 /* Un bouton qui a declenche un envoi doit le montrer. */
 .is-busy { pointer-events: none; opacity: .65; }
 
+/* Une region en cours de rafraichissement par le filtre en direct.
+
+   Le delai de 180 ms avant le fondu est delibere : une reponse rapide, ce qui
+   est le cas courant, ne doit produire aucun clignotement. L'estompage ne se
+   voit donc que lorsque l'attente est reelle. */
+[data-live-region][aria-busy="true"] {
+  opacity: .5;
+  pointer-events: none;
+  transition: opacity .12s ease .18s;
+}
+
 /* -------------------------------------------------------- fil d'Ariane */
 
 .breadcrumb { font-size: var(--t-sm); margin-bottom: var(--s4); }

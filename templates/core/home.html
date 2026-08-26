@@ -104,16 +104,21 @@
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
         <span>Projects</span>
-        <form method="get" class="d-flex gap-2 align-items-center">
+        {% comment %}
+        Le filtre s'applique a la frappe et au choix : voir static/js/live-filter.js.
+        Le bouton et le lien restent dans le HTML pour les navigateurs sans
+        JavaScript ; le script les masque lui-meme quand il prend la main.
+        {% endcomment %}
+        <form method="get" class="d-flex gap-2 align-items-center" data-live-filter>
             {{ filter_form.name }}
             {{ filter_form.project_lead }}
-            <button type="submit" class="btn btn-sm btn-outline-secondary">Filter</button>
-            {% if request.GET.name or request.GET.project_lead %}
-            <a href="{% url 'home' %}" class="btn btn-sm btn-link text-muted">Clear</a>
-            {% endif %}
+            <button type="submit" class="btn btn-sm btn-outline-secondary" data-live-submit>Filter</button>
+            <a href="{% url 'home' %}" class="btn btn-sm btn-link text-muted" data-live-clear
+               {% if not request.GET.name and not request.GET.project_lead %}hidden{% endif %}>Clear</a>
         </form>
     </div>
 
+    <div id="projects-region" data-live-region>
     {% if projects %}
     <div class="table-responsive">
         <table class="table table-hover mb-0">
@@ -175,5 +180,6 @@
         </div>
     </div>
     {% endif %}
+    </div>
 </div>
 {% endblock %}

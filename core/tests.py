@@ -12,7 +12,9 @@ des donnees : le calcul du tier, la suppression douce, et l'import CSV.
 """
 
 from pathlib import Path
+from unittest import mock
 
+from django.conf import settings
 from django.contrib.auth.models import Group, Permission, User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
@@ -1107,3 +1109,127 @@ class SmokeTests(TestCase):
         client.force_login(editor)
         response = client.get(reverse("user_list"))
         self.assertEqual(response.status_code, 302, "doit etre renvoye vers l'accueil")
+
+
+class LiveFilterTests(TestCase):
+    """Le filtrage en direct.
+
+    Filtrer demandait trois gestes : saisir, cliquer sur "Filter", puis cliquer
+    sur "Clear" pour revenir en arriere. Le script rejoue la requete GET et
+    remplace les regions marquees `data-live-region`.
+
+    Ces tests portent sur le CONTRAT entre le gabarit et le script, pas sur le
+    script lui-meme : le navigateur cherche dans la reponse un element ayant
+    l'identifiant de celui qu'il remplace. Si un gabarit perd cet identifiant,
+    ou ne le rend que dans certains cas, le filtre cesse silencieusement de
+    rafraichir -- l'ecran garde l'ancien resultat sans rien signaler.
+    """
+
+    #: gabarit -> (identifiant de region, adresse)
+    REGIONS = ("projects-region", "cases-region", "cases-heading", "search-region")
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("admin_lf", password="x")
+        self.lead = ProjectLead.objects.create(name="Dr Live")
+        self.project = Project.objects.create(
+            name="P live", project_lead=self.lead, created_by=self.admin)
+        for i in range(30):
+            case = Case.objects.create(project=self.project, biobank_id=f"LF-{i:03d}")
+            case.ensure_specimens()
+        self.client = Client()
+        self.client.force_login(self.admin)
+
+    def _home(self, **filtres):
+        return self.client.get(reverse("home"), filtres).content.decode()
+
+    def _projet(self, **filtres):
+        return self.client.get(
+            reverse("project_detail", kwargs={"project_id": self.project.id}),
+            filtres,
+        ).content.decode()
+
+    def _recherche(self, **filtres):
+        return self.client.get(reverse("case_search"), filtres).content.decode()
+
+    # -- le script ---------------------------------------------------------
+
+    def test_the_script_is_loaded_on_every_page(self):
+        self.assertIn("js/live-filter.js", self._home())
+        self.assertIn("js/live-filter.js", self._projet())
+
+    def test_the_script_file_exists(self):
+        chemin = Path(settings.BASE_DIR) / "static" / "js" / "live-filter.js"
+        self.assertTrue(chemin.is_file(), "le gabarit reference un fichier absent")
+
+    # -- le contrat gabarit / script ---------------------------------------
+
+    def test_every_filter_form_is_marked_live(self):
+        for page in (self._home(), self._projet(), self._recherche()):
+            self.assertIn("data-live-filter", page)
+            self.assertIn("data-live-submit", page)
+
+    def test_a_region_is_present_on_each_filtered_page(self):
+        self.assertIn('id="projects-region"', self._home())
+        self.assertIn('id="cases-region"', self._projet())
+        self.assertIn('id="cases-heading"', self._projet())
+        self.assertIn('id="search-region"', self._recherche(q="LF-000"))
+
+    def test_the_region_survives_a_filter_that_matches_nothing(self):
+        """L'invariant dont depend le remplacement.
+
+        Une region rendue seulement quand il y a des resultats disparaitrait de
+        la reponse des la premiere recherche infructueuse : le navigateur ne
+        trouverait rien a remettre en place et laisserait la liste precedente a
+        l'ecran, ce qui se lit comme un filtre sans effet.
+        """
+        self.assertIn('id="projects-region"', self._home(name="zzz-aucun"))
+        self.assertIn('id="cases-region"', self._projet(name="zzz-aucun"))
+        self.assertIn('id="cases-heading"', self._projet(name="zzz-aucun"))
+        self.assertIn('id="search-region"', self._recherche(q="zzz-aucun"))
+
+    def test_the_region_survives_an_empty_project_and_an_empty_search(self):
+        vide = Project.objects.create(name="P vide", created_by=self.admin)
+        page = self.client.get(
+            reverse("project_detail", kwargs={"project_id": vide.id})).content.decode()
+        self.assertIn('id="cases-region"', page)
+        self.assertIn('id="search-region"', self._recherche())
+
+    # -- le bouton d'effacement --------------------------------------------
+
+    def test_clear_is_always_rendered_so_the_script_can_reveal_it(self):
+        """Rendu sous condition, il n'apparaitrait jamais.
+
+        Le formulaire reste hors de la region remplacee -- c'est ce qui preserve
+        le curseur pendant la frappe. Un lien "Clear" conditionne a
+        request.GET ne serait donc jamais rendu a nouveau apres un filtre pose
+        sans rechargement.
+        """
+        for page in (self._home(), self._projet()):
+            self.assertIn("data-live-clear", page)
+
+    def test_clear_is_hidden_when_no_filter_is_set(self):
+        for page in (self._home(), self._projet()):
+            debut = page.index("data-live-clear")
+            self.assertIn("hidden", page[debut:debut + 400])
+
+    def test_clear_is_visible_once_a_filter_is_set(self):
+        for page in (self._home(name="P live"), self._projet(name="LF-000")):
+            debut = page.index("data-live-clear")
+            self.assertNotIn("hidden", page[debut:page.index(">", debut)])
+
+    # -- le compte annonce --------------------------------------------------
+
+    def test_the_heading_counts_every_match_not_just_the_page(self):
+        """`cases` est la page courante, pas l'ensemble des correspondances.
+
+        Le titre annoncait la taille de la page : "100 results" sur un projet
+        qui en comptait 200. Le filtre devenant vivant, ce nombre bouge a
+        chaque frappe et se lit comme un decompte.
+        """
+        with mock.patch("core.views.CASES_PER_PAGE", 10):
+            page = self._projet(name="LF-")
+        self.assertIn("30 results", page)
+        self.assertNotIn("10 results", page)
+
+    def test_filtering_actually_narrows_the_result(self):
+        self.assertIn("(1 result)", self._projet(name="LF-007"))

@@ -172,6 +172,31 @@ value the batch set** — a specimen edited afterwards is left alone, so undo ne
 later work. Selection is ~60 lines of plain JS (select-all, shift-click range, sticky bar);
 without JS the checkboxes and submit button still work.
 
+### Live filtering
+
+`static/js/live-filter.js` makes the filter forms on `home`, `project_detail` and
+`case_search` apply as you type (250 ms debounce) or pick, instead of requiring a click on
+*Filter* and then on *Clear*. It replays the same GET request and swaps only the elements
+marked `data-live-region`, matched **by id** between the current page and the parsed
+response. The server stays the sole authority on what matches: nothing is hidden
+client-side, which would be wrong the moment a list is paginated.
+
+Three rules the templates must respect, all covered by `LiveFilterTests`:
+
+- the region wraps the table **and** its empty state, so its id is in the response for
+  every outcome. A region rendered only when there are results vanishes on the first
+  fruitless search and the previous list stays on screen, reading as a filter with no effect;
+- the form stays **outside** every region, which is what keeps the caret alive while typing;
+- `Clear` is always rendered with `data-live-clear` and a plain `hidden` attribute rather
+  than behind `{% if request.GET %}` — the form is never re-rendered, so a conditional link
+  would never come back. `form.reset()` is not used for it either: reset restores the HTML's
+  *initial* values, which on a filtered page are the filter itself.
+
+After a swap the script fires `lims:filtre` on `document`. The bulk-selection script listens
+for it and rebinds; without that, checkboxes keep ticking but nothing counts them. Adding a
+`{% static %}` reference means `collectstatic` must run before `StaticAssetTests` passes —
+that test is what catches a stale manifest.
+
 ### Soft delete
 
 `Project` and `Case` inherit `SoftDeleteModel`: the delete views set `deleted_at` instead of

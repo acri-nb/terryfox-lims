@@ -12,14 +12,19 @@
 
 <div class="card shadow-sm mb-4">
     <div class="card-body">
-        <form method="get" class="row g-2 align-items-end">
+        {% comment %}
+        La recherche s'applique a la frappe : voir static/js/live-filter.js.
+        Le bouton reste la pour les navigateurs sans JavaScript ; le script le
+        masque lui-meme quand il prend la main.
+        {% endcomment %}
+        <form method="get" class="row g-2 align-items-end" data-live-filter>
             <div class="col-md-8">
                 <label for="q" class="form-label">Search every project by ACC or Biobank ID</label>
                 <input type="search" class="form-control" id="q" name="q" value="{{ query }}"
                        placeholder="e.g. ACC-0142 or N-BBN 440" autocomplete="off" autofocus>
             </div>
             <div class="col-md-auto">
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary" data-live-submit>
                     <i class="fas fa-search me-1"></i> Search
                 </button>
             </div>
@@ -27,6 +32,7 @@
     </div>
 </div>
 
+<div id="search-region" data-live-region>
 {% if query %}
     {% if results %}
         <p class="text-muted">
@@ -74,4 +80,5 @@
         </div>
     {% endif %}
 {% endif %}
+</div>
 {% endblock %}
