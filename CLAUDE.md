@@ -197,6 +197,15 @@ for it and rebinds; without that, checkboxes keep ticking but nothing counts the
 `{% static %}` reference means `collectstatic` must run before `StaticAssetTests` passes —
 that test is what catches a stale manifest.
 
+`LiveFilterTests` never executes a line of JavaScript — it would pass against an empty
+script. `core/test_e2e_livefilter.py` closes that gap: it runs the real file in jsdom against
+a live server and types in the field. It skips unless node and jsdom are present:
+
+```bash
+npm install jsdom@24          # jsdom 25+ needs Node 20; 24 works on Node 18
+LIMS_JSDOM=$PWD/node_modules/jsdom python manage.py test core.test_e2e_livefilter
+```
+
 ### Soft delete
 
 `Project` and `Case` inherit `SoftDeleteModel`: the delete views set `deleted_at` instead of
