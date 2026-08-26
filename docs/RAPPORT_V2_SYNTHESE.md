@@ -269,8 +269,3 @@ le mode de conservation : son en-tête est un contrat avec les fichiers déjà e
 et l'élargir les rendrait invalides. Les cas importés par ce chemin resteront donc sans
 auteur et en « non renseigné ». Ajouter deux colonnes facultatives est faisable si l'usage
 le demande.
-
----
-
-*Le détail de chaque décision, avec les mesures qui l'appuient, figure dans le rapport
-complet (`RAPPORT_V2.md`).*
