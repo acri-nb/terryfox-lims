@@ -149,12 +149,6 @@ attente sont comptés séparément, avec un filtre dédié.
 
 ### Refonte visuelle
 
-L'ancienne mise en forme datait de 2013 et se voyait : une ombre et un effet de survol sur
-chaque carte, y compris celles qui ne sont pas cliquables. Le contraste des pastilles se
-situait entre 2,1 et 3,8 pour 1, sous le seuil d'accessibilité de 4,5. Plus gênant, les
-couleurs mentaient : le tier A s'affichait en rouge et l'échec en gris, si bien qu'un PI
-survolant son projet voyait un mur de rouge et lisait une catastrophe.
-
 La refonte est sobre par choix, sans effets, avec une police lisible et des identifiants en
 chasse fixe pour qu'ACC-0142 ne se confonde plus avec ACC-0412. Un point mérite d'être
 signalé : aucune combinaison de vert, d'ambre et de rouge ne reste distinguable pour une
