@@ -13,6 +13,7 @@ des donnees : le calcul du tier, la suppression douce, et l'import CSV.
 
 import csv
 import io
+import re
 import zipfile
 from pathlib import Path
 from unittest import mock
@@ -28,7 +29,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from . import statuses
-from .forms import CaseForm
+from .forms import CaseForm, SpecimenForm
 from .models import (
     BatchOperation, Case, Comment, Favorite, IdentifierSequence, Project, ProjectLead,
     Specimen, format_acc,
@@ -1637,3 +1638,101 @@ class FavoriteTests(TestCase):
             self.client.get(reverse("favorite_list"))
         self.assertEqual(len(douze.captured_queries), len(trente.captured_queries),
                          "la page repart en N+1 quand la liste grandit")
+
+
+class SpecimenPanelTests(TestCase):
+    """Le panneau « Edit each specimen separately ».
+
+    Deux defauts y sont apparus en meme temps, l'un visible et l'autre non.
+    """
+
+    def setUp(self):
+        self.editor = make_editor("panneau1")
+        self.project = Project.objects.create(name="P panneau", created_by=self.editor)
+        self.case = Case.objects.create(project=self.project, biobank_id="PA-001")
+        self.case.ensure_specimens()
+        self.client = Client()
+        self.client.force_login(self.editor)
+
+    def test_every_select_offers_its_choices(self):
+        """Remplacer field.widget par un Select() neuf en efface les choix.
+
+        Le champ ne les repasse pas au nouveau widget : le menu se rendait
+        entierement vide, sans erreur ni message, et aucune conservation
+        n'etait selectionnable. Le statut y survivait par accident, ses choix
+        etant reaffectes plus bas dans le meme __init__.
+        """
+        formulaire = SpecimenForm(instance=self.case.specimens.first())
+        for nom in ("status", "preservation"):
+            with self.subTest(champ=nom):
+                rendu = str(formulaire[nom])
+                self.assertGreater(rendu.count("<option"), 1,
+                                   f"le menu {nom} ne propose aucun choix")
+
+    def test_the_preservation_menu_offers_every_value(self):
+        """« Not recorded » y figure, contrairement au menu de saisie.
+
+        Un specimen anterieur au champ porte cette valeur : si le menu ne la
+        proposait pas, le formulaire refuserait sa propre donnee.
+        """
+        rendu = str(SpecimenForm(instance=self.case.specimens.first())["preservation"])
+        for valeur, _libelle in Specimen.PRESERVATION_CHOICES:
+            self.assertIn(f'value="{valeur}"', rendu)
+
+    def test_the_panel_row_fits_on_one_line(self):
+        """Bootstrap renvoie a la ligne des que les colonnes depassent 12.
+
+        Elles en totalisaient 13 depuis l'ajout de la conservation, et le
+        dernier champ passait sous le libelle. Rien ne casse, mais la rangee
+        devient illisible et le decalage se lit comme un defaut d'alignement.
+        """
+        gabarit = (Path(settings.BASE_DIR) / "templates" / "core"
+                   / "case_detail.html").read_text()
+        debut = gabarit.index("specimen-edit-row")
+        # La rangee est le corps de la boucle du formset : elle s'arrete a son
+        # endfor. Se reperer sur un libelle voisin decoupait trop tot et le
+        # test comptait alors une rangee tronquee.
+        fin = gabarit.index("{% endfor %}", debut)
+        largeurs = [int(n) for n in re.findall(r'class="col-md-(\d+)"',
+                                               gabarit[debut:fin])]
+        self.assertEqual(len(largeurs), 5, "cinq colonnes attendues dans la rangee")
+        self.assertEqual(sum(largeurs), 12,
+                         f"les colonnes totalisent {sum(largeurs)} au lieu de 12")
+
+    def test_the_unit_suffix_is_short_enough_to_leave_room_for_the_value(self):
+        """« M reads » accole au champ n'y laissait la place que d'un chiffre.
+
+        L'unite complete reste celle du tableau, des exports et des libelles :
+        seul le suffixe accole est abrege.
+        """
+        par_type = {s.specimen_type: s for s in self.case.specimens.all()}
+        self.assertEqual(par_type[Specimen.TYPE_TUMOUR_RNA].unit, "M reads")
+        self.assertEqual(par_type[Specimen.TYPE_TUMOUR_RNA].unit_short, "M")
+        self.assertEqual(par_type[Specimen.TYPE_NORMAL_DNA].unit_short, "X")
+
+    def test_the_full_unit_still_appears_where_there_is_room(self):
+        page = self.client.get(
+            reverse("case_detail", kwargs={"case_id": self.case.id})).content.decode()
+        self.assertIn("M reads", page, "le tableau en lecture garde l'unite complete")
+
+    def test_saving_the_panel_records_the_preservation(self):
+        """Le seul test qui echouerait si le menu restait vide en pratique."""
+        specimens = list(self.case.specimens_in_order())
+        envoi = {
+            "specimen_update": "1",
+            "specimens-TOTAL_FORMS": str(len(specimens)),
+            "specimens-INITIAL_FORMS": str(len(specimens)),
+            "specimens-MIN_NUM_FORMS": "0",
+            "specimens-MAX_NUM_FORMS": "1000",
+        }
+        for i, specimen in enumerate(specimens):
+            envoi.update({
+                f"specimens-{i}-id": str(specimen.id),
+                f"specimens-{i}-status": specimen.status,
+                f"specimens-{i}-preservation": Specimen.PRESERVATION_FFPE,
+                f"specimens-{i}-coverage": "",
+                f"specimens-{i}-external_id": "",
+            })
+        self.client.post(reverse("case_detail", kwargs={"case_id": self.case.id}), envoi)
+        for specimen in self.case.specimens.all():
+            self.assertEqual(specimen.preservation, Specimen.PRESERVATION_FFPE)

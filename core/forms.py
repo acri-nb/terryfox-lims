@@ -667,15 +667,26 @@ class SpecimenForm(forms.ModelForm):
         model = Specimen
         fields = ['status', 'preservation', 'coverage', 'external_id']
         widgets = {
-            'coverage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'coverage': forms.NumberInput(attrs={
+                'class': 'form-control form-control-sm', 'step': '0.01'}),
             'external_id': forms.TextInput(attrs={
-                'class': 'form-control', 'placeholder': _('optional'), 'autocomplete': 'off'}),
+                'class': 'form-control form-control-sm',
+                'placeholder': _('optional'), 'autocomplete': 'off'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['status'].widget = forms.Select(attrs={'class': 'form-select'})
-        self.fields['preservation'].widget = forms.Select(attrs={'class': 'form-select'})
+        # On pose la classe sur le widget existant, on ne le REMPLACE pas :
+        # un forms.Select() neuf arrive sans choix, et le champ ne les lui
+        # repasse pas. Le menu de conservation se rendait ainsi entierement
+        # vide -- aucune valeur selectionnable. Le statut y survivait par
+        # accident, ses choix etant reaffectes quelques lignes plus bas.
+        # Taille reduite : c'est un panneau dense et replie, et a la taille
+        # normale « Sent to Sequencing Center » comme « Fresh frozen (FF) »
+        # depassaient leur menu. La media query de lims.css ramene ces classes
+        # a 16 px sous 768 px, ce qui evite le zoom automatique d'iOS.
+        self.fields['status'].widget.attrs['class'] = 'form-select form-select-sm'
+        self.fields['preservation'].widget.attrs['class'] = 'form-select form-select-sm'
 
         # Les statuts de transition ne sont pas proposes... sauf si le specimen
         # en porte deja un, sinon le formulaire refuserait sa propre valeur.

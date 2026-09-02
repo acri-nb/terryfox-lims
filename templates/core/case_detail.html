@@ -214,22 +214,34 @@
                         <input type="hidden" name="specimen_update" value="1">
                         {{ specimen_formset.management_form }}
                         {% for form in specimen_formset %}
+                        {% comment %}
+                        Les colonnes doivent totaliser 12. Elles en faisaient 13
+                        depuis l'ajout de la conservation, et Bootstrap renvoyait
+                        donc le dernier champ a la ligne, sous le libelle.
+                        {% endcomment %}
                         <div class="row g-2 align-items-end mb-2 specimen-edit-row">
                             {{ form.id }}
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label class="form-label small mb-1">
                                     {{ form.instance.get_specimen_type_display }}
                                 </label>
                             </div>
-                            <div class="col-md-2">{{ form.status }}</div>
-                            <div class="col-md-2">{{ form.preservation }}</div>
-                            <div class="col-md-3">
-                                <div class="input-group">
+                            <div class="col-md-3">{{ form.status }}</div>
+                            <div class="col-md-3">{{ form.preservation }}</div>
+                            {% comment %}
+                            Trois colonnes pour la couverture : le suffixe
+                            « M reads » de l'ARN mange l'essentiel de la largeur,
+                            et sur deux colonnes il ne restait que la place d'un
+                            seul chiffre. 90.9 s'affichait « 9 ».
+                            {% endcomment %}
+                            <div class="col-md-2">
+                                <div class="input-group input-group-sm">
                                     {{ form.coverage }}
-                                    <span class="input-group-text">{{ form.instance.unit }}</span>
+                                    <span class="input-group-text"
+                                          title="{{ form.instance.unit }}">{{ form.instance.unit_short }}</span>
                                 </div>
                             </div>
-                            <div class="col-md-3">{{ form.external_id }}</div>
+                            <div class="col-md-2">{{ form.external_id }}</div>
                         </div>
                         {% endfor %}
                         <div class="text-end">

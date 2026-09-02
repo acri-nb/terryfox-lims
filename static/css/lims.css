@@ -318,6 +318,16 @@ tr.is-priority > td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
   color: var(--ink);
   background-color: var(--surface);
 }
+/* Bootstrap declare .form-control-sm et .form-select-sm AVANT cette feuille.
+   La regle ci-dessus a la meme specificite et arrive plus tard : elle les
+   annulait, et les variantes compactes etaient inertes partout ou elles sont
+   posees -- barre de changement en lot comprise. La media query plus bas les
+   ramene a 16 px sous 768 px, ce qui evite le zoom automatique d'iOS. */
+.form-control-sm, .form-select-sm {
+  font-size: var(--t-sm);
+  padding: var(--s1) var(--s2);
+}
+
 .form-control:focus, .form-select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-bg);

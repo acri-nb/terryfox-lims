@@ -708,6 +708,17 @@ class Specimen(models.Model):
         return self.UNIT.get(self.specimen_type, '')
 
     @property
+    def unit_short(self):
+        """L'unite en une lettre, pour les suffixes de champ etroits.
+
+        « M reads » accole a un champ de saisie en occupe l'essentiel de la
+        largeur : la couverture ARN 90.9 s'y affichait « 9 ». L'unite complete
+        reste celle des tableaux, des exports et des libelles de formulaire ;
+        seul le suffixe accole est abrege, a cote d'un « X » deja d'une lettre.
+        """
+        return {'M reads': 'M'}.get(self.unit, self.unit)
+
+    @property
     def short_code(self):
         return self.SHORT.get(self.specimen_type, '?')
 
