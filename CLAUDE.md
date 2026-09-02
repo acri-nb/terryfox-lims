@@ -8,9 +8,15 @@ TerryFox LIMS — a Django 5 Laboratory Information Management System for ACRI t
 projects, cases, specimens, sequencing coverage and tier classification. Server-rendered Django
 templates (Bootstrap 5 + crispy-forms), SQLite, deployed with Gunicorn over HTTPS behind systemd.
 
-**The `origin` remote is public** (`github.com/acri-nb/terryfox-lims`). Anything committed here is
-published: no live database, no patient identifier, no real Biobank ID in a screenshot. The
-decision to keep it open was made deliberately; the rules below are what make it safe.
+**The `origin` remote is public** (`github.com/acri-nb/terryfox-lims`), and two things are
+already published in it. The database was tracked for 55 commits before being moved out of the
+tree, so `git show <old-sha>:db.sqlite3` still returns a working SQLite file with ~1500 cases,
+their Biobank IDs, the comments and the accounts — removing a file from HEAD does not remove its
+blobs. And `.env` is tracked in HEAD with the production `SECRET_KEY` in it. Both were known and
+accepted when the repo was kept open; neither is fixed by the rules below.
+
+What the rules below *do* prevent is making it worse. Nothing new goes in: no live database, no
+patient identifier, no real Biobank ID in a screenshot or a fixture.
 
 ## Commands
 
@@ -88,11 +94,13 @@ genuinely differs. Module names are unchanged, so `wsgi`, `wsgi_prod`, the syste
 start scripts keep working.
 
 The production database lives **outside the git tree** at `/var/lib/terryfox-lims/db.sqlite3`,
-set through `DATABASE_PATH` in `.env`. `db.sqlite3` is no longer tracked: no git command in the
-repo can reach live data.
+set through `DATABASE_PATH` in `.env`. `db.sqlite3` is no longer tracked, so no git command can
+reach the **current** data — but the snapshots committed before the move are still in history
+and still readable (see *Project* above).
 
 `.env` is committed. `settings_prod.py` reads exactly eight of its keys through
-`python-decouple`: `SECRET_KEY`, `DATABASE_PATH`, and the six `EMAIL_*`. The other four
+`python-decouple`: `SECRET_KEY`, `DATABASE_PATH`, the five `EMAIL_*`, and `DEFAULT_FROM_EMAIL` —
+which does not carry the `EMAIL_` prefix, so grepping for it finds five and looks short one. The other four
 (`ALLOWED_HOSTS`, `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`) are
 **hard-coded in `settings_prod.py` and ignored in `.env`** — editing them there changes nothing,
 which is exactly the kind of silent no-op that costs an afternoon.
@@ -136,8 +144,16 @@ label. `save()` also strips `biobank_id` and turns a blank one into NULL, so `' 
 `other_id` is now `biobank_id`, indexed and searched alongside the ACC by both the project filter
 and the global `/search/` view. ACC uniqueness is a DB constraint; biobank ID uniqueness is a
 **soft** check in `Case.find_biobank_id_conflict()` that names the conflicting case and can be
-overridden — two projects legitimately share a bare numbering space. `Case.is_priority` pins
-cases to the top of every list; `Project.kind` separates research projects from `Referred Cases`.
+overridden — two projects legitimately share a bare numbering space.
+
+`Case.is_priority` leads `Case.Meta.ordering` and `project_detail` restates it, so priority cases
+top **the project case list**. The pin does not survive an explicit `order_by` elsewhere:
+`/search/` sorts by ACC alone, and the favorites page comes out in the order stars were added.
+Both still show the flag without lifting the row.
+
+`Project.kind` separates research projects from `Referred Cases`, but it is **not on
+`ProjectForm`** (`fields = ['name', 'description', 'project_lead']`): a project's kind is set at
+creation by the migration or from the shell, and no screen can change it afterwards.
 
 ### Specimens and the derived case status
 
@@ -204,9 +220,15 @@ issuing a `DELETE`. `objects` hides removed rows, `all_objects` sees everything,
 `base_manager_name = 'all_objects'` keeps FK traversal working. Deleting a project used to
 cascade — measured at 256 cases plus their comments on P06.
 
-There is **no restore view**. Bringing a row back means clearing `deleted_at` from the shell or
-the admin; nothing in the UI does it, so "reversible" here means recoverable by an operator, not
-by a user.
+There is **no restore view, and no admin path either**. `deleted_at` is `editable=False`, so it
+is on no admin form; and neither `CaseAdmin` nor `ProjectAdmin` overrides `get_queryset`, so the
+admin reads `_default_manager` — the alive-only one, not the `all_objects` that
+`base_manager_name` sets. A removed row is neither listed nor openable there.
+
+Restore from the shell, through the model methods, never by editing the field:
+`Case.all_objects.get(pk=…).restore()`. For a project use `Project.restore()` and nothing else —
+`soft_delete()` stamped the project *and* its live cases with one shared timestamp, so clearing
+the project's own `deleted_at` gives back a project whose cases are all still invisible.
 
 ### Favorites
 
@@ -223,16 +245,26 @@ as a lost favorite.
 
 Two different mechanisms, and a third thing that is not a mechanism at all.
 
-- **Write views** (create / update / delete of Project, Case, ProjectLead, plus bulk status and
-  resubmit) use Django model permissions via `@permission_required('core.add_case', …)`. Access
-  comes from membership in the `viewer` (read-only) or `editor` (CRUD) groups. Both groups are
-  auto-created by a `post_migrate` signal at the bottom of `core/models.py`, but their
-  *permission assignments* are not code-managed — they are set in the admin / DB. That is why the
-  test suite has a `make_editor()` helper that grants them explicitly rather than a permissions
-  test class.
-- **Read views** (`home`, `project_detail`, `case_detail`, `case_search`, `favorite_list`) carry
-  `@login_required` and nothing else. Any authenticated account sees every project of every
-  group. There is no per-project access control; do not assume one exists.
+- **Model permissions** guard Project (create / update / delete), ProjectLead (all four views),
+  case **creation** (`case_create`, `batch_case_create`, `csv_case_import`, `case_resubmit` →
+  `core.add_case`), case **deletion** (`core.delete_case`), and bulk status
+  (`bulk_status_update`, `bulk_status_undo` → `core.change_case`, its only two consumers in the
+  whole repo). The `viewer` / `editor` groups are auto-created by a `post_migrate` signal at the
+  bottom of `core/models.py`, but their *permission assignments* are not code-managed — they are
+  set in the admin / DB, which is why the suite has a `make_editor()` helper that grants them
+  explicitly rather than a permissions test class.
+- **Editing an existing case has no model permission at all.** There is no `case_update` view and
+  no such URL: the case fields, the specimens and coverages, the status, the accessions and the
+  comments are all POST branches of `case_detail`, which carries only `@login_required` and
+  guards on an inline **group-name** test —
+  `can_edit = request.user.groups.filter(name='editor').exists() or request.user.is_superuser`,
+  then `and not case.is_archived`. Granting `core.change_case` to a group therefore does **not**
+  open editing, and revoking model permissions does **not** close it; only literal membership of
+  the group named `editor` counts.
+- **Read views** (`home`, `project_detail`, `case_detail`, `case_search`, `favorite_list`, plus
+  `csv_case_export` and `project_export_bundle`) carry `@login_required` and nothing else. Any
+  authenticated account sees — and exports — every project of every group. There is no
+  per-project access control; do not assume one exists.
 - **User-management views** (`user_list`, `user_create`, `batch_user_create`, `user_update`,
   `user_delete`) and the consortium export bypass both and check `request.user.is_superuser`
   inline. Role is inferred from group membership; passwords are auto-generated by
@@ -245,8 +277,11 @@ a 403.
 ## Operations tooling (`ops/`)
 
 **Never run `manage.py migrate` by hand on the server.** `sudo ./ops/deploy.sh <label>` is the
-only path — the `sudo` is not optional, every script here aborts with
-`ECHEC: ce script doit tourner en root` otherwise.
+only path, and the `sudo` is not optional. The five **shell** scripts (`deploy.sh`,
+`restore_db.sh`, `install.sh`, `install_v1_archive.sh`, `status.sh`) test `$EUID` and abort
+without it — `status.sh` included, read-only though it is, because the database and the logs
+belong to root. The Python ones test nothing: `python3 ops/selftest.py` runs fine as your own
+user, which is why the Commands block above shows it without `sudo`.
 
 `deploy.sh` runs **seven** steps: it stops the watchdog (which otherwise restarts the service
 mid-migration), takes a verified labelled backup, freezes invariants, **stops the service** and
@@ -296,13 +331,20 @@ unit file.
 
 Two things make it work, and both look like accidents to someone tidying up:
 
-- `ops/lib.sh` narrows its pgrep to `gunicorn[[:space:]]+terryfox_lims\.wsgi_prod` **on purpose**.
-  A broader pattern used to match `wsgi_archive` too, so starting the main service killed the
-  archive and `deploy.sh` refused to migrate, mistaking it for a writer on the live database.
-  Widening it "to catch stray workers" reintroduces both faults.
-- `settings_archive.py` opens SQLite with `mode=ro` and switches `SESSION_ENGINE` to signed
-  cookies, because logging in writes to `django_session` and `update_last_login` writes to
-  `auth_user` — on a read-only database, login is otherwise impossible.
+- **Three separate patterns name the production workers, in three files, and only one of them
+  kills.** `ops/lib.sh` merely *observes* (`lims_writer_pids` → `assert_no_writers`, which is how
+  `deploy.sh` refuses to migrate under a live writer). The killer is the `pkill` in
+  `gunicorn_start_robust.sh`, and `watchdog.sh` carries a third. All three are narrowed to
+  `wsgi_prod` on purpose: a broader pattern matched `wsgi_archive` too, so starting the main
+  service killed the archive *and* `deploy.sh` mistook the archive for a writer and refused to
+  migrate. Widening any of them "to catch stray workers" brings both faults back, and widening
+  the `lib.sh` one alone brings back only the second — they are not interchangeable.
+- **Two different files make login possible on a read-only database**, and the second looks like
+  dead code. `settings_archive.py` opens SQLite with `mode=ro` and switches `SESSION_ENGINE` to
+  signed cookies, because logging in writes to `django_session`. That is not enough:
+  `update_last_login` writes to `auth_user`, and it is disconnected in `ops/v1/wsgi_archive.py`,
+  *after* `get_wsgi_application()` and with the `dispatch_uid` Django registered it under —
+  without that uid the disconnect silently does nothing.
 
 ### Screenshots
 
@@ -317,9 +359,14 @@ database is the obvious shortcut and there is no test that would stop you.
 ### Design layer
 
 `static/css/lims.css` replaced the ~265 lines of inline Flat-UI-style CSS that V1 (2025) carried
-in `base.html`. Borders, never resting shadows; one hue per status **stage** (four colours, not
-ten); tier semantics fixed (A green, B amber, FAIL red) with the letter always present — amber
-and red are indistinguishable under deuteranopia, so colour never carries identity alone. IBM
+in `base.html`. Borders rather than resting shadows; one hue per status **stage** (four colours, not ten); tier
+semantics fixed (A green, B amber, FAIL red) with the letter always present — amber and red are
+indistinguishable under deuteranopia, so colour never carries identity alone.
+
+The no-shadow rule is the intent, not the current state: lims.css sets `box-shadow: none` on
+`.card`, but 18 cards across 13 templates still carry Bootstrap's `.shadow-sm`, which the
+vendored stylesheet declares `!important` — no lims.css rule can beat it from any position in the
+cascade. Removing the utility from the template is the only fix. IBM
 Plex Sans/Mono, Bootstrap and FontAwesome are all **vendored under `static/`**: no CDN at runtime.
 
 **`lims.css` is linked after Bootstrap and redeclares `.form-control` / `.form-select` at equal
@@ -332,9 +379,12 @@ check that lims.css does not override the property later in the cascade.
 `base.html` starts with `{% load static %}` — without it every page, login included, raises
 `TemplateSyntaxError`. `settings_prod` configures whitenoise through `STORAGES`:
 `STATICFILES_STORAGE` was **removed in Django 5.1** and had been silently inert. The manifest
-storage means a missing `{% static %}` path 500s at render, so `StaticAssetTests` renders every
-page with that storage active — run it before touching templates or assets, and run
-`collectstatic` first or it will fail on a stale manifest.
+storage means a missing `{% static %}` path 500s at render, so `StaticAssetTests` renders pages
+with that storage active — run it before touching templates or assets, and run `collectstatic`
+first or it will fail on a stale manifest. It walks a hand-maintained list, not every URL:
+`user_update`, `user_delete` and `project_lead_confirm_delete` are rendered by nothing under
+manifest storage, so a bad `{% static %}` in one of those three reaches production unnoticed.
+Add the page to `_pages()` when you add a template.
 
 Django's `{# … #}` is **single-line only**. A multi-line one is served verbatim into the HTML;
 use `{% comment %}` for anything longer, and `StaticAssetTests` asserts no template syntax leaks
@@ -350,9 +400,11 @@ and text blocks, `.nav-search-input` (replacing an inline `min-width` no media q
 reach), and `.alert-dismissible { padding-right: 3rem }` which restores the Bootstrap rule
 `.alert` was clobbering.
 
-Form controls — including the `-sm` variants — are forced to **16px below 768px**: anything
-smaller makes iOS Safari auto-zoom on focus. That is what makes `-sm` safe to use on a dense
-panel.
+`.form-control`, `.form-select` and their `-sm` variants are forced to **16px below 768px**:
+anything smaller makes iOS Safari auto-zoom on focus. That is what makes `-sm` safe on a dense
+panel. The rule has specificity (0,1,0) and does **not** reach the navbar search field, held at
+13px by `.navbar .form-control` (0,2,0) — the 991.98 block only touches its width. That one field
+still auto-zooms on an iPhone.
 
 `ops/lint_templates.py` estimates the width each unwrapped flex row demands and fails above
 336px; it runs inside `StaticAssetTests`, so the regression cannot come back quietly. It is a
@@ -394,8 +446,10 @@ matched **by id** between the current page and the parsed response. The server s
 authority on what matches: nothing is hidden client-side, which would be wrong the moment a list
 is paginated.
 
-The script equips only `form[data-live-filter]`. A form without that attribute stays a plain GET
-form no matter how many regions surround it — and a page may carry **several** regions (the
+The script equips only `form[data-live-filter]`, and hides whatever carries `data-live-submit`
+inside it — that is how the *Filter* button disappears once JS is running, and why the button
+must keep the attribute rather than be deleted from the template. A form without
+`data-live-filter` stays a plain GET form no matter how many regions surround it — and a page may carry **several** regions (the
 project page swaps both `#cases-heading` and `#cases-region`, so the result count follows the
 filter).
 
@@ -415,7 +469,9 @@ it and rebinds; without that, checkboxes keep ticking but nothing counts them.
 
 `LiveFilterTests` never executes a line of JavaScript — it would pass against an empty script.
 `core/test_e2e_livefilter.py` closes that gap: it loads the real file into jsdom against a live
-server, focuses the field and types. It skips unless node and jsdom are present:
+server, focuses the field and types. It skips unless `LIMS_JSDOM` is set, `node` is on the PATH
+and the harness file exists — the variable is the switch, so the module stays skipped even on a
+machine where jsdom is installed until you point at it:
 
 ```bash
 npm install jsdom@24          # jsdom 25+ needs Node 20; 24 works on Node 18
@@ -434,8 +490,11 @@ ambiguous once status lives on the specimen.
 from a banner on the project page that shows only the most recent batch: there is no history
 view, so an undo not taken immediately is effectively gone.
 
-Selection is ~60 lines of plain JS (select-all, shift-click range, sticky bar); without JS the
-checkboxes and submit button still work.
+Selection is ~60 lines of plain JS: select-all, shift-click range, and the sticky action bar.
+The bar is rendered `hidden` and only the script reveals it, and both menus and the Apply button
+live inside it — so **without JavaScript the checkboxes render but nothing can be submitted**.
+The graceful-degradation claim that was here before was wrong; treat bulk status as a
+JS-dependent feature.
 
 ## Exports
 
@@ -453,7 +512,10 @@ project they can open, and they can open all of them.
 
 `_cases_queryset()` carries the `select_related` / `prefetch_related` the row builders need.
 Adding a column that reaches a new relation without adding it there reopens an N+1;
-`ExportTests` measures the query count against case count and will catch it.
+`ExportTests` measures the query count against case count and will catch it. Three other tests
+hold the same line — `ProjectListingTests` on the home page, `ExportTests` on the bundle, and
+`FavoriteTests` on the favorites list — so a new relation touched from any of those templates has
+a guard already waiting.
 
 ## CSV import
 
@@ -477,8 +539,12 @@ tier recomputes on every save, affected cases dropped silently to FAIL.
 unknown status or an unparseable number is appended to `error_rows` and skipped with `continue`,
 and every row before it stays written. The page reports the counts plus an
 *Import completed with some errors* warning listing the offending row numbers. A half-applied
-file is the normal outcome of a bad row, not an exception — re-uploading the corrected file is
-safe because the import upserts, but nothing rolls back.
+file is the normal outcome of a bad row, not an exception.
+
+Re-uploading is **not** idempotent. The upsert covers the case, its coverages and its statuses,
+but the optional `source_other_comments` column — present in the shipped
+`static/csv/template_csv.csv` — creates a `Comment` on every pass with no existence check. Import
+the same file twice and every commented case carries the comment twice.
 
 ## Tests
 
@@ -510,8 +576,10 @@ where a required field is added.
 - The remote is **public**. No live data, no patient identifier, no real Biobank ID — in a
   commit, a fixture, or a screenshot.
 - `.env` is committed; only eight of its keys are read (see *Three settings modules*).
-- `/staticfiles/` is gitignored, but 133 stale files were tracked before the rule was added and
-  are still in history. Do not add more; run `collectstatic` locally instead.
+- `/staticfiles/` is gitignored, but 133 files are **tracked in HEAD right now**: `.gitignore`
+  never applies to an already-tracked path, so the rule was added after they went in and has no
+  effect on them. `git status` stays quiet while they drift out of date. Do not add more; run
+  `collectstatic` locally instead.
 - `requirements.txt` pins nothing — it is a bare list of package names. `markdown`, `weasyprint`,
   `playwright` and `jsdom` are used by `ops/` tooling and are absent from it on purpose: they are
   not needed to run the application.
@@ -519,6 +587,13 @@ where a required field is added.
   catalogs — it is convention only.
 - Comments and script output are a mix of English and French. New code follows the file it lives
   in.
+- The repository root holds V1 leftovers next to live tooling. Live: `manage.py`,
+  `gunicorn_start_robust.sh` (what the unit runs), `watchdog.sh`, `check_production.py`,
+  `test_tier_criteria.py`, `update_tier_b_criteria.py`. Superseded, kept for reference and not
+  wired to anything: `gunicorn_start.sh`, `start_production.sh`, `start_production_debug.sh`,
+  `start_lims_backend.sh`, `setup_nginx_production.sh`, `setup_letsencrypt.sh`,
+  `setup_https_ip.sh`, `debug_network.sh`, `create_viewer_users.py`. Check `ops/` and the systemd
+  units before following any of the second group.
 - Never add a `Co-Authored-By` or `Claude-Session` trailer to a commit in this repository.
 
 ## Documentation
