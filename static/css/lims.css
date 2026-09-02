@@ -567,6 +567,12 @@ h1, h2, h3, h4, h5, h6,
   /* Les champs a moins de 16 px declenchent le zoom automatique de Safari iOS
      des la mise au point, et laissent la page decalee horizontalement ensuite.
      16 px est le seuil exact au-dessous duquel iOS zoome. */
+  /* .navbar .form-control a une specificite (0,2,0) que la regle ci-dessous,
+     a (0,1,0), ne peut pas battre : le champ de recherche restait a 13 px et
+     etait le seul controle de l'application a declencher le zoom automatique
+     d'iOS. On le reprend explicitement, a specificite egale et plus tard. */
+  .navbar .form-control { font-size: 16px; }
+
   .form-control, .form-select, .form-control-sm, .form-select-sm {
     font-size: 16px;
   }

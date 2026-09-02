@@ -987,6 +987,12 @@ class StaticAssetTests(TestCase):
             reverse("case_resubmit", kwargs={"case_id": self.case.id}),
             reverse("project_lead_list"),
             reverse("project_lead_update", kwargs={"lead_id": self.lead.id}),
+            # Ajoutees apres coup : ces trois pages n'etaient rendues par aucun
+            # test sous stockage a manifeste, donc un {% static %} casse y
+            # serait passe jusqu'en production.
+            reverse("project_lead_delete", kwargs={"lead_id": self.lead.id}),
+            reverse("user_update", kwargs={"user_id": self.admin.id}),
+            reverse("user_delete", kwargs={"user_id": self.admin.id}),
             reverse("user_list"),
             reverse("user_create"),
             reverse("project_update", kwargs={"project_id": self.project.id}),
@@ -1736,3 +1742,100 @@ class SpecimenPanelTests(TestCase):
         self.client.post(reverse("case_detail", kwargs={"case_id": self.case.id}), envoi)
         for specimen in self.case.specimens.all():
             self.assertEqual(specimen.preservation, Specimen.PRESERVATION_FFPE)
+
+
+class AuditFixTests(TestCase):
+    """Les defauts trouves en auditant CLAUDE.md contre le code.
+
+    Aucun n'etait une regression : ce sont des ecarts entre ce que le systeme
+    faisait et ce qu'il etait cense faire, restes invisibles faute de test.
+    """
+
+    def setUp(self):
+        self.editor = make_editor("audit1")
+        self.project = Project.objects.create(name="P audit", created_by=self.editor)
+        self.client = Client()
+        self.client.force_login(self.editor)
+
+    # -- import CSV idempotent -------------------------------------------
+
+    def _importer(self):
+        contenu = (b"CaseID,Biobank_ID,Status,DNAT,DNAN,RNA,source_other_comments\n"
+                   b"ACC-8001,AU-900,Received,,,,Sample received from the biobank\n")
+        return self.client.post(
+            reverse("csv_case_import", kwargs={"project_id": self.project.id}),
+            {"csv_file": SimpleUploadedFile("c.csv", contenu, content_type="text/csv")},
+        )
+
+    def test_reimporting_the_same_file_does_not_stack_comments(self):
+        """Reimporter un fichier corrige est le geste normal apres une ligne refusee."""
+        self._importer()
+        self._importer()
+        case = Case.objects.get(biobank_id="AU-900")
+        self.assertEqual(case.comments.count(), 1,
+                         "le commentaire s'ajoutait a chaque passage")
+
+    def test_a_second_distinct_comment_still_lands(self):
+        """L'idempotence ne doit pas avaler un commentaire reellement different."""
+        self._importer()
+        case = Case.objects.get(biobank_id="AU-900")
+        Comment.objects.create(case=case, text="Autre remarque", user=self.editor)
+        self.assertEqual(case.comments.count(), 2)
+
+    # -- les cas prioritaires remontent partout ---------------------------
+
+    def test_priority_leads_the_global_search(self):
+        for i, prioritaire in ((1, False), (2, True)):
+            c = Case.objects.create(project=self.project, biobank_id=f"PR-{i}",
+                                    is_priority=prioritaire)
+            c.ensure_specimens()
+        page = self.client.get(reverse("case_search"), {"q": "PR-"}).content.decode()
+        self.assertLess(page.index("PR-2"), page.index("PR-1"),
+                        "le cas prioritaire doit sortir en tete")
+
+    def test_priority_leads_the_favorites_list(self):
+        for i, prioritaire in ((1, False), (2, True)):
+            c = Case.objects.create(project=self.project, biobank_id=f"FV-{i}",
+                                    is_priority=prioritaire)
+            c.ensure_specimens()
+            Favorite.objects.create(user=self.editor, case=c)
+        page = self.client.get(reverse("favorite_list")).content.decode()
+        self.assertLess(page.index("FV-2"), page.index("FV-1"))
+
+    # -- la selection en lot degrade correctement -------------------------
+
+    def test_the_bulk_bar_is_reachable_without_javascript(self):
+        """La barre porte le bouton d'envoi : `hidden` la rendait inatteignable."""
+        case = Case.objects.create(project=self.project, biobank_id="BK-1")
+        case.ensure_specimens()
+        page = self.client.get(
+            reverse("project_detail", kwargs={"project_id": self.project.id})
+        ).content.decode()
+        self.assertIn("<noscript>", page)
+        self.assertIn("#bulk-bar[hidden]", page,
+                      "sans JavaScript, rien ne devoile la barre d'envoi")
+
+    # -- l'ombre reste la seule autorisee ---------------------------------
+
+    def test_only_the_floating_bar_keeps_a_shadow(self):
+        """Bootstrap declare .shadow-sm !important : lims.css ne peut pas le battre.
+
+        La regle « bordures, jamais d'ombre au repos » ne tient donc que si le
+        gabarit ne pose pas l'utilitaire. Seule la barre de lot y a droit : elle
+        devient position:sticky, donc une couche reellement flottante.
+        """
+        racine = Path(settings.BASE_DIR) / "templates"
+        fautifs = []
+        for gabarit in racine.rglob("*.html"):
+            for num, ligne in enumerate(gabarit.read_text().split("\n"), 1):
+                if "shadow-sm" in ligne and 'id="bulk-bar"' not in ligne:
+                    fautifs.append(f"{gabarit.relative_to(racine)}:{num}")
+        self.assertEqual(fautifs, [], f"ombres au repos : {fautifs}")
+
+    # -- le zoom iOS ------------------------------------------------------
+
+    def test_the_navbar_search_does_not_trigger_ios_zoom(self):
+        """.navbar .form-control a une specificite que la regle generale ne bat pas."""
+        css = (Path(settings.BASE_DIR) / "static" / "css" / "lims.css").read_text()
+        phone = css[css.index("@media (max-width: 767.98px)"):]
+        self.assertIn(".navbar .form-control { font-size: 16px; }", phone)

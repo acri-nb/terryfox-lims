@@ -37,7 +37,7 @@ python manage.py runserver
 # Migrations — locally only. On the server, see ops/deploy.sh below.
 python manage.py makemigrations && python manage.py migrate
 
-# Tests — 144: 137 methods across 19 classes in core/tests.py, plus 7 in
+# Tests — 151: 144 methods across 20 classes in core/tests.py, plus 7 in
 # core/test_e2e_livefilter.py that skip unless node + jsdom are present.
 python manage.py test core
 python manage.py test core.tests.TierCalculationTests       # one class
@@ -146,10 +146,11 @@ and the global `/search/` view. ACC uniqueness is a DB constraint; biobank ID un
 **soft** check in `Case.find_biobank_id_conflict()` that names the conflicting case and can be
 overridden — two projects legitimately share a bare numbering space.
 
-`Case.is_priority` leads `Case.Meta.ordering` and `project_detail` restates it, so priority cases
-top **the project case list**. The pin does not survive an explicit `order_by` elsewhere:
-`/search/` sorts by ACC alone, and the favorites page comes out in the order stars were added.
-Both still show the flag without lifting the row.
+`Case.is_priority` leads `Case.Meta.ordering`, and the three views that impose their own order
+all restate it: `project_detail`, `/search/` — which matters, since it truncates at
+`SEARCH_LIMIT` and an urgent case sorted by ACC alone could fall past the cut — and the favorites
+page. Adding a list with its own `order_by` means restating it again; `Meta.ordering` will not
+carry it.
 
 `Project.kind` separates research projects from `Referred Cases`, but it is **not on
 `ProjectForm`** (`fields = ['name', 'description', 'project_lead']`): a project's kind is set at
@@ -363,10 +364,11 @@ in `base.html`. Borders rather than resting shadows; one hue per status **stage*
 semantics fixed (A green, B amber, FAIL red) with the letter always present — amber and red are
 indistinguishable under deuteranopia, so colour never carries identity alone.
 
-The no-shadow rule is the intent, not the current state: lims.css sets `box-shadow: none` on
-`.card`, but 18 cards across 13 templates still carry Bootstrap's `.shadow-sm`, which the
-vendored stylesheet declares `!important` — no lims.css rule can beat it from any position in the
-cascade. Removing the utility from the template is the only fix. IBM
+Bootstrap declares `.shadow-sm` `!important`, so no lims.css rule can beat it from any position
+in the cascade: the only way to hold the no-shadow rule is to keep the utility out of the
+templates. It survives in exactly one place, the bulk action bar, which becomes `position: sticky`
+once a case is ticked and is therefore a genuinely floating layer. `AuditFixTests` walks every
+template and fails on any other `.shadow-sm`. IBM
 Plex Sans/Mono, Bootstrap and FontAwesome are all **vendored under `static/`**: no CDN at runtime.
 
 **`lims.css` is linked after Bootstrap and redeclares `.form-control` / `.form-select` at equal
@@ -381,10 +383,10 @@ check that lims.css does not override the property later in the cascade.
 `STATICFILES_STORAGE` was **removed in Django 5.1** and had been silently inert. The manifest
 storage means a missing `{% static %}` path 500s at render, so `StaticAssetTests` renders pages
 with that storage active — run it before touching templates or assets, and run `collectstatic`
-first or it will fail on a stale manifest. It walks a hand-maintained list, not every URL:
-`user_update`, `user_delete` and `project_lead_confirm_delete` are rendered by nothing under
-manifest storage, so a bad `{% static %}` in one of those three reaches production unnoticed.
-Add the page to `_pages()` when you add a template.
+first or it will fail on a stale manifest. It walks a hand-maintained list, not every URL, so **add the page to `_pages()` when you add a
+template** — `user_update`, `user_delete` and `project_lead_delete` were rendered by nothing under
+manifest storage until they were added, and a bad `{% static %}` in any of the three would have
+reached production unnoticed.
 
 Django's `{# … #}` is **single-line only**. A multi-line one is served verbatim into the HTML;
 use `{% comment %}` for anything longer, and `StaticAssetTests` asserts no template syntax leaks
@@ -402,9 +404,10 @@ reach), and `.alert-dismissible { padding-right: 3rem }` which restores the Boot
 
 `.form-control`, `.form-select` and their `-sm` variants are forced to **16px below 768px**:
 anything smaller makes iOS Safari auto-zoom on focus. That is what makes `-sm` safe on a dense
-panel. The rule has specificity (0,1,0) and does **not** reach the navbar search field, held at
-13px by `.navbar .form-control` (0,2,0) — the 991.98 block only touches its width. That one field
-still auto-zooms on an iPhone.
+panel. The general rule has specificity (0,1,0) and could not reach the navbar search field, held at
+13px by `.navbar .form-control` (0,2,0) — the 991.98 block only touches its width, so that one
+field auto-zoomed on iPhone while every other control was safe. The phone block now restates
+`.navbar .form-control` at equal specificity and later in the file.
 
 `ops/lint_templates.py` estimates the width each unwrapped flex row demands and fails above
 336px; it runs inside `StaticAssetTests`, so the regression cannot come back quietly. It is a
@@ -491,10 +494,10 @@ from a banner on the project page that shows only the most recent batch: there i
 view, so an undo not taken immediately is effectively gone.
 
 Selection is ~60 lines of plain JS: select-all, shift-click range, and the sticky action bar.
-The bar is rendered `hidden` and only the script reveals it, and both menus and the Apply button
-live inside it — so **without JavaScript the checkboxes render but nothing can be submitted**.
-The graceful-degradation claim that was here before was wrong; treat bulk status as a
-JS-dependent feature.
+The bar keeps `hidden` in the markup so it does not flash before the end-of-page script folds it
+away — but both menus and the Apply button live inside it, so `hidden` alone made the whole
+feature unreachable without JavaScript. A `<noscript>` block overrides it in that one case, which
+is what actually makes the degradation work.
 
 ## Exports
 
@@ -541,14 +544,14 @@ and every row before it stays written. The page reports the counts plus an
 *Import completed with some errors* warning listing the offending row numbers. A half-applied
 file is the normal outcome of a bad row, not an exception.
 
-Re-uploading is **not** idempotent. The upsert covers the case, its coverages and its statuses,
-but the optional `source_other_comments` column — present in the shipped
-`static/csv/template_csv.csv` — creates a `Comment` on every pass with no existence check. Import
-the same file twice and every commented case carries the comment twice.
+Re-uploading is idempotent, including for comments. The optional `source_other_comments` column
+goes through `get_or_create` on (case, text): it used to `create` unconditionally, so importing a
+corrected file — the normal move after a rejected row — stacked the same comment again on every
+pass.
 
 ## Tests
 
-144 tests in 19 classes plus the jsdom module. Two module-level helpers hold the suite together
+151 tests in 20 classes plus the jsdom module. Two module-level helpers hold the suite together
 and are worth knowing before adding a class:
 
 - `make_editor(username)` creates a user in the `editor` group with its permissions granted

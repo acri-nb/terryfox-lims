@@ -200,7 +200,7 @@ n'aurait rien a remettre en place.
     {% csrf_token %}
     <input type="hidden" name="next" value="{{ request.get_full_path }}">
 
-    <div class="card shadow-sm mb-3">
+    <div class="card mb-3">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0" id="case-table">
                 <thead class="table-light">
@@ -283,9 +283,22 @@ n'aurait rien a remettre en place.
     </div>
 
     {% if can_edit %}
-    <!-- Barre d'action. Elle reste dans le flux et fonctionne SANS JavaScript :
-         des cases a cocher et un bouton d'envoi sont du HTML natif. Le script
-         ne fait que la rendre collante et afficher le compte. -->
+    {% comment %}
+    La barre porte `hidden` pour ne pas apparaitre une fraction de seconde avant
+    que le script ne la replie : le script est en fin de page, et la reveler par
+    defaut produirait un clignotement a chaque chargement.
+
+    Mais elle contient les deux menus ET le bouton d'envoi. Sans JavaScript,
+    `hidden` la rendait donc definitivement inatteignable : les cases se
+    cochaient, et rien ne pouvait etre soumis. Le <noscript> ci-dessous la
+    devoile dans ce seul cas, ce qui rend la fonctionnalite reellement
+    degradable -- ce que le commentaire precedent affirmait a tort.
+
+    L'ombre est la seule conservee dans l'application : cette barre devient
+    position:sticky des qu'une case est cochee, donc une couche reellement
+    flottante, ce que la regle « bordures, jamais d'ombre au repos » autorise.
+    {% endcomment %}
+    <noscript><style>#bulk-bar[hidden] { display: block !important; }</style></noscript>
     <div class="card shadow-sm mb-4" id="bulk-bar" hidden>
         <div class="card-body py-2">
             <div class="row g-2 align-items-end">

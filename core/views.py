@@ -136,7 +136,10 @@ def case_search(request):
             Case.objects
             .filter(Q(name__icontains=query) | Q(biobank_id__icontains=query))
             .select_related('project')
-            .order_by('name')
+            # '-is_priority' d'abord : la recherche tronque a SEARCH_LIMIT, et
+            # trier sur le seul ACC pouvait faire tomber un cas urgent hors
+            # de la fenetre rendue.
+            .order_by('-is_priority', 'name')
         )
         total = matches.count()
         results = matches[:SEARCH_LIMIT]
@@ -423,7 +426,11 @@ def favorite_list(request):
     favoris = (Favorite.objects
                .filter(user=request.user)
                .select_related('case', 'case__project', 'case__project__project_lead')
-               .prefetch_related('case__specimens'))
+               .prefetch_related('case__specimens')
+               # Favorite.Meta ordonne par date d'ajout ; on reprend la main pour
+               # que les cas prioritaires remontent ici comme ailleurs, l'ordre
+               # d'ajout ne departageant que le reste.
+               .order_by('-case__is_priority', '-created_at'))
 
     # Une tentative archivee ou un cas supprime restent dans la liste mais sont
     # signales : les faire disparaitre sans un mot laisserait croire que le
@@ -989,13 +996,16 @@ def csv_case_import(request, project_id):
 
                     case.sync_from_specimens()
 
-                    # Add comment if source_other_comments is provided
+                    # get_or_create et non create : reimporter un fichier corrige
+                    # est le geste normal apres une ligne refusee, et un create
+                    # ajoutait le meme commentaire a chaque passage. Le cas, ses
+                    # couvertures et ses statuts etaient deja idempotents ; les
+                    # commentaires etaient la seule chose qui s'empilait.
                     if source_comment:
-                        # Store only the comment text, timestamp and user info are handled by the model
-                        Comment.objects.create(
+                        Comment.objects.get_or_create(
                             case=case,
                             text=source_comment,
-                            user=request.user
+                            defaults={'user': request.user},
                         )
                 
                 # Show success message with counts
