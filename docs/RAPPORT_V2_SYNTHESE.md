@@ -264,8 +264,8 @@ cas signifiaient le plus souvent « ARN encore en attente », mais l'établir ca
 demande le jugement de la biobanque. Ils sont marqués, filtrables, et l'outil de changement
 en lot existe précisément pour les traiter par paquets.
 
-**Un choix de portée à confirmer.** L'import CSV ne transporte ni l'auteur de la saisie ni
-le mode de conservation : son en-tête est un contrat avec les fichiers déjà en circulation,
-et l'élargir les rendrait invalides. Les cas importés par ce chemin resteront donc sans
-auteur et en « non renseigné ». Ajouter deux colonnes facultatives est faisable si l'usage
-le demande.
+**Un choix de portée à confirmer.** L'import CSV enregistre bien l'auteur de la saisie, comme
+les trois autres chemins de création. En revanche il ne transporte pas le mode de
+conservation : son en-tête est un contrat avec les fichiers déjà en circulation, et
+l'élargir les rendrait invalides. Les cas importés par ce chemin resteront donc en « non
+renseigné ». Ajouter une colonne facultative est faisable si l'usage le demande.
