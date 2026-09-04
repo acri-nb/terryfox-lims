@@ -312,7 +312,13 @@ without it — `status.sh` included, read-only though it is, because the databas
 belong to root. The Python ones test nothing: `python3 ops/selftest.py` runs fine as your own
 user, which is why the Commands block above shows it without `sudo`.
 
-`deploy.sh` runs **seven** steps: it stops the watchdog (which otherwise restarts the service
+`deploy.sh` opens by asserting that **systemd answers at all** (`assert_systemd_ok`). Every step
+drives units, and `systemctl is-active` exits non-zero for two unrelated reasons — the unit is
+inactive, or the manager is unreachable. Conflating them once made step 1 announce *"watchdog
+already inactive"* while it may well have been running. The manager is now checked once,
+plainly, and step 1 reads the state string rather than trusting an exit code.
+
+`deploy.sh` then runs **seven** steps: it stops the watchdog (which otherwise restarts the service
 mid-migration), takes a verified labelled backup, freezes invariants, **stops the service** and
 refuses to continue while any `wsgi_prod` worker still holds the database, runs `migrate` *and*
 `collectstatic`, re-compares invariants, then restarts and verifies that the app answers. A

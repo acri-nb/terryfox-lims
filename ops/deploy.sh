@@ -53,13 +53,27 @@ trap cleanup EXIT
 
 # ---------------------------------------------------------------- 1
 say "1/7  Neutralisation du watchdog"
-if systemctl is-active --quiet "$WATCHDOG"; then
-  WATCHDOG_WAS_ACTIVE=1
-  systemctl stop "$WATCHDOG"
-  ok "$WATCHDOG arrete (il redemarre le service toutes les 5 min)"
-else
-  ok "$WATCHDOG deja inactif"
-fi
+assert_systemd_ok
+
+# On lit l'etat, on ne se contente pas du code de sortie : `is-active` sort en
+# erreur AUSSI BIEN pour une unite inactive que pour un systemd injoignable, et
+# les confondre faisait annoncer « deja inactif » alors que le watchdog pouvait
+# tourner encore. Une garantie qu'on ne peut pas verifier n'en est pas une.
+WATCHDOG_ETAT="$(systemctl is-active "$WATCHDOG" 2>/dev/null || true)"
+case "$WATCHDOG_ETAT" in
+  active)
+    WATCHDOG_WAS_ACTIVE=1
+    systemctl stop "$WATCHDOG" || die "$WATCHDOG ne s'arrete pas"
+    ok "$WATCHDOG arrete (il redemarre le service toutes les 5 min)"
+    ;;
+  inactive|failed|dead)
+    ok "$WATCHDOG deja inactif"
+    ;;
+  *)
+    die "etat de $WATCHDOG indeterminable (« ${WATCHDOG_ETAT:-aucune reponse} ») :
+       on ne migre pas sans savoir si le watchdog peut relancer le service."
+    ;;
+esac
 
 # ---------------------------------------------------------------- 2
 say "2/7  Point de restauration"

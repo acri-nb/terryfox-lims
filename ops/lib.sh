@@ -37,6 +37,28 @@ lims_writer_pids() {
     | grep -vx -e "$$" -e "${PPID:-0}" || true
 }
 
+# Echoue si systemd ne repond pas.
+#
+# Tout ce script pilote des unites : si le gestionnaire ne repond plus, chaque
+# `systemctl` sort en erreur, et une erreur de `is-active` est indiscernable
+# d'une unite inactive. On le constate donc UNE fois, franchement, plutot que
+# de laisser chaque etape l'interpreter a sa facon.
+assert_systemd_ok() {
+  local etat
+  etat="$(timeout 15 systemctl is-system-running 2>&1 || true)"
+  case "$etat" in
+    running|degraded|maintenance|starting|stopping|initializing)
+      return 0 ;;
+    *)
+      echo "   systemctl is-system-running -> ${etat:-aucune reponse}" >&2
+      die "systemd ne repond pas : impossible d'arreter ou de redemarrer quoi que ce soit.
+       L'application n'est pas en cause et continue de servir. Essayer, dans l'ordre :
+         sudo systemctl daemon-reexec
+         sudo kill -SIGRTMIN+25 1      # re-execution par signal, sans passer par D-Bus
+       puis relancer ce deploiement. Un redemarrage de la machine regle le cas restant." ;;
+  esac
+}
+
 # Echoue si un ecrivain touche encore la base.
 assert_no_writers() {
   local pids
