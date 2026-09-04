@@ -190,6 +190,19 @@ def project_detail(request, project_id):
 
         if filter_form.cleaned_data.get('to_classify'):
             cases = cases.filter(specimens__status=statuses.UNKNOWN_LEGACY).distinct()
+
+        # « Il manque un consentement » vise le CAS des qu'UN specimen n'est pas
+        # consenti : c'est ce qu'on cherche quand on releve ce qui reste a
+        # obtenir. Un filtre exigeant que tous soient non consentis raterait le
+        # cas a moitie couvert, qui est justement celui qui demande une action.
+        if filter_form.cleaned_data.get('not_consented'):
+            cases = cases.filter(specimens__consented_generation_all=False).distinct()
+
+        rendu = filter_form.cleaned_data.get('report_returned')
+        if rendu == 'yes':
+            cases = cases.filter(report_returned=True)
+        elif rendu == 'no':
+            cases = cases.filter(report_returned=False)
     
     # Les compteurs affiches sur chaque carte ({{ case.accessions.count }} et
     # {{ case.comments.count }}) declenchaient une requete chacun, par cas :
@@ -687,6 +700,7 @@ def case_create(request, project_id):
             case.ensure_specimens(
                 form.cleaned_data.get('specimen_types'),
                 preservation=form.cleaned_data.get('preservation'),
+                consented=form.cleaned_data.get('consented_generation_all'),
             )
             messages.success(
                 request,
@@ -737,6 +751,7 @@ def batch_case_create(request, project_id):
                         form.cleaned_data['specimen_types'],
                         status=form.cleaned_data['status'],
                         preservation=form.cleaned_data['preservation'],
+                        consented=form.cleaned_data['consented_generation_all'],
                     )
                     cases.append(case)
 

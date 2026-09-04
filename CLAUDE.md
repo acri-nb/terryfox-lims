@@ -37,7 +37,7 @@ python manage.py runserver
 # Migrations — locally only. On the server, see ops/deploy.sh below.
 python manage.py makemigrations && python manage.py migrate
 
-# Tests — 151: 144 methods across 20 classes in core/tests.py, plus 7 in
+# Tests — 168: 161 methods across 21 classes in core/tests.py, plus 7 in
 # core/test_e2e_livefilter.py that skip unless node + jsdom are present.
 python manage.py test core
 python manage.py test core.tests.TierCalculationTests       # one class
@@ -203,6 +203,34 @@ the same sample.
 
 Preservation is the one field the CSV import does not carry: its header is a contract with files
 already in circulation, so imported cases get `Not recorded`.
+
+### Consent and report return
+
+Two flags asked for after V2 shipped, deliberately at two different levels.
+
+`Specimen.consented_generation_all` answers *"Has this sample been consented to Generation All?"*
+It sits on the **specimen** because that is what a consent covers, and it is a plain
+`BooleanField(default=False)` rather than the tri-state used for preservation: for a consent,
+"not recorded yet" and "no" must behave identically, and a sample whose status is unknown must
+never be treated as consented. Intake asks once and applies it to every specimen of the case —
+the three come from one patient under one form — and the per-specimen panel corrects the odd one.
+The expected workflow is retroactive: cases are created unconsented and ticked when the consent
+arrives, which is what the *Consent missing* filter is for. That filter matches a case as soon as
+**one** specimen is unconsented, because a half-covered case is exactly the one needing action.
+
+`Case.report_returned` records that the report went back to the patient. It sits on the **case**:
+there is one report per patient however many specimens were sequenced. `Case.save()` stamps
+`report_returned_at` when the flag goes up and **clears it when the flag goes down** — a return
+date on a report that was never returned is a false audit trail, worse than none. The field is
+`editable=False` and never typed; the form drops `report_returned` entirely at creation, since no
+report can have been returned for a case that does not exist yet.
+
+A `carry_forward` specimen keeps its consent through a resubmit — physically the same sample — but
+a freshly collected one starts unconsented, and the new attempt starts with no report returned.
+
+In `cases.csv` the case-level consent column reads `yes` / `no` / `partial`: flattening a case
+whose specimens disagree into a boolean would publish a wrong number. The per-specimen blocks and
+`specimens.csv` carry the plain yes/no.
 
 ### Resubmit
 
@@ -551,7 +579,7 @@ pass.
 
 ## Tests
 
-151 tests in 20 classes plus the jsdom module. Two module-level helpers hold the suite together
+168 tests in 21 classes plus the jsdom module. Two module-level helpers hold the suite together
 and are worth knowing before adding a class:
 
 - `make_editor(username)` creates a user in the `editor` group with its permissions granted

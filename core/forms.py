@@ -49,13 +49,14 @@ class CaseForm(forms.ModelForm):
 
     class Meta:
         model = Case
-        fields = ['biobank_id', 'is_priority']
+        fields = ['biobank_id', 'is_priority', 'report_returned']
         widgets = {
             'biobank_id': forms.TextInput(attrs={
                 'class': 'form-control', 'placeholder': 'e.g. N-BBN 440',
                 'autocomplete': 'off', 'autocapitalize': 'off', 'spellcheck': 'false',
             }),
             'is_priority': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'report_returned': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
         help_texts = {
             'biobank_id': _('The identifier the biobank uses. This is what people search by.'),
@@ -87,6 +88,15 @@ class CaseForm(forms.ModelForm):
         help_text=_('Applies to every specimen of this case.'),
     )
 
+    #: Une seule case a la saisie, appliquee aux specimens du cas : les trois
+    #: proviennent du meme patient sous le meme formulaire de consentement. Le
+    #: panneau par specimen permet de corriger celui qui differe.
+    consented_generation_all = forms.BooleanField(
+        required=False,
+        label=_('Has this sample been consented to Generation All?'),
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
+
     # Case a cocher posee par le bouton "Create anyway" : elle permet de passer
     # outre le controle souple de doublon de Biobank ID.
     confirm_duplicate = forms.BooleanField(required=False, widget=forms.HiddenInput)
@@ -103,6 +113,11 @@ class CaseForm(forms.ModelForm):
             # le Biobank ID et le drapeau prioritaire d'un cas existant ; y
             # laisser un champ obligatoire le rendrait invalide.
             self.fields.pop('preservation', None)
+            self.fields.pop('consented_generation_all', None)
+        else:
+            # A la creation, aucun rapport n'a pu etre rendu : le proposer
+            # inviterait a cocher une case qui ne peut pas etre vraie.
+            self.fields.pop('report_returned', None)
 
     def clean_biobank_id(self):
         """Controle souple : nomme le cas en conflit plutot que de bloquer.
@@ -235,6 +250,15 @@ class BatchCaseForm(forms.Form):
         required=True,
         widget=forms.Select(attrs={'class': 'form-select'}),
         help_text=_('Applies to every specimen of every case in this batch.'),
+    )
+
+    #: Une seule case a la saisie, appliquee aux specimens du cas : les trois
+    #: proviennent du meme patient sous le meme formulaire de consentement. Le
+    #: panneau par specimen permet de corriger celui qui differe.
+    consented_generation_all = forms.BooleanField(
+        required=False,
+        label=_('Every sample in this batch is consented to Generation All'),
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
     )
 
     is_priority = forms.BooleanField(
@@ -421,6 +445,19 @@ class CaseFilterForm(forms.Form):
         required=False,
         label=_('Needs classification'),
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
+    #: Sans filtre, un drapeau qu'on ajoute apres coup est illisible : on ne
+    #: peut pas retrouver les cas qui l'attendent encore.
+    not_consented = forms.BooleanField(
+        required=False,
+        label=_('Consent missing'),
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
+    report_returned = forms.ChoiceField(
+        choices=[('', _('Report: any')), ('yes', _('Report returned')),
+                 ('no', _('Report not returned'))],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
     )
 
 class UserCreateForm(forms.ModelForm):
@@ -665,7 +702,8 @@ class SpecimenForm(forms.ModelForm):
 
     class Meta:
         model = Specimen
-        fields = ['status', 'preservation', 'coverage', 'external_id']
+        fields = ['status', 'preservation', 'consented_generation_all',
+                  'coverage', 'external_id']
         widgets = {
             'coverage': forms.NumberInput(attrs={
                 'class': 'form-control form-control-sm', 'step': '0.01'}),
@@ -687,6 +725,7 @@ class SpecimenForm(forms.ModelForm):
         # a 16 px sous 768 px, ce qui evite le zoom automatique d'iOS.
         self.fields['status'].widget.attrs['class'] = 'form-select form-select-sm'
         self.fields['preservation'].widget.attrs['class'] = 'form-select form-select-sm'
+        self.fields['consented_generation_all'].widget.attrs['class'] = 'form-check-input'
 
         # Les statuts de transition ne sont pas proposes... sauf si le specimen
         # en porte deja un, sinon le formulaire refuserait sa propre valeur.

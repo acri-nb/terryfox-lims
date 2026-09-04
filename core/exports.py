@@ -37,14 +37,15 @@ ENTETE_CAS = (
     ['ACC', 'Attempt', 'Biobank_ID', 'Project', 'Project_Lead', 'Priority',
      'Case_Status', 'Tier']
     + [f'{nom}_{champ}' for _t, nom, unite in BLOCS
-       for champ in ('Status', 'Preservation', f'Coverage_{unite}')]
-    + ['Specimens_To_Classify', 'Comments', 'Created', 'Created_By', 'Updated']
+       for champ in ('Status', 'Preservation', 'Consent', f'Coverage_{unite}')]
+    + ['Specimens_To_Classify', 'Consent_Generation_All', 'Report_Returned',
+       'Report_Returned_On', 'Comments', 'Created', 'Created_By', 'Updated']
 )
 
 ENTETE_SPECIMENS = [
     'ACC', 'Attempt', 'Biobank_ID', 'Project', 'Specimen_Type', 'Status',
-    'Stage', 'Preservation', 'Coverage', 'Unit', 'Sequencing_Centre_ID',
-    'Updated',
+    'Stage', 'Preservation', 'Consent_Generation_All', 'Coverage', 'Unit',
+    'Sequencing_Centre_ID', 'Updated',
 ]
 
 ENTETE_COMMENTAIRES = ['ACC', 'Attempt', 'Project', 'Author', 'Created', 'Comment']
@@ -86,15 +87,26 @@ def ligne_cas(case):
             # Colonnes vides plutot qu'absentes : l'en-tete doit rester
             # identique d'un projet a l'autre, sinon les fichiers ne
             # s'empilent plus. P10 n'a pas de specimen d'ARN.
-            ligne += ['not collected', '', '']
+            ligne += ['not collected', '', '', '']
         else:
             ligne += [
                 statuses.LABEL_OF.get(specimen.status, specimen.status),
                 specimen.get_preservation_display(),
+                'yes' if specimen.consented_generation_all else 'no',
                 '' if specimen.coverage is None else specimen.coverage,
             ]
+    specimens = list(case.specimens.all())
     ligne += [
-        sum(1 for s in case.specimens.all() if s.needs_classification),
+        sum(1 for s in specimens if s.needs_classification),
+        # « partial » plutot qu'un booleen : un cas dont deux specimens sur
+        # trois sont consentis n'est ni consenti ni non consenti, et l'aplatir
+        # dans l'un des deux ferait publier un chiffre faux.
+        ('' if not specimens else
+         'yes' if all(s.consented_generation_all for s in specimens) else
+         'no' if not any(s.consented_generation_all for s in specimens) else
+         'partial'),
+        'yes' if case.report_returned else 'no',
+        _date(case.report_returned_at) if case.report_returned_at else '',
         len(case.comments.all()),
         _date(case.created_at),
         # Vide pour les cas anterieurs a la v2 : ils n'ont pas de createur, et
@@ -128,6 +140,7 @@ def ecrire_specimens(flux, project=None):
                 statuses.LABEL_OF.get(specimen.status, specimen.status),
                 etapes.get(statuses.STAGE_OF.get(specimen.status), ''),
                 specimen.get_preservation_display(),
+                'yes' if specimen.consented_generation_all else 'no',
                 '' if specimen.coverage is None else specimen.coverage,
                 specimen.unit,
                 specimen.external_id or '',

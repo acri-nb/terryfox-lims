@@ -1839,3 +1839,198 @@ class AuditFixTests(TestCase):
         css = (Path(settings.BASE_DIR) / "static" / "css" / "lims.css").read_text()
         phone = css[css.index("@media (max-width: 767.98px)"):]
         self.assertIn(".navbar .form-control { font-size: 16px; }", phone)
+
+
+class ConsentAndReportTests(TestCase):
+    """Consentement Generation All (par specimen) et rapport rendu (par cas).
+
+    Deux niveaux differents, deliberement : le consentement porte sur un
+    prelevement, le rapport sur un patient. Il n'y a qu'un rapport par cas quel
+    que soit le nombre de specimens sequences.
+    """
+
+    def setUp(self):
+        self.editor = make_editor("consent1")
+        self.project = Project.objects.create(name="P consent", created_by=self.editor)
+        self.client = Client()
+        self.client.force_login(self.editor)
+
+    # -- consentement : saisie ---------------------------------------------
+
+    def test_the_intake_checkbox_consents_every_specimen(self):
+        self.client.post(
+            reverse("case_create", kwargs={"project_id": self.project.id}),
+            envoi_creation(biobank_id="CN-001", consented_generation_all="on"),
+        )
+        case = Case.objects.get(biobank_id="CN-001")
+        self.assertEqual(case.specimens.count(), 3)
+        for specimen in case.specimens.all():
+            self.assertTrue(specimen.consented_generation_all)
+
+    def test_leaving_it_unticked_means_not_consented(self):
+        """L'absence de reponse ne doit jamais valoir consentement."""
+        self.client.post(
+            reverse("case_create", kwargs={"project_id": self.project.id}),
+            envoi_creation(biobank_id="CN-002"),
+        )
+        case = Case.objects.get(biobank_id="CN-002")
+        for specimen in case.specimens.all():
+            self.assertFalse(specimen.consented_generation_all)
+
+    def test_a_batch_consents_every_case(self):
+        self.client.post(
+            reverse("batch_case_create", kwargs={"project_id": self.project.id}),
+            envoi_creation(biobank_ids="CN-010\nCN-011", status=statuses.CASE_CREATED,
+                           consented_generation_all="on"),
+        )
+        specimens = Specimen.objects.filter(case__biobank_id__startswith="CN-01")
+        self.assertEqual(specimens.count(), 6)
+        self.assertTrue(all(s.consented_generation_all for s in specimens))
+
+    def test_existing_specimens_can_be_consented_afterwards(self):
+        """Le cas d'usage principal : le consentement arrive apres coup."""
+        case = Case.objects.create(project=self.project, biobank_id="CN-020")
+        case.ensure_specimens()
+        self.assertFalse(any(s.consented_generation_all for s in case.specimens.all()))
+        for specimen in case.specimens.all():
+            specimen.consented_generation_all = True
+            specimen.save()
+        self.assertTrue(all(s.consented_generation_all for s in case.specimens.all()))
+
+    def test_one_specimen_can_differ(self):
+        case = Case.objects.create(project=self.project, biobank_id="CN-030")
+        case.ensure_specimens(consented=True)
+        normal = case.specimens.get(specimen_type=Specimen.TYPE_NORMAL_DNA)
+        normal.consented_generation_all = False
+        normal.save()
+        self.assertFalse(case.specimens.get(pk=normal.pk).consented_generation_all)
+        self.assertTrue(case.specimens.get(
+            specimen_type=Specimen.TYPE_TUMOUR_DNA).consented_generation_all)
+
+    def test_a_carried_forward_specimen_stays_consented(self):
+        """Le consentement porte sur le prelevement, pas sur la tentative."""
+        case = Case.objects.create(project=self.project, biobank_id="CN-040")
+        case.ensure_specimens(consented=True)
+        suivant = case.resubmit(user=self.editor,
+                                carry_forward=[Specimen.TYPE_NORMAL_DNA])
+        repris = suivant.specimens.get(specimen_type=Specimen.TYPE_NORMAL_DNA)
+        self.assertTrue(repris.consented_generation_all)
+        neuf = suivant.specimens.get(specimen_type=Specimen.TYPE_TUMOUR_DNA)
+        self.assertFalse(neuf.consented_generation_all,
+                         "un nouveau prelevement n'herite pas du consentement")
+
+    # -- consentement : affichage et filtre ---------------------------------
+
+    def test_the_case_page_shows_each_specimen_consent(self):
+        case = Case.objects.create(project=self.project, biobank_id="CN-050")
+        case.ensure_specimens(consented=True)
+        page = self.client.get(
+            reverse("case_detail", kwargs={"case_id": case.id})).content.decode()
+        self.assertIn("Generation All", page)
+
+    def test_a_missing_consent_says_so_rather_than_showing_a_blank(self):
+        case = Case.objects.create(project=self.project, biobank_id="CN-060")
+        case.ensure_specimens()
+        page = self.client.get(
+            reverse("case_detail", kwargs={"case_id": case.id})).content.decode()
+        self.assertIn("Not consented", page)
+
+    def test_the_filter_finds_cases_still_missing_a_consent(self):
+        """Un cas partiellement consenti doit remonter : c'est lui qui demande une action."""
+        complet = Case.objects.create(project=self.project, biobank_id="CN-070")
+        complet.ensure_specimens(consented=True)
+        partiel = Case.objects.create(project=self.project, biobank_id="CN-071")
+        partiel.ensure_specimens(consented=True)
+        manquant = partiel.specimens.first()
+        manquant.consented_generation_all = False
+        manquant.save()
+
+        page = self.client.get(
+            reverse("project_detail", kwargs={"project_id": self.project.id}),
+            {"not_consented": "on"}).content.decode()
+        self.assertIn("CN-071", page)
+        self.assertNotIn("CN-070", page)
+
+    # -- rapport rendu ------------------------------------------------------
+
+    def test_ticking_the_report_stamps_the_date(self):
+        case = Case.objects.create(project=self.project, biobank_id="RR-001")
+        self.assertIsNone(case.report_returned_at)
+        case.report_returned = True
+        case.save()
+        self.assertIsNotNone(case.report_returned_at)
+
+    def test_unticking_it_clears_the_date(self):
+        """Une date de remise sur un rapport jamais rendu est pire qu'aucune date."""
+        case = Case.objects.create(project=self.project, biobank_id="RR-002",
+                                   report_returned=True)
+        self.assertIsNotNone(case.report_returned_at)
+        case.report_returned = False
+        case.save()
+        self.assertIsNone(case.report_returned_at)
+
+    def test_the_date_does_not_move_on_a_later_save(self):
+        case = Case.objects.create(project=self.project, biobank_id="RR-003",
+                                   report_returned=True)
+        pose = case.report_returned_at
+        case.biobank_id = "RR-003b"
+        case.save()
+        self.assertEqual(case.report_returned_at, pose)
+
+    def test_it_is_not_offered_at_creation(self):
+        """Aucun rapport n'a pu etre rendu sur un cas qui n'existe pas encore."""
+        self.assertNotIn("report_returned", CaseForm().fields)
+        case = Case.objects.create(project=self.project, biobank_id="RR-004")
+        self.assertIn("report_returned", CaseForm(instance=case).fields)
+
+    def test_the_case_page_announces_a_returned_report(self):
+        case = Case.objects.create(project=self.project, biobank_id="RR-005",
+                                   report_returned=True)
+        case.ensure_specimens()
+        page = self.client.get(
+            reverse("case_detail", kwargs={"case_id": case.id})).content.decode()
+        self.assertIn("Report returned", page)
+
+    def test_the_filter_separates_returned_from_pending(self):
+        rendu = Case.objects.create(project=self.project, biobank_id="RR-010",
+                                    report_returned=True)
+        attente = Case.objects.create(project=self.project, biobank_id="RR-011")
+        for c in (rendu, attente):
+            c.ensure_specimens()
+        url = reverse("project_detail", kwargs={"project_id": self.project.id})
+        page = self.client.get(url, {"report_returned": "no"}).content.decode()
+        self.assertIn("RR-011", page)
+        self.assertNotIn("RR-010", page)
+        page = self.client.get(url, {"report_returned": "yes"}).content.decode()
+        self.assertIn("RR-010", page)
+        self.assertNotIn("RR-011", page)
+
+    # -- exports ------------------------------------------------------------
+
+    def test_the_exports_carry_both_flags(self):
+        case = Case.objects.create(project=self.project, biobank_id="EX-001",
+                                   report_returned=True)
+        case.ensure_specimens(consented=True)
+        texte = self.client.get(
+            reverse("csv_case_export", kwargs={"project_id": self.project.id})
+        ).content.decode()
+        lignes = list(csv.reader(io.StringIO(texte)))
+        for colonne, attendu in (("Consent_Generation_All", "yes"),
+                                 ("Report_Returned", "yes"),
+                                 ("Tumour_DNA_Consent", "yes")):
+            self.assertIn(colonne, lignes[0])
+            self.assertEqual(lignes[1][lignes[0].index(colonne)], attendu)
+        self.assertNotEqual(lignes[1][lignes[0].index("Report_Returned_On")], "")
+
+    def test_a_partly_consented_case_exports_as_partial(self):
+        """Aplatir en oui/non ferait publier un chiffre faux."""
+        case = Case.objects.create(project=self.project, biobank_id="EX-002")
+        case.ensure_specimens(consented=True)
+        s = case.specimens.first()
+        s.consented_generation_all = False
+        s.save()
+        texte = self.client.get(
+            reverse("csv_case_export", kwargs={"project_id": self.project.id})
+        ).content.decode()
+        lignes = list(csv.reader(io.StringIO(texte)))
+        self.assertEqual(lignes[1][lignes[0].index("Consent_Generation_All")], "partial")

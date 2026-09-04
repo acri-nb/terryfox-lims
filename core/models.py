@@ -278,6 +278,21 @@ class Case(SoftDeleteModel):
         help_text=_('Flags a patient whose prognosis makes this urgent.'),
     )
 
+    # Le rapport a-t-il ete rendu au patient ? Porte par le CAS et non par le
+    # specimen : il n'y a qu'un rapport par patient, quel que soit le nombre de
+    # specimens sequences.
+    report_returned = models.BooleanField(
+        default=False, db_index=True, verbose_name=_('Report returned'),
+        help_text=_('The report has been returned to the patient.'),
+    )
+    # Horodate par save(), jamais saisi. Personne ne veut retaper une date, mais
+    # « quand » est la premiere question posee apres « est-ce fait », et une
+    # remise de resultats est un acte qui se date.
+    report_returned_at = models.DateTimeField(
+        null=True, blank=True, editable=False,
+        verbose_name=_('Report returned on'),
+    )
+
     tier = models.CharField(max_length=4, choices=TIER_CHOICES, default=TIER_A)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -297,6 +312,15 @@ class Case(SoftDeleteModel):
         # rateraient l'un des deux.
         if self.biobank_id is not None:
             self.biobank_id = self.biobank_id.strip() or None
+
+        # La date de remise suit le drapeau, dans les deux sens : cocher pose
+        # l'horodatage, decocher l'efface. Sans le second, decocher une case
+        # posee par erreur laisserait une date de remise sur un rapport jamais
+        # rendu -- une trace d'audit fausse est pire qu'absente.
+        if self.report_returned and self.report_returned_at is None:
+            self.report_returned_at = timezone.now()
+        elif not self.report_returned:
+            self.report_returned_at = None
 
         self.tier = self.calculate_tier()
         super().save(*args, **kwargs)
@@ -326,7 +350,8 @@ class Case(SoftDeleteModel):
             'updated_at',
         ])
 
-    def ensure_specimens(self, types=None, status=None, preservation=None):
+    def ensure_specimens(self, types=None, status=None, preservation=None,
+                         consented=None):
         """Cree les specimens manquants pour ce cas. Ne touche pas aux existants.
 
         `types` par defaut : les trois. Un cas n'est jamais FORCE a trois pour
@@ -344,6 +369,7 @@ class Case(SoftDeleteModel):
                     specimen_type=specimen_type,
                     status=status or statuses.DEFAULT,
                     preservation=preservation or Specimen.PRESERVATION_UNKNOWN,
+                    consented_generation_all=bool(consented),
                     coverage=getattr(self, Specimen.MIRROR_FIELD[specimen_type]),
                 ))
         if crees:
@@ -396,7 +422,8 @@ class Case(SoftDeleteModel):
             # physiquement les MEMES echantillons, dont le mode de conservation
             # ne change pas parce qu'on relance un sequencage.
             repris = {
-                s.specimen_type: (s.coverage, s.status, s.external_id, s.preservation)
+                s.specimen_type: (s.coverage, s.status, s.external_id,
+                                  s.preservation, s.consented_generation_all)
                 for s in self.specimens.all()
                 if s.specimen_type in carry_forward
             }
@@ -420,11 +447,16 @@ class Case(SoftDeleteModel):
 
             for specimen in suivant.specimens.all():
                 if specimen.specimen_type in repris:
-                    couverture, statut, externe, conservation = repris[specimen.specimen_type]
+                    (couverture, statut, externe,
+                     conservation, consenti) = repris[specimen.specimen_type]
                     specimen.coverage = couverture
                     specimen.status = statut
                     specimen.external_id = externe
                     specimen.preservation = conservation
+                    # Le consentement porte sur le prelevement, pas sur la
+                    # tentative de sequencage : un specimen reporte est
+                    # physiquement le meme et reste consenti.
+                    specimen.consented_generation_all = consenti
                     specimen.save()
 
             suivant.sync_from_specimens()
@@ -687,6 +719,16 @@ class Specimen(models.Model):
     preservation = models.CharField(
         max_length=16, choices=PRESERVATION_CHOICES, default=PRESERVATION_UNKNOWN,
         verbose_name=_('Preservation'),
+    )
+
+    # Booleen et non tri-etat, contrairement a preservation : pour un
+    # consentement, « pas encore enregistre » et « non » doivent se comporter
+    # pareil. Un specimen dont on ignore le statut ne doit jamais etre traite
+    # comme consenti, donc l'absence vaut refus et le defaut est False.
+    consented_generation_all = models.BooleanField(
+        default=False, db_index=True,
+        verbose_name=_('Consented to Generation All'),
+        help_text=_('Has this sample been consented to Generation All?'),
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

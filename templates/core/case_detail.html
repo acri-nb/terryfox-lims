@@ -84,7 +84,17 @@
                         <p class="mb-2"><strong>Tier:</strong>
                             <span class="badge badge-{{ case.tier }}">{{ case.tier }}</span>
                             <small class="text-muted">derived from coverage</small></p>
-                        <p class="mb-2"><strong>Created:</strong> {{ case.created_at|date:"F d, Y" }}
+                        {% if case.report_returned %}
+                    <p class="mb-2">
+                        <span class="badge bg-success">
+                            <i class="fas fa-file-medical me-1"></i> Report returned
+                        </span>
+                        {% if case.report_returned_at %}
+                        <small class="text-muted ms-1">{{ case.report_returned_at|date:"F d, Y" }}</small>
+                        {% endif %}
+                    </p>
+                    {% endif %}
+                    <p class="mb-2"><strong>Created:</strong> {{ case.created_at|date:"F d, Y" }}
                             {% comment %}
                             Les cas anterieurs a la v2 n'ont pas de createur. On
                             le dit, plutot que de laisser un blanc qui se lirait
@@ -104,9 +114,23 @@
                 <form method="post" class="mb-4 pb-3 border-bottom">
                     {% csrf_token %}
                     <input type="hidden" name="case_update" value="1">
+                    {% comment %}
+                    Les deux cases sont empilees et non cote a cote : chacune
+                    porte un texte d'aide, et sur une demi-largeur partagee a
+                    quatre le libelle « Report returned » se repliait lui-meme
+                    sur deux lignes.
+                    {% endcomment %}
                     <div class="row align-items-end">
-                        <div class="col-md-6">{{ case_form.biobank_id|as_crispy_field }}</div>
-                        <div class="col-md-4">{{ case_form.is_priority|as_crispy_field }}</div>
+                        <div class="col-md-5">{{ case_form.biobank_id|as_crispy_field }}</div>
+                        <div class="col-md-5">
+                            {{ case_form.is_priority|as_crispy_field }}
+                            {{ case_form.report_returned|as_crispy_field }}
+                            {% if case.report_returned_at %}
+                            <p class="form-text mt-0 mb-3">
+                                Returned on {{ case.report_returned_at|date:"F d, Y" }}
+                            </p>
+                            {% endif %}
+                        </div>
                         <div class="col-md-2 text-end mb-3 d-grid d-md-block">
                             <button type="submit" class="btn btn-outline-primary">
                                 <i class="fas fa-save me-1"></i> Save
@@ -141,6 +165,7 @@
                                 <th class="d-none d-md-table-cell">Progress</th>
                                 <th>Status</th>
                                 <th class="d-none d-lg-table-cell">Preservation</th>
+                                <th class="d-none d-lg-table-cell">Consent</th>
                                 <th class="text-end">Coverage</th>
                             </tr>
                         </thead>
@@ -168,13 +193,28 @@
                                     {{ specimen.get_preservation_display }}
                                     {% endif %}
                                 </td>
+                                {% comment %}
+                                « Not consented » est dit, pas laisse vide : un
+                                blanc se lit comme une donnee manquante, alors
+                                qu'ici l'absence de consentement est une reponse
+                                a part entiere et interdit l'usage du specimen.
+                                {% endcomment %}
+                                <td class="d-none d-lg-table-cell">
+                                    {% if specimen.consented_generation_all %}
+                                    <span class="badge badge-analysis_complete rounded-pill">
+                                        Generation All
+                                    </span>
+                                    {% else %}
+                                    <span class="text-muted small">Not consented</span>
+                                    {% endif %}
+                                </td>
                                 <td class="text-end font-monospace">
                                     {{ specimen.coverage|default:"--" }}
                                     <small class="text-muted">{{ specimen.unit }}</small>
                                 </td>
                             </tr>
                         {% empty %}
-                            <tr><td colspan="6" class="text-muted">No specimen recorded for this case.</td></tr>
+                            <tr><td colspan="7" class="text-muted">No specimen recorded for this case.</td></tr>
                         {% endfor %}
                         </tbody>
                     </table>
@@ -221,10 +261,24 @@
                         {% endcomment %}
                         <div class="row g-2 align-items-end mb-2 specimen-edit-row">
                             {{ form.id }}
+                            {% comment %}
+                            Le consentement est empile sous le nom plutot que
+                            place dans sa propre colonne : la rangee est deja a
+                            12, et lui en prendre une obligerait a retrecir un
+                            menu dont l'option la plus longue tient deja de
+                            justesse.
+                            {% endcomment %}
                             <div class="col-md-2">
                                 <label class="form-label small mb-1">
                                     {{ form.instance.get_specimen_type_display }}
                                 </label>
+                                <div class="form-check mb-0">
+                                    {{ form.consented_generation_all }}
+                                    <label class="form-check-label small"
+                                           for="{{ form.consented_generation_all.id_for_label }}">
+                                        Consented
+                                    </label>
+                                </div>
                             </div>
                             <div class="col-md-3">{{ form.status }}</div>
                             <div class="col-md-3">{{ form.preservation }}</div>
