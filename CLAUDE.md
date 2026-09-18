@@ -318,6 +318,23 @@ Two rules follow. Deploy a migration the day you commit it, or do not commit it 
 server runs. And after any reboot, check that no migration is pending before assuming the
 application is healthy — `sudo ./ops/status.sh` lists them.
 
+**Answering is not working, and both health probes used to confuse the two.** `app_http_code()`
+and the watchdog's `check_http_response()` fetch `/` anonymously, which redirects to the login
+page without ever querying `core_case`. Both therefore reported 302 throughout the four-day
+outage, and the watchdog wrote *"Tous les contrôles sont OK"* every five minutes while every
+authenticated page was failing. Two probes now close that gap:
+
+- `assert_app_reads_db()` in `lib.sh`, called at the end of `deploy.sh`, performs a real ORM read
+  and then `migrate --check`. The order matters: the read fails with the precise cause
+  (`unable to open database file` for permissions, `no such column` for a stale schema), so the
+  ambiguous `migrate --check` exit code is only interpreted once a readable, code-matching
+  database is established;
+- `check_schema()` in `watchdog.sh` runs `migrate --check` every five minutes and logs an
+  unmissable line when a migration is pending. It deliberately does **not** restart: a restart
+  replays no migration and would reproduce the same outage. It also separates "pending" from
+  "database unreadable" by inspecting the output, so a watchdog run without root does not cry
+  wolf.
+
 Django makes this worse by hiding the evidence: with `DEBUG=False` and no `LOGGING` block, the
 `django.request` logger has only `mail_admins`, which is not configured here, so 500 tracebacks
 go **nowhere**. `access.log` shows the 500, `error.log` shows nothing. Diagnosing one means

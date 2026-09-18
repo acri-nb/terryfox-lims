@@ -57,6 +57,48 @@ check_memory_usage() {
     fi
 }
 
+# Vérifier que le schéma de la base correspond au code déployé.
+#
+# check_http_response() sonde `/` en anonyme, ce qui redirige vers la page de
+# connexion SANS jamais interroger core_case. Une base en retard d'une migration
+# laisse donc ce contrôle à 302 pendant que TOUTES les pages authentifiées
+# renvoient 500. C'est arrivé : le redémarrage du 14 septembre 2026 a chargé du
+# code attendant les colonnes de la migration 0032 contre une base restée à
+# 0031, et la panne a duré quatre jours pendant que ce script écrivait
+# « Tous les contrôles sont OK » toutes les cinq minutes.
+#
+# On ne redémarre PAS sur cette erreur : un redémarrage ne rejoue aucune
+# migration et relancerait la même panne. Seul un déploiement corrige.
+PY_ENV="/home/hadriengt/miniconda/envs/django/bin/python"
+REPO_DIR="/home/hadriengt/project/lims/terryfox-lims"
+
+check_schema() {
+    if [ ! -x "$PY_ENV" ]; then
+        log_message "⚠️  Interpréteur introuvable ($PY_ENV) : schéma non vérifié"
+        return 0
+    fi
+    local sortie
+    if sortie="$("$PY_ENV" "$REPO_DIR/manage.py" migrate --check \
+                 --settings=terryfox_lims.settings_prod 2>&1)"; then
+        return 0
+    fi
+
+    # `migrate --check` sort en erreur pour deux raisons sans rapport : des
+    # migrations en attente, ou une base qu'il n'a pas pu ouvrir. Les confondre
+    # ferait crier à la panne un watchdog lancé par erreur sans les droits.
+    case "$sortie" in
+        *"unable to open database"*|*"Permission denied"*|*"permission denied"*)
+            log_message "⚠️  Schéma non vérifiable : base illisible. Ce script tourne-t-il en root ?"
+            return 0
+            ;;
+    esac
+
+    log_message "❌ MIGRATION EN ATTENTE : le code attend un schéma que la base n'a pas."
+    log_message "   Les pages authentifiées renvoient 500 alors que / répond 302."
+    log_message "   Un redémarrage n'y changera rien. Lancer : sudo $REPO_DIR/ops/deploy.sh <etiquette>"
+    return 1
+}
+
 # Redémarrer le service
 restart_service() {
     log_message "🔄 Redémarrage du service terryfox-lims..."
@@ -96,11 +138,18 @@ main_check() {
     if [ "$need_restart" = false ]; then
         check_memory_usage  # Ne pas redémarrer pour la mémoire, juste logger
     fi
+
+    # Le contrôle que la sonde HTTP ne peut pas faire. Il ne déclenche aucun
+    # redémarrage : la panne qu'il détecte ne se corrige que par un déploiement.
+    local schema_ok=true
+    if [ "$need_restart" = false ]; then
+        check_schema || schema_ok=false
+    fi
     
     # Redémarrer si nécessaire
     if [ "$need_restart" = true ]; then
         restart_service
-    else
+    elif [ "$schema_ok" = true ]; then
         log_message "✅ Tous les contrôles sont OK"
     fi
     

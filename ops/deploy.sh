@@ -127,6 +127,12 @@ if ! code="$(wait_for_app 90)"; then
 fi
 ok "application en ligne (HTTP $code)"
 
+# Repondre n'est pas fonctionner : `/` en anonyme redirige vers la connexion
+# sans toucher la base. On verifie donc que le schema suit le code et qu'une
+# lecture reelle aboutit, faute de quoi on declarerait « en ligne » une
+# application dont toutes les pages utiles renvoient 500.
+assert_app_reads_db
+
 say "Deploiement '$LABEL' termine"
 echo "   sauvegarde conservee : $BACKUP"
 echo "   retour arriere       : sudo $REPO/ops/restore_db.sh $BACKUP"

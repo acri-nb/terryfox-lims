@@ -73,6 +73,47 @@ assert_no_writers() {
   ok "aucun ecrivain sur la base"
 }
 
+# Verifie que le SCHEMA correspond au CODE, et qu'une lecture reelle passe.
+#
+# Pourquoi ce controle existe : app_http_code() sonde `/` en anonyme, ce qui
+# redirige vers la page de connexion SANS jamais interroger core_case. Une base
+# en retard d'une migration laisse donc la sonde a 302 pendant que TOUTES les
+# pages authentifiees renvoient 500. C'est arrive : le redemarrage du
+# 14 septembre 2026 a charge du code attendant les colonnes de la migration
+# 0032 contre une base restee a 0031, et la panne a dure quatre jours pendant
+# que le watchdog ecrivait « tous les controles sont OK » toutes les cinq
+# minutes.
+#
+# On teste les deux choses qu'une redirection ne prouve pas : qu'aucune
+# migration n'est en attente, et qu'une requete ORM sur core_case aboutit.
+PY_ENV="/home/hadriengt/miniconda/envs/django/bin/python"
+DJ_SETTINGS="terryfox_lims.settings_prod"
+
+assert_app_reads_db() {
+  local sortie
+
+  # La LECTURE d'abord, le controle de migration ensuite. `migrate --check`
+  # sort en erreur pour deux raisons sans rapport -- migrations en attente, ou
+  # base illisible -- et les confondre redonnerait le message faux que ce
+  # projet a deja paye une fois. Une lecture ORM, elle, echoue avec la cause
+  # exacte : « unable to open database file » pour un probleme de droits,
+  # « no such column » pour un schema en retard.
+  if ! sortie="$("$PY_ENV" "$REPO/manage.py" shell --settings="$DJ_SETTINGS" \
+        -c 'from core.models import Case, Specimen; print(Case.objects.count(), Specimen.objects.count())' 2>&1)"; then
+    die "l'application repond mais ne sait pas lire sa base :
+       $(echo "$sortie" | tail -3)"
+  fi
+
+  # Arrive ici, la base est lisible et le schema porte les colonnes du code.
+  # Un echec de --check signifie donc reellement une migration en attente.
+  if ! "$PY_ENV" "$REPO/manage.py" migrate --check --settings="$DJ_SETTINGS" >/dev/null 2>&1; then
+    die "des migrations sont EN ATTENTE : le code attend un schema que la base
+       n'a pas encore. Lancer :  sudo $REPO/ops/deploy.sh <etiquette>"
+  fi
+
+  ok "lecture reelle de la base : $sortie (cas, specimens)"
+}
+
 # Interroge l'application et renvoie le code HTTP (000 si injoignable).
 #
 # Pas de `|| echo 000` : sur un refus de connexion, curl imprime deja 000 ET
