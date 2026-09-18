@@ -353,11 +353,30 @@ inactive, or the manager is unreachable. Conflating them once made step 1 announ
 already inactive"* while it may well have been running. The manager is now checked once,
 plainly, and step 1 reads the state string rather than trusting an exit code.
 
-`deploy.sh` then runs **seven** steps: it stops the watchdog (which otherwise restarts the service
-mid-migration), takes a verified labelled backup, freezes invariants, **stops the service** and
-refuses to continue while any `wsgi_prod` worker still holds the database, runs `migrate` *and*
-`collectstatic`, re-compares invariants, then restarts and verifies that the app answers. A
-deployment is a short outage, not a hot swap.
+`deploy.sh` then runs **seven** steps, and their order carries the safety:
+
+1. stop the watchdog — both the **timer** and any `watchdog.service` run already in flight, since
+   stopping a timer does not stop a firing it already triggered;
+2. **stop the service**, then refuse to continue while any `wsgi_prod` worker still holds the
+   database;
+3. take a verified labelled backup — with the database at rest, so the copy is consistent;
+4. freeze the invariants, then **replay the operator's `--allow` arguments as a dry run**;
+5. `migrate` *and* `collectstatic`;
+6. re-compare the invariants;
+7. restart, wait for an answer, and prove a real ORM read works.
+
+Steps 2 and 3 used to be the other way round. Taking the backup and the reference while the
+application still served left a window in which a user write landed after the snapshot: absent
+from the reference, present after the migration, and read at step 6 as undeclared drift. The
+deployment then restored the database, destroying both the migration that had just succeeded and
+the user's entry.
+
+The dry run at step 4 exists because `--allow` is typed by hand and was only parsed at step 6,
+where any failure triggers a restore. A typo in a flag therefore destroyed a successful
+migration. Replayed against an unchanged database the comparison must exit 0, so anything failing
+there is an argument problem, caught before the migration runs.
+
+A deployment is a short outage, not a hot swap.
 
 The restore is not a blanket. A failed `migrate` restores; undeclared drift restores; a failed
 `collectstatic` leaves the migrated database in place; and an app that does not answer within

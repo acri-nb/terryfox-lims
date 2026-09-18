@@ -75,23 +75,48 @@ case "$WATCHDOG_ETAT" in
     ;;
 esac
 
+# Arreter le TIMER n'arrete pas une execution deja en vol. Le watchdog tourne
+# toutes les 5 minutes : demarrer un deploiement dans la seconde qui suit un
+# declenchement laisse un watchdog.service vivant, qui relancera le service au
+# milieu du migrate -- exactement ce que cette etape existe pour empecher.
+systemctl stop "${WATCHDOG%.timer}.service" 2>/dev/null || true
+ok "aucune execution du watchdog en vol"
+
 # ---------------------------------------------------------------- 2
-say "2/7  Point de restauration"
+# L'arret vient AVANT la sauvegarde et la reference, et c'est le point
+# important de cet ordre. Les prendre pendant que l'application sert laisse une
+# fenetre ou un utilisateur peut ecrire : cette ecriture est absente de la
+# reference, presente apres la migration, et l'etape 6 la lit comme une derive
+# non declaree. Elle restaure alors la base -- detruisant a la fois la
+# migration qui venait de reussir et la saisie de l'utilisateur.
+say "2/7  Arret du service"
+systemctl stop "$SERVICE" || true
+sleep 2
+assert_no_writers
+
+# ---------------------------------------------------------------- 3
+# Base au repos : la copie est coherente et la reference ne peut plus bouger.
+say "3/7  Point de restauration"
 python3 "$REPO/ops/backup_db.py" --dest "$BACKUP_DIR" --label "$LABEL" \
   || die "sauvegarde impossible : on ne migre pas sans filet"
 BACKUP=$(ls -t "$BACKUP_DIR/keep/"*"-${LABEL}.sqlite3" | head -1)
 [ -f "$BACKUP" ] || die "sauvegarde introuvable apres creation"
 ok "restaurable depuis $BACKUP"
 
-# ---------------------------------------------------------------- 3
-say "3/7  Reference des invariants (avant)"
+# ---------------------------------------------------------------- 4
+say "4/7  Reference des invariants (avant)"
 python3 "$REPO/ops/check_invariants.py" --save "$REF" || die "impossible de lire la base"
 
-# ---------------------------------------------------------------- 4
-say "4/7  Arret du service"
-systemctl stop "$SERVICE" || true
-sleep 2
-assert_no_writers
+# Les --allow sont tapes a la main et ne sont relus qu'a l'etape 6, ou un echec
+# declenche la restauration. Une faute de frappe dans un drapeau detruisait donc
+# une migration reussie. On les rejoue ici, a blanc : la base n'a pas bouge
+# depuis --save, donc la comparaison doit sortir en 0. Tout ce qui echoue ici
+# est un probleme d'ARGUMENT, constate avant que quoi que ce soit ne soit en jeu.
+python3 "$REPO/ops/check_invariants.py" --compare "$REF" \
+    ${ALLOW_ARGS[@]+"${ALLOW_ARGS[@]}"} >/dev/null \
+  || die "arguments --allow invalides (ou reference illisible) : rien n'a ete migre.
+       Verifier la syntaxe : --allow cle=+N"
+[ ${#ALLOW_ARGS[@]} -eq 0 ] || ok "${#ALLOW_ARGS[@]} argument(s) --allow valide(s)"
 
 # ---------------------------------------------------------------- 5
 say "5/7  Migration"
@@ -111,7 +136,16 @@ say "6/7  Controle des invariants (apres)"
 if ! python3 "$REPO/ops/check_invariants.py" --compare "$REF" ${ALLOW_ARGS[@]+"${ALLOW_ARGS[@]}"}; then
   say "ECARTS NON AUTORISES -- restauration automatique"
   bash "$REPO/ops/restore_db.sh" --force "$BACKUP"
-  die "des donnees ont change de facon inattendue, base restauree depuis $BACKUP"
+  die "des donnees ont change de facon inattendue, base restauree depuis $BACKUP
+
+       ATTENTION : la base est revenue AVANT la migration, mais l'arbre de
+       travail contient toujours le code d'APRES. Le service va redemarrer sur
+       ce code et toutes les pages authentifiees renverront 500, pendant que /
+       repondra 302. C'est la panne du 14 septembre 2026.
+       Remettre le code au niveau de la base avant de rendre la main :
+         git -C $REPO log --oneline -5
+         git -C $REPO checkout <commit anterieur a la migration>
+         sudo systemctl restart $SERVICE"
 fi
 
 # ---------------------------------------------------------------- 7
