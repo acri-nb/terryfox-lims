@@ -114,3 +114,59 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=False, cast=bool)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='webmaster@localhost')
+
+# --------------------------------------------------------------------------
+# Journalisation
+# --------------------------------------------------------------------------
+#
+# Sans ce bloc, une erreur 500 ne laisse AUCUNE trace. La configuration par
+# defaut de Django n'attache au logger `django.request` que `mail_admins`, et
+# le handler console est filtre par require_debug_true : en production,
+# access.log montre le 500 et error.log ne montre rien. Diagnostiquer une panne
+# revenait alors a la reproduire de memoire.
+#
+# Le fichier est ouvert par gunicorn, qui tourne en root pour le port 443, dans
+# un repertoire qui lui appartient. `delay` retarde l'ouverture au premier
+# message : une erreur de droits ne peut donc pas empecher l'application de
+# demarrer, ce qui transformerait un garde-fou en panne totale.
+
+import os  # explicite : ne pas dependre du import * de settings_base
+
+LOG_DIR = '/var/log/terryfox-lims'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'trace': {
+            'format': '[{asctime}] {levelname} {name} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'erreurs': {
+            'level': 'ERROR',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(LOG_DIR, 'django-errors.log'),
+            'maxBytes': 5 * 1024 * 1024,
+            'backupCount': 5,
+            'formatter': 'trace',
+            'delay': True,
+        },
+    },
+    'loggers': {
+        # La trace complete d'un 500, avec la requete qui l'a provoque.
+        'django.request': {
+            'handlers': ['erreurs'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        # Une erreur de gabarit ou de base ne remonte pas toujours par
+        # django.request : on prend la racine aussi, au meme niveau.
+        'django': {
+            'handlers': ['erreurs'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    },
+}

@@ -305,6 +305,24 @@ a 403.
 
 ## Operations tooling (`ops/`)
 
+**A reboot deploys whatever is checked out.** The service runs gunicorn directly against this
+working tree, so systemd starting it at boot loads the current code — and applies no migration.
+Leaving the tree ahead of the database is therefore a delayed outage whose fuse is the next
+reboot. It happened: migration 0032 was committed on 4 September, its deployment failed that day
+because systemd was wedged, the running workers kept serving the old code from memory, and the
+14 September reboot loaded the new code against a database still at 0031. Every authenticated
+page returned `no such column: core_case.report_returned` for four days while the login page kept
+working, because it is the one page that never touches `Case`.
+
+Two rules follow. Deploy a migration the day you commit it, or do not commit it to the tree the
+server runs. And after any reboot, check that no migration is pending before assuming the
+application is healthy — `sudo ./ops/status.sh` lists them.
+
+Django makes this worse by hiding the evidence: with `DEBUG=False` and no `LOGGING` block, the
+`django.request` logger has only `mail_admins`, which is not configured here, so 500 tracebacks
+go **nowhere**. `access.log` shows the 500, `error.log` shows nothing. Diagnosing one means
+reproducing it — build a database at the suspected migration level and replay the request.
+
 **Never run `manage.py migrate` by hand on the server.** `sudo ./ops/deploy.sh <label>` is the
 only path, and the `sudo` is not optional. The five **shell** scripts (`deploy.sh`,
 `restore_db.sh`, `install.sh`, `install_v1_archive.sh`, `status.sh`) test `$EUID` and abort
