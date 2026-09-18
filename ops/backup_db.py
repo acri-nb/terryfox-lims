@@ -61,6 +61,13 @@ def resolve_db(explicit):
 
     for c in candidates:
         if c.is_file():
+            # Le dernier candidat est le talon laisse dans le depot quand
+            # install.sh a sorti la base de l'arbre git. L'atteindre en
+            # production veut dire que la vraie base est injoignable, ce qui
+            # merite un cri et non une ligne de plus dans la sortie.
+            if c == REPO_ROOT / "db.sqlite3" and len(candidates) > 1:
+                print(f"ATTENTION: repli sur {c} — les candidats precedents "
+                      f"sont introuvables", file=sys.stderr)
             return c
     fail("aucune base trouvee. Cherche dans : " + ", ".join(str(c) for c in candidates))
 
@@ -97,6 +104,19 @@ def verify(src_path, dst_path):
 
         src_counts = table_counts(src)
         dst_counts = table_counts(dst)
+
+        # table_counts() renvoie None pour une table absente, afin de tolerer une
+        # base d'une autre version. Mais la comparaison qui suit accepte alors
+        # None == None : deux bases ne contenant AUCUNE table du LIMS se
+        # declaraient identiques, et la sauvegarde etait annoncee « verifiee »
+        # avec un resume vide. Ce n'est pas theorique : resolve_db() se rabat sur
+        # le db.sqlite3 de 4 Ko reste a la racine du depot quand la vraie base est
+        # injoignable, et deploy.sh part alors migrer en croyant avoir un filet.
+        if all(v is None for v in src_counts.values()):
+            return False, (f"{src_path} ne contient aucune table du LIMS "
+                           f"({', '.join(VERIFIED_TABLES)}) : ce n'est pas la base "
+                           f"de l'application")
+
         for table, expected in src_counts.items():
             got = dst_counts.get(table)
             if expected != got:

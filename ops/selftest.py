@@ -139,6 +139,38 @@ def main():
                   "--allow", "status:completed=+3")
         check("ecarts declares avec --allow", out.returncode, 0)
 
+        # --- 7. la VERIFICATION DE SAUVEGARDE refuse une base sans le schema
+        #
+        # backup_db.py tolere une table absente pour accepter une base d'une
+        # autre version, en comptant None. La comparaison acceptait alors
+        # None == None : deux bases depourvues de toute table du LIMS se
+        # declaraient identiques, et la sauvegarde sortait « verifiee » avec un
+        # resume vide. Le scenario n'est pas theorique -- resolve_db() se rabat
+        # sur le db.sqlite3 reste a la racine du depot quand la vraie base est
+        # injoignable, et deploy.sh part alors migrer en croyant avoir un filet.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "backup_db", str(Path(__file__).parent / "backup_db.py"))
+        backup = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(backup)
+
+        vide_a, vide_b = tmp / "vide-a.sqlite3", tmp / "vide-b.sqlite3"
+        for chemin in (vide_a, vide_b):
+            conn = sqlite3.connect(chemin)
+            conn.execute("CREATE TABLE sans_rapport (x)")
+            conn.commit()
+            conn.close()
+        accepte, _ = backup.verify(vide_a, vide_b)
+        check("sauvegarde d'une base sans schema", 1 if not accepte else 0, 1)
+
+        # Et le cas legitime doit continuer de passer : sans ce second controle,
+        # on pourrait « corriger » en refusant tout.
+        vraie_a, vraie_b = tmp / "vraie-a.sqlite3", tmp / "vraie-b.sqlite3"
+        build(vraie_a, cases=7)
+        build(vraie_b, cases=7)
+        accepte2, _ = backup.verify(vraie_a, vraie_b)
+        check("sauvegarde d'une base normale", 1 if accepte2 else 0, 1)
+
     print()
     if failures:
         print(f"{len(failures)} scenario(s) en echec : {', '.join(failures)}")
