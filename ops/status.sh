@@ -40,6 +40,36 @@ printf '   %-32s HTTP %s\n' "https://localhost/" "$(app_http_code)"
 printf '   %-32s HTTP %s\n' "candig-lims.cair.mun.ca" \
   "$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 https://candig-lims.cair.mun.ca/ 2>/dev/null || echo injoignable)"
 
+say "Certificat TLS"
+# Rien ne surveillait l'expiration : celui de la VM a passe 77 jours perime
+# sans qu'aucun controle ne le signale. Meme classe de defaut que la panne du
+# 14 septembre -- personne ne regardait.
+cert_infos() {
+  local hote="$1" sni="$2" pem fin sujet emetteur
+  pem="$(echo | timeout 8 openssl s_client -connect "$hote" ${sni:+-servername "$sni"} 2>/dev/null)" || true
+  if [ -z "$pem" ]; then
+    printf '   %-32s %s\n' "$hote" "injoignable"
+    return
+  fi
+  fin="$(echo "$pem" | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)" || true
+  sujet="$(echo "$pem" | openssl x509 -noout -subject 2>/dev/null | sed 's/^subject=//')" || true
+  emetteur="$(echo "$pem" | openssl x509 -noout -issuer 2>/dev/null | sed -n 's/.*CN *= *//p')" || true
+  printf '   %-32s %s\n' "$hote" "${sujet:-?}"
+  printf '   %-32s %s\n' "  emis par" "${emetteur:-?}"
+  printf '   %-32s %s\n' "  expire le" "${fin:-?}"
+
+  # -checkend prend des secondes : 0 = deja expire, 2592000 = dans 30 jours.
+  if ! echo "$pem" | openssl x509 -noout -checkend 0 >/dev/null 2>&1; then
+    warn "certificat EXPIRE sur $hote"
+  elif ! echo "$pem" | openssl x509 -noout -checkend 2592000 >/dev/null 2>&1; then
+    warn "certificat expire dans moins de 30 jours sur $hote"
+  else
+    ok "certificat valide sur $hote"
+  fi
+}
+cert_infos "127.0.0.1:443" ""
+cert_infos "candig-lims.cair.mun.ca:443" "candig-lims.cair.mun.ca"
+
 say "Migrations"
 cd "$REPO"
 "$PY" manage.py showmigrations core --settings="$SETTINGS" 2>&1 | tail -6 | sed 's/^/   /'

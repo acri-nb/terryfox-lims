@@ -99,6 +99,36 @@ check_schema() {
     return 1
 }
 
+# Vérifier la validité du certificat TLS.
+#
+# Personne ne surveillait l'expiration : celui de la VM a passé 77 jours périmé
+# sans qu'aucun contrôle ne le signale. On prévient 30 jours à l'avance, ce qui
+# laisse le temps de demander un renouvellement.
+#
+# Pas de redémarrage ici non plus : relancer gunicorn avec un certificat périmé
+# le relance avec un certificat périmé.
+check_certificate() {
+    local pem
+    pem="$(echo | timeout 8 openssl s_client -connect 127.0.0.1:443 2>/dev/null)"
+    if [ -z "$pem" ]; then
+        log_message "⚠️  Certificat non lisible : port 443 injoignable pour openssl"
+        return 0
+    fi
+    if ! echo "$pem" | openssl x509 -noout -checkend 0 >/dev/null 2>&1; then
+        local fin
+        fin="$(echo "$pem" | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)"
+        log_message "❌ CERTIFICAT TLS EXPIRÉ (fin : ${fin:-inconnue})"
+        log_message "   Les navigateurs qui joignent la VM en direct refusent la connexion."
+        log_message "   Un redémarrage n'y changera rien : il faut réinstaller un certificat dans /root/ssl/."
+        return 1
+    fi
+    if ! echo "$pem" | openssl x509 -noout -checkend 2592000 >/dev/null 2>&1; then
+        log_message "⚠️  Certificat TLS expire dans moins de 30 jours"
+        return 1
+    fi
+    return 0
+}
+
 # Redémarrer le service
 restart_service() {
     log_message "🔄 Redémarrage du service terryfox-lims..."
@@ -142,14 +172,16 @@ main_check() {
     # Le contrôle que la sonde HTTP ne peut pas faire. Il ne déclenche aucun
     # redémarrage : la panne qu'il détecte ne se corrige que par un déploiement.
     local schema_ok=true
+    local cert_ok=true
     if [ "$need_restart" = false ]; then
         check_schema || schema_ok=false
+        check_certificate || cert_ok=false
     fi
     
     # Redémarrer si nécessaire
     if [ "$need_restart" = true ]; then
         restart_service
-    elif [ "$schema_ok" = true ]; then
+    elif [ "$schema_ok" = true ] && [ "$cert_ok" = true ]; then
         log_message "✅ Tous les contrôles sont OK"
     fi
     
