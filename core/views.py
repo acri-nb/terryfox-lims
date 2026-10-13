@@ -60,16 +60,35 @@ def home(request):
                 )
                 .order_by('name'))
 
-    total_projects = Project.objects.count()
-    total_cases = Case.objects.count()
-    total_priority = Case.objects.filter(is_priority=True).count()
-    total_to_classify = (Case.objects
+    # Le consortium travaille par phases. La phase 2 occupe l'ecran, la phase 1
+    # vit dans un repli : elle reste consultable, mais ne noie plus le travail
+    # en cours sous seize projets clos. Le decoupage se fait APRES le filtre,
+    # pour qu'une recherche traverse les deux listes au lieu de n'en voir qu'une.
+    projets_phase2 = [p for p in projects if p.phase == Project.PHASE_2]
+    projets_phase1 = [p for p in projects if p.phase == Project.PHASE_1]
+
+    # Les compteurs du repli portent sur la phase 1 ENTIERE, pas sur ce que le
+    # filtre en a laisse : « 1 329 cas en phase 1 » doit rester vrai quand on
+    # cherche un nom, sinon le chiffre bouge sans raison lisible.
+    cas_phase1 = Case.objects.filter(project__phase=Project.PHASE_1)
+    phase1_projets = Project.objects.filter(phase=Project.PHASE_1).count()
+    phase1_cases = cas_phase1.count()
+
+    # Les quatre tuiles et les deux cartes de repartition portent sur la PHASE
+    # EN COURS : c'est ce qu'on vient regarder. Les totaux de la phase 1 restent
+    # lisibles dans le repli, donc rien n'est cache, seulement mis a sa place.
+    actifs = Case.objects.filter(project__phase=Project.PHASE_2)
+
+    total_projects = Project.objects.filter(phase=Project.PHASE_2).count()
+    total_cases = actifs.count()
+    total_priority = actifs.filter(is_priority=True).count()
+    total_to_classify = (actifs
                          .filter(specimens__status=statuses.UNKNOWN_LEGACY)
                          .distinct().count())
 
     # Repartition par ETAPE plutot que par statut : trois barres se lisent,
     # onze n'apprennent rien de plus.
-    par_statut = dict(Case.objects.values_list('status')
+    par_statut = dict(actifs.values_list('status')
                       .annotate(n=Count('id')).order_by())
     par_etape = []
     for etape in statuses.ORDERED_STAGES + [statuses.STAGE_LEGACY]:
@@ -94,7 +113,7 @@ def home(request):
         {'tier': tier, 'count': n,
          'pct': round(100 * n / total_cases) if total_cases else 0}
         for tier, n in sorted(
-            Case.objects.values_list('tier').annotate(n=Count('id')).order_by(),
+            actifs.values_list('tier').annotate(n=Count('id')).order_by(),
             key=lambda kv: ['A', 'B', 'FAIL'].index(kv[0]) if kv[0] in ('A', 'B', 'FAIL') else 9)
     ]
 
@@ -103,6 +122,10 @@ def home(request):
 
     return render(request, 'core/home.html', {
         'projects': projects,
+        'projets_phase2': projets_phase2,
+        'projets_phase1': projets_phase1,
+        'phase1_projets': phase1_projets,
+        'phase1_cases': phase1_cases,
         'total_projects': total_projects,
         'total_cases': total_cases,
         'total_priority': total_priority,

@@ -48,6 +48,14 @@
                 <div class="invalid-feedback d-block">{{ form.project_lead.errors }}</div>
                 {% endif %}
             </div>
+
+            {% comment %}
+            Rendu explicitement, comme project_lead : la boucle ci-dessus ne
+            laisse passer que `name` et `description`. Un champ obligatoire
+            absent du gabarit rend le formulaire impossible a envoyer depuis un
+            navigateur, sans message et sans que les tests de vue le voient.
+            {% endcomment %}
+            {{ form.phase|as_crispy_field }}
             
             <div class="d-flex justify-content-between mt-4 flex-wrap gap-2">
                 <a href="{% if project %}{% url 'project_detail' project_id=project.id %}{% else %}{% url 'home' %}{% endif %}" class="btn btn-secondary">

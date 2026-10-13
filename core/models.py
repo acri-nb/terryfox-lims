@@ -146,7 +146,25 @@ class Project(SoftDeleteModel):
         (KIND_REFERRED, _('Referred cases')),
     ]
 
+    #: Le consortium travaille par phases : la 1 est close, la 2 commence. Un
+    #: entier et non un booleen, pour qu'une phase 3 ne coute rien.
+    PHASE_1 = 1
+    PHASE_2 = 2
+    PHASE_CHOICES = [
+        (PHASE_1, _('Phase 1')),
+        (PHASE_2, _('Phase 2')),
+    ]
+
     name = models.CharField(max_length=255)
+    # Defaut a la phase COURANTE : un projet cree aujourd'hui appartient a la
+    # phase en cours, et la migration 0033 est seule a redescendre les anciens
+    # en phase 1. Defaut inverse et chaque nouveau projet naitrait dans le
+    # repli, invisible sans un clic.
+    phase = models.PositiveSmallIntegerField(
+        choices=PHASE_CHOICES, default=PHASE_2, db_index=True,
+        verbose_name=_('Phase'),
+        help_text=_('Phase 1 projects are collapsed on the home page.'),
+    )
     kind = models.CharField(
         max_length=16, choices=KIND_CHOICES, default=KIND_RESEARCH,
         verbose_name=_('Project type'),

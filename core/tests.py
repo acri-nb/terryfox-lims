@@ -1466,7 +1466,20 @@ class FormRenderingTests(TestCase):
     gabarit les rend, puis postent ce que la page offre reellement.
     """
 
-    PAGES = ("case_create", "batch_case_create")
+    #: Les pages de creation, avec les arguments d'URL que chacune demande.
+    #: project_create a rejoint la liste apres que `phase`, devenu obligatoire,
+    #: ait echappe a son gabarit -- le meme piege que specimen_types, sur un
+    #: autre formulaire. Toute nouvelle page de creation a sa place ici.
+    PAGES = {
+        "case_create": "projet",
+        "batch_case_create": "projet",
+        "project_create": None,
+    }
+
+    def _url(self, nom_page):
+        if self.PAGES[nom_page] is None:
+            return reverse(nom_page)
+        return reverse(nom_page, kwargs={"project_id": self.project.id})
 
     def setUp(self):
         self.editor = make_editor("rendu1")
@@ -1477,8 +1490,7 @@ class FormRenderingTests(TestCase):
     def test_every_creation_page_renders_every_required_field(self):
         for nom_page in self.PAGES:
             with self.subTest(page=nom_page):
-                page = self.client.get(
-                    reverse(nom_page, kwargs={"project_id": self.project.id}))
+                page = self.client.get(self._url(nom_page))
                 html = page.content.decode()
                 for nom, champ in page.context["form"].fields.items():
                     if champ.required:
@@ -1490,13 +1502,15 @@ class FormRenderingTests(TestCase):
         envois = {
             "case_create": {"biobank_id": "RE-0"},
             "batch_case_create": {"biobank_ids": "RE-1\nRE-2"},
+            "project_create": {"name": "P rendu 2"},
         }
         attendus = {"case_create": 1, "batch_case_create": 2}
         for nom_page in self.PAGES:
+            if nom_page == "project_create":
+                continue  # verifie separement : il ne cree pas de cas
             with self.subTest(page=nom_page):
                 Case.all_objects.filter(project=self.project).delete()
-                page = self.client.get(
-                    reverse(nom_page, kwargs={"project_id": self.project.id}))
+                page = self.client.get(self._url(nom_page))
                 envoi = dict(envois[nom_page])
                 for nom, champ in page.context["form"].fields.items():
                     if not champ.required or nom in envoi:
@@ -2034,3 +2048,106 @@ class ConsentAndReportTests(TestCase):
         ).content.decode()
         lignes = list(csv.reader(io.StringIO(texte)))
         self.assertEqual(lignes[1][lignes[0].index("Consent_Generation_All")], "partial")
+
+
+class PhaseTests(TestCase):
+    """Le decoupage Phase 1 / Phase 2 de l'accueil.
+
+    Le consortium clot sa phase 1 et en ouvre une seconde. L'accueil montre la
+    phase en cours ; la phase 1 reste consultable derriere un repli plutot que
+    de noyer le travail courant sous seize projets clos.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("admin_ph", password="x")
+        self.ancien = Project.objects.create(
+            name="P01_Ancien", created_by=self.admin, phase=Project.PHASE_1)
+        self.neuf = Project.objects.create(
+            name="PanCancer-EV", created_by=self.admin, phase=Project.PHASE_2)
+        for i in range(3):
+            Case.objects.create(project=self.ancien, biobank_id=f"PH-A{i}").ensure_specimens()
+        Case.objects.create(project=self.neuf, biobank_id="PH-N0").ensure_specimens()
+        self.client = Client()
+        self.client.force_login(self.admin)
+
+    def _accueil(self, **filtres):
+        return self.client.get(reverse("home"), filtres)
+
+    # -- le modele ---------------------------------------------------------
+
+    def test_a_new_project_belongs_to_the_current_phase(self):
+        """Le defaut est la phase 2 : un projet cree aujourd'hui y appartient.
+
+        Defaut inverse et chaque nouveau projet naitrait dans le repli,
+        invisible sans un clic.
+        """
+        self.assertEqual(
+            Project.objects.create(name="P neuf", created_by=self.admin).phase,
+            Project.PHASE_2)
+
+    # -- la separation sur l'accueil ---------------------------------------
+
+    def test_the_main_table_holds_only_phase_2(self):
+        r = self._accueil()
+        self.assertEqual([p.name for p in r.context["projets_phase2"]], ["PanCancer-EV"])
+        self.assertEqual([p.name for p in r.context["projets_phase1"]], ["P01_Ancien"])
+
+    def test_phase_1_is_present_in_the_page_not_hidden_from_it(self):
+        """<details> garde le contenu dans le document : Ctrl+F le trouve."""
+        page = self._accueil().content.decode()
+        self.assertIn("P01_Ancien", page)
+        self.assertIn("<details", page)
+
+    def test_the_headline_figures_count_the_current_phase_only(self):
+        r = self._accueil()
+        self.assertEqual(r.context["total_projects"], 1)
+        self.assertEqual(r.context["total_cases"], 1, "les 3 cas de phase 1 sont hors compte")
+
+    def test_the_fold_announces_the_whole_of_phase_1(self):
+        r = self._accueil()
+        self.assertEqual(r.context["phase1_projets"], 1)
+        self.assertEqual(r.context["phase1_cases"], 3)
+
+    def test_those_totals_do_not_move_with_a_filter(self):
+        """« 3 cas en phase 1 » doit rester vrai pendant une recherche.
+
+        Les faire suivre le filtre ferait bouger un chiffre de reference sans
+        raison lisible pour qui tape dans le champ.
+        """
+        r = self._accueil(name="PanCancer")
+        self.assertEqual(r.context["phase1_cases"], 3)
+        self.assertEqual(r.context["phase1_projets"], 1)
+
+    # -- la recherche traverse les deux phases ------------------------------
+
+    def test_a_search_reaches_into_phase_1(self):
+        """Sinon la recherche repond « rien » alors que le projet existe."""
+        r = self._accueil(name="Ancien")
+        self.assertEqual([p.name for p in r.context["projets_phase1"]], ["P01_Ancien"])
+        self.assertEqual(list(r.context["projets_phase2"]), [])
+
+    def test_the_fold_opens_itself_when_a_search_matches_inside_it(self):
+        page = self._accueil(name="Ancien").content.decode()
+        debut = page.index("<details")
+        self.assertIn("open", page[debut:page.index(">", debut)])
+
+    def test_the_fold_stays_shut_when_nothing_is_searched(self):
+        page = self._accueil().content.decode()
+        debut = page.index("<details")
+        self.assertNotIn("open", page[debut:page.index(">", debut)])
+
+    # -- la phase se change depuis l'ecran ----------------------------------
+
+    def test_the_phase_can_be_changed_from_the_project_form(self):
+        """Eric reorganisera les autres projets lui-meme : le champ doit etre la."""
+        self.client.post(
+            reverse("project_update", kwargs={"project_id": self.ancien.id}),
+            {"name": self.ancien.name, "description": "", "phase": Project.PHASE_2},
+        )
+        self.ancien.refresh_from_db()
+        self.assertEqual(self.ancien.phase, Project.PHASE_2)
+
+    def test_the_project_page_offers_the_phase(self):
+        page = self.client.get(
+            reverse("project_update", kwargs={"project_id": self.ancien.id})).content.decode()
+        self.assertIn('name="phase"', page)

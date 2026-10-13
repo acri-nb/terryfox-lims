@@ -23,11 +23,16 @@ class ProjectForm(forms.ModelForm):
     
     class Meta:
         model = Project
-        fields = ['name', 'description', 'project_lead']
+        # `phase` est ici, contrairement a `kind` : le consortium reorganise ses
+        # projets entre phases a mesure que le travail avance, et exiger une
+        # migration ou un acces au shell pour chaque reclassement rendrait le
+        # champ inutilisable par ceux qui en ont besoin.
+        fields = ['name', 'description', 'project_lead', 'phase']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
             'project_lead': forms.Select(attrs={'class': 'form-select'}),
+            'phase': forms.Select(attrs={'class': 'form-select'}),
         }
 
     def __init__(self, *args, **kwargs):

@@ -37,7 +37,7 @@ python manage.py runserver
 # Migrations — locally only. On the server, see ops/deploy.sh below.
 python manage.py makemigrations && python manage.py migrate
 
-# Tests — 168: 161 methods across 21 classes in core/tests.py, plus 7 in
+# Tests — 179: 172 methods across 22 classes in core/tests.py, plus 7 in
 # core/test_e2e_livefilter.py that skip unless node + jsdom are present.
 python manage.py test core
 python manage.py test core.tests.TierCalculationTests       # one class
@@ -153,8 +153,23 @@ page. Adding a list with its own `order_by` means restating it again; `Meta.orde
 carry it.
 
 `Project.kind` separates research projects from `Referred Cases`, but it is **not on
-`ProjectForm`** (`fields = ['name', 'description', 'project_lead']`): a project's kind is set at
-creation by the migration or from the shell, and no screen can change it afterwards.
+`ProjectForm`**: a project's kind is set at creation by the migration or from the shell, and no
+screen can change it afterwards.
+
+`Project.phase` (1 or 2) is the opposite call, deliberately: it **is** on `ProjectForm`, because
+the consortium reshuffles projects between phases as work advances and needing a shell for each
+reclassification would make the field unusable by the people who need it. It defaults to the
+**current** phase, so a project created today lands where work is happening; migration 0033 is
+the only thing that pushes the pre-existing ones down to phase 1. `Referred Cases` is exempted
+there — it is a continuous intake of physician-referred cases, often urgent, not a closed cohort,
+and folding it away because it is old would hide exactly what must stay visible.
+
+The home page scopes its headline figures and both distribution cards to **phase 2**, and folds
+phase 1 into a native `<details>`. Two rules it must keep: the fold's own totals are computed over
+the whole of phase 1 rather than over what the filter left, so a reference number does not shift
+while someone types; and the project filter runs *before* the split, so a search reaches into the
+fold and opens it when it matches. A filter that only saw phase 2 would answer "nothing" about a
+project that exists.
 
 ### Specimens and the derived case status
 
@@ -668,7 +683,7 @@ pass.
 
 ## Tests
 
-168 tests in 21 classes plus the jsdom module. Two module-level helpers hold the suite together
+179 tests in 22 classes plus the jsdom module. Two module-level helpers hold the suite together
 and are worth knowing before adding a class:
 
 - `make_editor(username)` creates a user in the `editor` group with its permissions granted
