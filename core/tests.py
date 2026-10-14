@@ -53,6 +53,25 @@ def envoi_creation(**champs):
     return envoi
 
 
+def envoi_projet(**champs):
+    """Un envoi valide vers project_create / project_update.
+
+    Meme raison que envoi_creation() : ProjectForm porte maintenant deux menus
+    obligatoires, kind et phase. Un envoi ecrit a la main se brise des qu'un
+    troisieme apparait, pour une raison sans rapport avec ce que le test
+    verifie.
+    """
+    from .models import Project as _P
+    envoi = {
+        "name": "Projet",
+        "description": "",
+        "kind": _P.KIND_RESEARCH,
+        "phase": _P.PHASE_2,
+    }
+    envoi.update(champs)
+    return envoi
+
+
 def make_editor(username="editor1"):
     """Un utilisateur du groupe editor, avec les permissions CRUD sur core.
 
@@ -2142,10 +2161,44 @@ class PhaseTests(TestCase):
         """Eric reorganisera les autres projets lui-meme : le champ doit etre la."""
         self.client.post(
             reverse("project_update", kwargs={"project_id": self.ancien.id}),
-            {"name": self.ancien.name, "description": "", "phase": Project.PHASE_2},
+            envoi_projet(name=self.ancien.name, kind=self.ancien.kind,
+                         phase=Project.PHASE_2),
         )
         self.ancien.refresh_from_db()
         self.assertEqual(self.ancien.phase, Project.PHASE_2)
+
+    def test_the_kind_can_be_changed_from_the_project_form(self):
+        """Deux projets de cas referes s'affichaient comme projets de recherche.
+
+        Le type n'etait pas sur le formulaire : un projet cree depuis
+        l'interface prenait silencieusement « recherche » et seul un acces au
+        serveur permettait de le corriger.
+        """
+        self.assertEqual(self.ancien.kind, Project.KIND_RESEARCH)
+        self.client.post(
+            reverse("project_update", kwargs={"project_id": self.ancien.id}),
+            envoi_projet(name=self.ancien.name, kind=Project.KIND_REFERRED,
+                         phase=self.ancien.phase),
+        )
+        self.ancien.refresh_from_db()
+        self.assertEqual(self.ancien.kind, Project.KIND_REFERRED)
+
+    def test_two_referred_projects_look_alike_on_the_home_page(self):
+        """« Uniformiser les trois » : meme type, donc meme pastille."""
+        autre = Project.objects.create(
+            name="Referred 2", created_by=self.admin,
+            kind=Project.KIND_REFERRED, phase=Project.PHASE_2)
+        Project.objects.filter(pk=self.neuf.pk).update(kind=Project.KIND_REFERRED)
+        page = self._accueil().content.decode()
+        self.assertIn(autre.name, page)
+        self.assertEqual(
+            page.count('class="badge badge-unknown_legacy">Referred'), 2,
+            "les deux projets referes doivent porter la meme pastille")
+
+    def test_the_project_page_offers_the_kind(self):
+        page = self.client.get(
+            reverse("project_update", kwargs={"project_id": self.ancien.id})).content.decode()
+        self.assertIn('name="kind"', page)
 
     def test_the_project_page_offers_the_phase(self):
         page = self.client.get(

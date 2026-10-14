@@ -37,7 +37,7 @@ python manage.py runserver
 # Migrations — locally only. On the server, see ops/deploy.sh below.
 python manage.py makemigrations && python manage.py migrate
 
-# Tests — 197: 190 methods across 26 classes in core/tests.py, plus 7 in
+# Tests — 200: 193 methods across 26 classes in core/tests.py, plus 7 in
 # core/test_e2e_livefilter.py that skip unless node + jsdom are present.
 python manage.py test core
 python manage.py test core.tests.TierCalculationTests       # one class
@@ -152,13 +152,14 @@ all restate it: `project_detail`, `/search/` — which matters, since it truncat
 page. Adding a list with its own `order_by` means restating it again; `Meta.ordering` will not
 carry it.
 
-`Project.kind` separates research projects from `Referred Cases`, but it is **not on
-`ProjectForm`**: a project's kind is set at creation by the migration or from the shell, and no
-screen can change it afterwards.
-
-`Project.phase` (1 or 2) is the opposite call, deliberately: it **is** on `ProjectForm`, because
-the consortium reshuffles projects between phases as work advances and needing a shell for each
-reclassification would make the field unusable by the people who need it. It defaults to the
+`Project.kind` separates research projects from `Referred Cases`, and `Project.phase` (1 or 2)
+says which cohort a project belongs to. **Both are on `ProjectForm`.** `kind` used to be withheld
+on the theory that it is set once and never revisited; that theory failed in the field. A project
+created through the UI silently took the default — research — and nothing short of shell access
+could correct it, so two referred-case projects sat on the home page labelled as research with no
+way for their owner to fix them. Needing a server login to correct a dropdown makes the field
+unusable by the people who need it; the same reasoning applies to the phase, which the consortium
+reshuffles as work advances. It defaults to the
 **current** phase, so a project created today lands where work is happening; migration 0033 is
 the only thing that pushes the pre-existing ones down to phase 1. `Referred Cases` is exempted
 there — it is a continuous intake of physician-referred cases, often urgent, not a closed cohort,
@@ -709,14 +710,16 @@ pass.
 
 ## Tests
 
-197 tests in 26 classes plus the jsdom module. Two module-level helpers hold the suite together
+200 tests in 26 classes plus the jsdom module. Two module-level helpers hold the suite together
 and are worth knowing before adding a class:
 
 - `make_editor(username)` creates a user in the `editor` group with its permissions granted
   explicitly — group permission assignments are not code-managed, so a test cannot rely on them;
-- `envoi_creation(**champs)` builds a valid POST for `case_create` / `batch_case_create` and
-  takes overrides as keyword arguments. Tests used to write that dict by hand, so every new
-  required field broke all of them at once for a reason unrelated to what they check.
+- `envoi_creation(**champs)` builds a valid POST for `case_create` / `batch_case_create`, and
+  `envoi_projet(**champs)` does the same for `project_create` / `project_update`. Both take
+  overrides as keyword arguments. Tests used to write those dicts by hand, so every new required
+  field broke all of them at once for a reason unrelated to what they check — which is exactly
+  what happened when `kind` joined `ProjectForm`.
 
 ### Template fields must actually be rendered
 
