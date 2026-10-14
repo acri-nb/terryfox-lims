@@ -382,6 +382,30 @@ tr.is-priority > td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
   transition: opacity .12s ease .18s;
 }
 
+/* --------------------------------------------------- roles et activite */
+
+/* Le libelle porte deja le role : « Admin », « Editor », « Viewer » se lisent
+   sans couleur. Une seule des trois valeurs merite d'etre reperee d'un coup
+   d'oeil -- le compte a privileges -- et c'est la seule qui soit teintee. Trois
+   couleurs auraient encode une hierarchie que personne n'a besoin de scanner,
+   au prix d'un mur de pastilles. */
+.badge-role {
+  background: var(--surface-2);
+  color: var(--ink-2);
+  border-color: var(--rule-strong);
+}
+.badge-role-admin {
+  background: var(--warn-bg);
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+/* Actif est l'etat normal : il se signale sobrement. Inactif est l'exception
+   et doit se voir, sans pour autant crier a l'erreur -- un compte desactive
+   n'est pas une panne. */
+.badge-actif   { background: var(--good-bg); color: var(--good); border-color: var(--good); }
+.badge-inactif { background: var(--surface-2); color: var(--ink-3); border-color: var(--rule-strong); }
+
 /* ------------------------------------------------- repli de la phase 1 */
 
 /* <details> natif plutot qu'un panneau en JavaScript : il s'ouvre sans script,

@@ -479,7 +479,7 @@ class UserFilterForm(forms.Form):
         label=_('Search'),
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': _('Name, username or email...'),
+            'placeholder': _('Name, username, email'),
             'autocomplete': 'off',
         }),
     )

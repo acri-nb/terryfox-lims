@@ -9,7 +9,7 @@
         <a href="{% url 'user_create' %}" class="btn btn-primary me-2">
             <i class="fas fa-user-plus me-1"></i> Create User
         </a>
-        <a href="{% url 'batch_user_create' %}" class="btn btn-success">
+        <a href="{% url 'batch_user_create' %}" class="btn btn-outline-primary">
             <i class="fas fa-users me-1"></i> Create Multiple Users
         </a>
     </div>
@@ -79,13 +79,13 @@
                         </td>
                         <td>
                             {% if user_info.user.is_active %}
-                                <span class="badge bg-success">Active</span>
+                                <span class="badge badge-actif">Active</span>
                             {% else %}
-                                <span class="badge bg-secondary">Inactive</span>
+                                <span class="badge badge-inactif">Inactive</span>
                             {% endif %}
                         </td>
                         <td>
-                            <span class="badge bg-{{ user_info.role_class }}">{{ user_info.role }}</span>
+                            <span class="badge badge-role{% if user_info.role == 'Admin' %} badge-role-admin{% endif %}">{{ user_info.role }}</span>
                         </td>
                         <td class="d-none d-md-table-cell">
                             {% if user_info.user.last_login %}
@@ -144,41 +144,28 @@ laisse : ce sont des chiffres de reference, ils ne doivent pas bouger pendant
 qu'on tape. Ils restent donc affiches meme quand la recherche ne ramene rien.
 {% endcomment %}
 {% if total_comptes %}
-<div class="row mt-4">
-    <div class="col-md-4">
-        <div class="card bg-light">
-            <div class="card-body text-center">
-                <h5 class="card-title">
-                    <i class="fas fa-shield-alt text-danger me-2"></i>Admins
-                </h5>
-                <h3 class="text-danger">
-                    {{ total_admins }}
-                </h3>
-            </div>
+{% comment %}
+Les memes tuiles que l'accueil, et pour la meme raison : un nombre se lit tel
+quel, pas besoin d'une carte coloree autour. Les couleurs vives d'avant
+encodaient une hierarchie entre roles que personne n'a besoin de scanner.
+{% endcomment %}
+<div class="row g-3 mt-1">
+    <div class="col-6 col-lg-4">
+        <div class="metric">
+            <div class="metric-value">{{ total_admins }}</div>
+            <div class="metric-label">admins</div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card bg-light">
-            <div class="card-body text-center">
-                <h5 class="card-title">
-                    <i class="fas fa-edit text-success me-2"></i>Editors
-                </h5>
-                <h3 class="text-success">
-                    {{ total_editors }}
-                </h3>
-            </div>
+    <div class="col-6 col-lg-4">
+        <div class="metric">
+            <div class="metric-value">{{ total_editors }}</div>
+            <div class="metric-label">editors</div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card bg-light">
-            <div class="card-body text-center">
-                <h5 class="card-title">
-                    <i class="fas fa-eye text-primary me-2"></i>Viewers
-                </h5>
-                <h3 class="text-primary">
-                    {{ total_viewers }}
-                </h3>
-            </div>
+    <div class="col-6 col-lg-4">
+        <div class="metric">
+            <div class="metric-value">{{ total_viewers }}</div>
+            <div class="metric-label">viewers</div>
         </div>
     </div>
 </div>
