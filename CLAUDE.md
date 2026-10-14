@@ -37,7 +37,7 @@ python manage.py runserver
 # Migrations — locally only. On the server, see ops/deploy.sh below.
 python manage.py makemigrations && python manage.py migrate
 
-# Tests — 179: 172 methods across 22 classes in core/tests.py, plus 7 in
+# Tests — 184: 177 methods across 24 classes in core/tests.py, plus 7 in
 # core/test_e2e_livefilter.py that skip unless node + jsdom are present.
 python manage.py test core
 python manage.py test core.tests.TierCalculationTests       # one class
@@ -170,6 +170,18 @@ the whole of phase 1 rather than over what the filter left, so a reference numbe
 while someone types; and the project filter runs *before* the split, so a search reaches into the
 fold and opens it when it matches. A filter that only saw phase 2 would answer "nothing" about a
 project that exists.
+
+Migration 0034 opened the first phase 2 cohort by **moving** cases, never by deleting and
+re-creating them: the specimens already carry a printed label bearing their ACC, and a fresh case
+would be handed a fresh number — the counter never reuses a freed one — leaving the labels on the
+tubes wrong. Moving means `UPDATE core_case SET project_id`, so the ACC, the specimens, the
+coverages, the comments and the history all stay exactly where they are. It moves through
+`all_objects` and filters on ACC alone, because an attempt archived by a resubmit shares the ACC
+of the live one and splitting them across two projects would cut one patient's history in half.
+Any future cohort split should copy that shape. A data migration that keys on a project *name*
+must also tell an empty database from an anomalous one: 0034 returns quietly when no project
+exists at all (fresh install, test database) and raises when projects exist but the named one does
+not.
 
 ### Specimens and the derived case status
 
@@ -683,7 +695,7 @@ pass.
 
 ## Tests
 
-179 tests in 22 classes plus the jsdom module. Two module-level helpers hold the suite together
+184 tests in 24 classes plus the jsdom module. Two module-level helpers hold the suite together
 and are worth knowing before adding a class:
 
 - `make_editor(username)` creates a user in the `editor` group with its permissions granted

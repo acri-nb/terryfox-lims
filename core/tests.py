@@ -2151,3 +2151,76 @@ class PhaseTests(TestCase):
         page = self.client.get(
             reverse("project_update", kwargs={"project_id": self.ancien.id})).content.decode()
         self.assertIn('name="phase"', page)
+
+
+class CaseRelocationTests(TestCase):
+    """Deplacer un cas d'un projet a l'autre, sans le recreer.
+
+    Eric : « on ne veut pas deleter et re-creer car les specimens ont deja ete
+    etiquetes avec le ACC du LIMS ». Un tube au congelateur porte un numero
+    imprime ; recreer le cas lui en attribuerait un autre et rendrait
+    l'etiquette fausse. Changer le projet ne touche a rien d'autre, et ces
+    tests tiennent cette garantie.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("admin_rl", password="x")
+        self.source = Project.objects.create(
+            name="P12_Source", created_by=self.admin, phase=Project.PHASE_1)
+        self.cible = Project.objects.create(
+            name="PanCancer-EV", created_by=self.admin, phase=Project.PHASE_2)
+        self.case = Case.objects.create(project=self.source, biobank_id="RL-001")
+        self.case.ensure_specimens()
+        Comment.objects.create(case=self.case, text="une remarque", user=self.admin)
+
+    def test_moving_a_case_keeps_its_acc(self):
+        acc, nom = self.case.acc_number, self.case.name
+        Case.all_objects.filter(pk=self.case.pk).update(project=self.cible)
+        self.case.refresh_from_db()
+        self.assertEqual(self.case.project, self.cible)
+        self.assertEqual(self.case.acc_number, acc)
+        self.assertEqual(self.case.name, nom)
+
+    def test_moving_a_case_keeps_everything_hanging_off_it(self):
+        Case.all_objects.filter(pk=self.case.pk).update(project=self.cible)
+        self.case.refresh_from_db()
+        self.assertEqual(self.case.specimens.count(), 3)
+        self.assertEqual(self.case.comments.count(), 1)
+
+    def test_recreating_instead_would_hand_out_a_new_acc(self):
+        """La demonstration de ce qu'il ne faut pas faire.
+
+        Le compteur ne reutilise jamais un numero libere : supprimer puis
+        recreer ne rend pas l'ancien ACC, il en consomme un neuf.
+        """
+        ancien = self.case.acc_number
+        self.case.delete()
+        neuf = Case.objects.create(project=self.cible, biobank_id="RL-001")
+        self.assertNotEqual(neuf.acc_number, ancien)
+        self.assertGreater(neuf.acc_number, ancien)
+
+    def test_an_archived_attempt_must_travel_with_its_acc(self):
+        """Separer les tentatives couperait l'historique d'un patient en deux."""
+        suivant = self.case.resubmit(user=self.admin)
+        self.case.refresh_from_db()
+        self.assertTrue(self.case.is_archived)
+        self.assertEqual(self.case.acc_number, suivant.acc_number)
+
+        # Le filtre de la migration : par projet et par ACC, sans exclure les
+        # tentatives archivees.
+        bouges = Case.all_objects.filter(
+            project=self.source, acc_number__gte=suivant.acc_number
+        ).update(project=self.cible)
+        self.assertEqual(bouges, 2, "la tentative archivee doit suivre")
+        self.assertEqual(
+            Case.all_objects.filter(project=self.cible).count(), 2)
+
+    def test_a_case_below_the_threshold_stays_put(self):
+        bas = Case.objects.create(project=self.source, biobank_id="RL-bas")
+        haut = Case.objects.create(project=self.source, biobank_id="RL-haut")
+        Case.all_objects.filter(
+            project=self.source, acc_number__gte=haut.acc_number
+        ).update(project=self.cible)
+        bas.refresh_from_db(); haut.refresh_from_db()
+        self.assertEqual(bas.project, self.source)
+        self.assertEqual(haut.project, self.cible)
