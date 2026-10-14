@@ -465,6 +465,26 @@ class CaseFilterForm(forms.Form):
         widget=forms.Select(attrs={'class': 'form-select'}),
     )
 
+class UserFilterForm(forms.Form):
+    """Recherche dans la liste des comptes.
+
+    Un seul champ, qui interroge a la fois l'identifiant, le nom, le prenom et
+    l'adresse : on cherche une personne, et on ne sait pas d'avance sous quelle
+    forme son nom a ete saisi. Demander a l'utilisateur de choisir la colonne
+    avant de taper lui fait faire le travail de la machine.
+    """
+
+    q = forms.CharField(
+        required=False,
+        label=_('Search'),
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('Name, username or email...'),
+            'autocomplete': 'off',
+        }),
+    )
+
+
 class UserCreateForm(forms.ModelForm):
     """Form for creating a single user."""
     

@@ -21,7 +21,7 @@ from . import exports, statuses
 from django.views.decorators.http import require_POST
 from .models import BatchOperation, SpecimenStatusChange, Project, Case, Specimen, Accession, Comment, ProjectLead, IdentifierSequence, Favorite
 
-from .forms import ProjectForm, CaseForm, CaseStatusForm, SpecimenFormSet, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, BulkStatusForm, ResubmitForm, CSVImportForm, UserCreateForm, BatchUserCreateForm, UserUpdateForm
+from .forms import ProjectForm, CaseForm, CaseStatusForm, SpecimenFormSet, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, BulkStatusForm, ResubmitForm, CSVImportForm, UserCreateForm, BatchUserCreateForm, UserUpdateForm, UserFilterForm
 
 # Nombre de cas affiches par page. Le plus gros projet en compte 256 ; a 100 par
 # page la recherche et les filtres restent le chemin principal pour retrouver un
@@ -1170,18 +1170,40 @@ def user_list(request):
         messages.error(request, _('You do not have permission to access user management.'))
         return redirect('home')
     
-    users = User.objects.all().order_by('username')
-    
+    # prefetch des groupes : le role de chaque compte se lit plus bas avec un
+    # groups.filter(), soit deux requetes par ligne. A 45 comptes la page en
+    # demandait une centaine pour afficher deux pastilles.
+    users = User.objects.prefetch_related('groups').order_by('username')
+
+    filter_form = UserFilterForm(request.GET)
+    terme = ''
+    if filter_form.is_valid():
+        terme = (filter_form.cleaned_data.get('q') or '').strip()
+        if terme:
+            # Un seul champ qui vise les quatre colonnes ou un nom peut se
+            # trouver : on cherche une personne, pas une colonne.
+            users = users.filter(
+                Q(username__icontains=terme)
+                | Q(first_name__icontains=terme)
+                | Q(last_name__icontains=terme)
+                | Q(email__icontains=terme)
+            )
+
+    total_comptes = User.objects.count()
+
     # Add role information to each user
     users_with_roles = []
     for user in users:
+        # Les groupes sont deja charges : on les lit en memoire plutot que de
+        # relancer une requete par ligne.
+        noms_de_groupes = {g.name for g in user.groups.all()}
         if user.is_superuser:
             role = 'Admin'
             role_class = 'danger'
-        elif user.groups.filter(name='editor').exists():
+        elif 'editor' in noms_de_groupes:
             role = 'Editor'
             role_class = 'success'
-        elif user.groups.filter(name='viewer').exists():
+        elif 'viewer' in noms_de_groupes:
             role = 'Viewer'
             role_class = 'primary'
         else:
@@ -1201,6 +1223,9 @@ def user_list(request):
     
     return render(request, 'core/user_list.html', {
         'users_with_roles': users_with_roles,
+        'filter_form': filter_form,
+        'terme': terme,
+        'total_comptes': total_comptes,
         'total_admins': total_admins,
         'total_editors': total_editors,
         'total_viewers': total_viewers,

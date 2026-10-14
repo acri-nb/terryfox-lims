@@ -16,10 +16,40 @@
 </div>
 
 <div class="card">
-    <div class="card-header">
-        <h5 class="mb-0">All Users ({{ users_with_roles|length }})</h5>
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        {% comment %}
+        Le titre est sa PROPRE region : le formulaire doit rester hors de toute
+        region pour que le curseur survive a la frappe, mais le compte doit
+        suivre la recherche. Sans cela il annoncait « All Users (45) » au-dessus
+        d'une seule ligne.
+        {% endcomment %}
+        <h5 class="mb-0" id="users-heading" data-live-region>
+            {% if terme %}
+            {{ users_with_roles|length }} of {{ total_comptes }} users
+            {% else %}
+            All Users ({{ total_comptes }})
+            {% endif %}
+        </h5>
+        {% comment %}
+        La recherche s'applique a la frappe : voir static/js/live-filter.js. Le
+        bouton et le lien restent la pour les navigateurs sans JavaScript ; le
+        script les masque lui-meme quand il prend la main.
+        {% endcomment %}
+        <form method="get" class="d-flex gap-2 align-items-center" data-live-filter>
+            {{ filter_form.q }}
+            <button type="submit" class="btn btn-sm btn-outline-secondary" data-live-submit>Search</button>
+            <a href="{% url 'user_list' %}" class="btn btn-sm btn-link text-muted" data-live-clear
+               {% if not terme %}hidden{% endif %}>Clear</a>
+        </form>
     </div>
     <div class="card-body p-0">
+        {% comment %}
+        La region enveloppe le tableau ET l'etat vide : elle doit exister dans
+        la reponse quel que soit le resultat, sans quoi une recherche sans
+        correspondance ne renverrait rien a remettre en place et l'ecran
+        garderait la liste precedente.
+        {% endcomment %}
+        <div id="users-region" data-live-region>
         {% if users_with_roles %}
         <div class="table-responsive">
             <table class="table table-hover mb-0">
@@ -89,18 +119,31 @@
         </div>
         {% else %}
         <div class="text-center py-5">
-            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+            {% if terme %}
+            <h5 class="text-muted">No user matches &laquo;&nbsp;{{ terme }}&nbsp;&raquo;</h5>
+            <p class="text-muted">
+                The search looks at the username, the full name and the email address.
+            </p>
+            <a href="{% url 'user_list' %}" class="btn btn-sm btn-outline-secondary">Clear the search</a>
+            {% else %}
             <h5 class="text-muted">No users found</h5>
             <p class="text-muted">Start by creating your first user.</p>
             <a href="{% url 'user_create' %}" class="btn btn-primary">
                 <i class="fas fa-user-plus me-1"></i> Create User
             </a>
+            {% endif %}
         </div>
         {% endif %}
+        </div>
     </div>
 </div>
 
-{% if users_with_roles %}
+{% comment %}
+Ces trois totaux portent sur TOUS les comptes, pas sur ce que la recherche a
+laisse : ce sont des chiffres de reference, ils ne doivent pas bouger pendant
+qu'on tape. Ils restent donc affiches meme quand la recherche ne ramene rien.
+{% endcomment %}
+{% if total_comptes %}
 <div class="row mt-4">
     <div class="col-md-4">
         <div class="card bg-light">

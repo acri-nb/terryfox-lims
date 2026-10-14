@@ -37,7 +37,7 @@ python manage.py runserver
 # Migrations — locally only. On the server, see ops/deploy.sh below.
 python manage.py makemigrations && python manage.py migrate
 
-# Tests — 186: 179 methods across 25 classes in core/tests.py, plus 7 in
+# Tests — 197: 190 methods across 26 classes in core/tests.py, plus 7 in
 # core/test_e2e_livefilter.py that skip unless node + jsdom are present.
 python manage.py test core
 python manage.py test core.tests.TierCalculationTests       # one class
@@ -600,8 +600,8 @@ there and a required field would make the edit form invalid.
 
 ### Live filtering
 
-`static/js/live-filter.js` makes the filter forms on `home`, `project_detail` and `case_search`
-apply as you type (250 ms debounce) or pick, instead of requiring a click on *Filter* and then on
+`static/js/live-filter.js` makes the filter forms on `home`, `project_detail`, `case_search` and
+`user_list` apply as you type (250 ms debounce) or pick, instead of requiring a click on *Filter* and then on
 *Clear*. It replays the same GET request and swaps only the elements marked `data-live-region`,
 matched **by id** between the current page and the parsed response. The server stays the sole
 authority on what matches: nothing is hidden client-side, which would be wrong the moment a list
@@ -709,7 +709,7 @@ pass.
 
 ## Tests
 
-186 tests in 25 classes plus the jsdom module. Two module-level helpers hold the suite together
+197 tests in 26 classes plus the jsdom module. Two module-level helpers hold the suite together
 and are worth knowing before adding a class:
 
 - `make_editor(username)` creates a user in the `editor` group with its permissions granted

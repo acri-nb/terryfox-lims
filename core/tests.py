@@ -2254,3 +2254,84 @@ class HstsTests(TestCase):
         self.assertIn("SECURE_HSTS_SECONDS = 0", reglages)
         self.assertIn("A REACTIVER", reglages,
                       "la condition de reactivation doit rester ecrite a cote")
+
+
+class UserSearchTests(TestCase):
+    """La recherche dans la liste des comptes.
+
+    Quarante-cinq comptes sans moyen d'en trouver un : la page obligeait a
+    parcourir le tableau a l'oeil.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("admin_us", password="x")
+        User.objects.create_user("adrienne", email="aweeks@acri.ca",
+                                 first_name="Adrienne", last_name="Weeks")
+        User.objects.create_user("akinolaa", email="akin@acri.ca",
+                                 first_name="Akinola", last_name="Alafiatayo")
+        User.objects.create_user("amy", email="atrottier@acri.ca",
+                                 first_name="Amy", last_name="Trottier")
+        self.client = Client()
+        self.client.force_login(self.admin)
+
+    def _chercher(self, terme=None):
+        return self.client.get(reverse("user_list"), {"q": terme} if terme else {})
+
+    def _noms(self, reponse):
+        return sorted(u["user"].username for u in reponse.context["users_with_roles"])
+
+    def test_the_whole_list_shows_without_a_search(self):
+        self.assertEqual(len(self._noms(self._chercher())), 4)
+
+    def test_searching_by_username(self):
+        self.assertEqual(self._noms(self._chercher("adrienne")), ["adrienne"])
+
+    def test_searching_by_first_or_last_name(self):
+        """On cherche une personne sans savoir sous quelle forme elle est saisie."""
+        self.assertEqual(self._noms(self._chercher("Trottier")), ["amy"])
+        self.assertEqual(self._noms(self._chercher("Akinola")), ["akinolaa"])
+
+    def test_searching_by_email(self):
+        self.assertEqual(self._noms(self._chercher("aweeks")), ["adrienne"])
+
+    def test_the_search_is_case_insensitive(self):
+        self.assertEqual(self._noms(self._chercher("TROTTIER")), ["amy"])
+
+    def test_a_fruitless_search_says_so(self):
+        page = self._chercher("zzz-personne").content.decode()
+        self.assertIn("No user matches", page)
+
+    def test_the_region_survives_a_fruitless_search(self):
+        """Sans elle, le filtre en direct n'aurait rien a remettre en place."""
+        self.assertIn('id="users-region"', self._chercher("zzz-personne").content.decode())
+        self.assertIn('id="users-region"', self._chercher().content.decode())
+
+    def test_the_role_totals_ignore_the_search(self):
+        """Des chiffres de reference ne doivent pas bouger pendant qu'on tape."""
+        tous = self._chercher()
+        filtre = self._chercher("adrienne")
+        for cle in ("total_admins", "total_editors", "total_viewers", "total_comptes"):
+            self.assertEqual(filtre.context[cle], tous.context[cle], cle)
+
+    def test_the_heading_follows_the_search(self):
+        """Il est sa propre region : sinon il annonce 45 au-dessus d'une ligne."""
+        page = self._chercher("Trottier").content.decode()
+        self.assertIn('id="users-heading"', page)
+        self.assertIn("1 of 4 users", page)
+
+    def test_the_form_is_wired_for_live_filtering(self):
+        page = self._chercher().content.decode()
+        self.assertIn("data-live-filter", page)
+        self.assertIn("data-live-submit", page)
+        self.assertIn("data-live-clear", page)
+
+    def test_the_page_does_not_query_once_per_user(self):
+        """Le role se lisait avec deux requetes par ligne, soit ~100 a 45 comptes."""
+        with CaptureQueriesContext(connection) as quatre:
+            self._chercher()
+        for i in range(12):
+            User.objects.create_user(f"compte{i}")
+        with CaptureQueriesContext(connection) as seize:
+            self._chercher()
+        self.assertEqual(len(quatre.captured_queries), len(seize.captured_queries),
+                         "le nombre de requetes grandit avec le nombre de comptes")
