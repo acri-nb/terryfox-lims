@@ -31,9 +31,29 @@ WSGI_APPLICATION = 'terryfox_lims.wsgi_prod.application'
 SECURE_SSL_REDIRECT = False
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
-SECURE_HSTS_SECONDS = 31536000  # 1 annee
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
+# HSTS est DESACTIVE, et ce n'est pas un oubli.
+#
+# Un seul nom, candig-lims.cair.mun.ca, est servi par deux chemins : le proxy
+# MUN, qui presente un certificat Sectigo de confiance, et cette VM en direct,
+# qui presente un certificat auto-signe. Les utilisateurs du reseau interne
+# arrivent par le second -- les journaux du 14 octobre ne montrent aucune
+# requete venue du proxy.
+#
+# Sur ce chemin, HSTS ne protege rien : la connexion n'est deja pas
+# authentifiee, puisque le certificat n'est signe par aucune autorite. En
+# revanche il verrouille : des qu'une reponse porte l'en-tete, le navigateur
+# retient pour un an que ce nom doit avoir un certificat de confiance, et
+# refuse ensuite TOUT contournement. Le piege se refermait a chaque page :
+# l'utilisateur supprimait le verrou, cliquait « Continuer », et la reponse
+# qu'il recevait le reposait aussitot.
+#
+# A REACTIVER le jour ou la VM portera le certificat Sectigo de MUN. C'est la
+# condition, et la seule : tant que les deux chemins ne presentent pas tous
+# deux un certificat de confiance, cet en-tete coute un blocage et ne rapporte
+# rien. Le proxy reste libre de poser le sien pour les acces externes.
+SECURE_HSTS_SECONDS = 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+SECURE_HSTS_PRELOAD = False
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
 SECURE_BROWSER_XSS_FILTER = True

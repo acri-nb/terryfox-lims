@@ -2224,3 +2224,33 @@ class CaseRelocationTests(TestCase):
         bas.refresh_from_db(); haut.refresh_from_db()
         self.assertEqual(bas.project, self.source)
         self.assertEqual(haut.project, self.cible)
+
+
+class HstsTests(TestCase):
+    """HSTS ne doit pas etre envoye tant que la VM sert un certificat auto-signe.
+
+    Un seul nom est servi par deux chemins : le proxy MUN avec un certificat
+    Sectigo, et cette VM en direct avec un auto-signe. Sur le second, l'en-tete
+    ne protege rien -- la connexion n'est deja pas authentifiee -- mais il
+    verrouille le navigateur pour un an et interdit tout contournement. Le
+    piege se refermait a chaque page : supprimer le verrou, cliquer
+    « Continuer », et la reponse reposait le verrou.
+    """
+
+    def test_production_sends_no_hsts_header(self):
+        with override_settings(
+            SECURE_HSTS_SECONDS=0, ALLOWED_HOSTS=["testserver"],
+        ):
+            reponse = Client(secure=True).get("/")
+        self.assertNotIn("Strict-Transport-Security", reponse.headers)
+
+    def test_the_production_settings_keep_it_off(self):
+        """Le reglage lui-meme, pas seulement son effet.
+
+        Remettre SECURE_HSTS_SECONDS a une valeur non nulle sans donner a la VM
+        un certificat de confiance rejouerait exactement la panne du 14 octobre.
+        """
+        reglages = (Path(settings.BASE_DIR) / "terryfox_lims" / "settings_prod.py").read_text()
+        self.assertIn("SECURE_HSTS_SECONDS = 0", reglages)
+        self.assertIn("A REACTIVER", reglages,
+                      "la condition de reactivation doit rester ecrite a cote")
