@@ -47,6 +47,9 @@
                 {% if form.project_lead.errors %}
                 <div class="invalid-feedback d-block">{{ form.project_lead.errors }}</div>
                 {% endif %}
+                {% if form.custom_project_lead.errors %}
+                <div class="invalid-feedback d-block">{{ form.custom_project_lead.errors }}</div>
+                {% endif %}
             </div>
 
             {% comment %}
@@ -76,7 +79,10 @@
     document.addEventListener('DOMContentLoaded', function() {
         const projectLeadSelect = document.getElementById('id_project_lead');
         const customProjectLeadInput = document.getElementById('id_custom_project_lead');
-        
+        if (!projectLeadSelect || !customProjectLeadInput) {
+            return;
+        }
+
         // Show/hide custom project lead field based on selection
         function toggleCustomField() {
             if (projectLeadSelect.value === '_new_') {

@@ -2388,3 +2388,64 @@ class UserSearchTests(TestCase):
             self._chercher()
         self.assertEqual(len(quatre.captured_queries), len(seize.captured_queries),
                          "le nombre de requetes grandit avec le nombre de comptes")
+
+
+class ProjectLeadEntryTests(TestCase):
+    """Adding a new project lead straight from the project form.
+
+    The form used to offer only leads already in the database, so a phase 2
+    project with a new lead could not be created without first going to the
+    Project Leads page.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("lead_admin", password="x")
+        self.client = Client()
+        self.client.force_login(self.admin)
+        self.existing = ProjectLead.objects.create(name="Reiman")
+
+    def test_form_offers_add_new_lead_option(self):
+        page = self.client.get(reverse("project_create")).content.decode()
+        self.assertIn('value="_new_"', page)
+        self.assertIn('id="id_custom_project_lead"', page)
+
+    def test_creating_project_with_new_lead_creates_the_lead(self):
+        response = self.client.post(reverse("project_create"), envoi_projet(
+            name="Phase2-New", project_lead="_new_",
+            custom_project_lead="  Smith/Jones ",
+        ))
+        self.assertEqual(response.status_code, 302)
+        lead = ProjectLead.objects.get(name="Smith/Jones")
+        self.assertEqual(Project.objects.get(name="Phase2-New").project_lead, lead)
+
+    def test_same_name_different_case_reuses_existing_lead(self):
+        self.client.post(reverse("project_create"), envoi_projet(
+            name="Phase2-Reuse", project_lead="_new_", custom_project_lead="reiman",
+        ))
+        self.assertEqual(ProjectLead.objects.count(), 1)
+        self.assertEqual(Project.objects.get(name="Phase2-Reuse").project_lead, self.existing)
+
+    def test_new_lead_without_a_name_is_rejected(self):
+        response = self.client.post(reverse("project_create"), envoi_projet(
+            name="Phase2-Blank", project_lead="_new_", custom_project_lead="  ",
+        ))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Enter the name of the new project lead.")
+        self.assertFalse(Project.objects.filter(name="Phase2-Blank").exists())
+        self.assertEqual(ProjectLead.objects.count(), 1)
+
+    def test_existing_lead_still_works(self):
+        self.client.post(reverse("project_create"), envoi_projet(
+            name="Phase2-Existing", project_lead=str(self.existing.id),
+        ))
+        self.assertEqual(Project.objects.get(name="Phase2-Existing").project_lead, self.existing)
+
+    def test_updating_project_to_new_lead(self):
+        project = Project.objects.create(
+            name="Phase2-Update", project_lead=self.existing, created_by=self.admin)
+        self.client.post(
+            reverse("project_update", kwargs={"project_id": project.id}),
+            envoi_projet(name="Phase2-Update", project_lead="_new_",
+                         custom_project_lead="Xu"))
+        project.refresh_from_db()
+        self.assertEqual(project.project_lead, ProjectLead.objects.get(name="Xu"))
