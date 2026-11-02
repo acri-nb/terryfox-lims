@@ -72,11 +72,23 @@ class ProjectForm(forms.ModelForm):
         }),
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
 
         # Create blank option for project_lead
         self.fields['project_lead'].empty_label = _('-- Select a Project Lead --')
+
+        # Creating a lead from here must need the same permission as the
+        # Project Leads page, otherwise this form would bypass it. Without a
+        # user, nobody is allowed.
+        self.can_add_lead = bool(user and user.has_perm('core.add_projectlead'))
+        self._adding_lead = False
+
+        if not self.can_add_lead:
+            # The field disappears and '_new_' is left as an unknown choice,
+            # which the model field rejects on its own.
+            del self.fields['custom_project_lead']
+            return
 
         # Phase 2 projects have leads that phase 1 never had. Without this
         # entry the dropdown only offered existing leads, and adding one meant
@@ -88,7 +100,6 @@ class ProjectForm(forms.ModelForm):
         # The model field rejects '_new_' as an unknown id, so the raw value is
         # read here and the field is emptied before validation; clean() then
         # attaches the lead typed in custom_project_lead.
-        self._adding_lead = False
         if self.is_bound and self.data.get(self.add_prefix('project_lead')) == self.NEW_LEAD:
             self._adding_lead = True
             self.data = self.data.copy()

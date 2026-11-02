@@ -2452,7 +2452,7 @@ class ProjectLeadEntryTests(TestCase):
 
     def test_commit_false_writes_nothing(self):
         from .forms import ProjectForm
-        form = ProjectForm(data=envoi_projet(
+        form = ProjectForm(user=self.admin, data=envoi_projet(
             name="Phase2-Deferred", project_lead="_new_", custom_project_lead="Deferred"))
         self.assertTrue(form.is_valid(), form.errors)
         project = form.save(commit=False)
@@ -2518,3 +2518,47 @@ class ProjectLeadRulesTests(TestCase):
         self.assertEqual(response.status_code, 200)
         xu.refresh_from_db()
         self.assertEqual(xu.name, "Xu")
+
+
+class ProjectLeadPermissionTests(TestCase):
+    """Adding a lead from the project form needs core.add_projectlead.
+
+    Without this check, anyone allowed to create or edit projects could create
+    leads through the form even when the Project Leads page refuses them.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user("project_only", password="x")
+        self.user.user_permissions.add(
+            Permission.objects.get(codename="add_project", content_type__app_label="core"),
+            Permission.objects.get(codename="change_project", content_type__app_label="core"),
+        )
+        self.client = Client()
+        self.client.force_login(self.user)
+        self.lead = ProjectLead.objects.create(name="Lead Alpha")
+
+    def test_option_hidden_without_lead_permission(self):
+        page = self.client.get(reverse("project_create")).content.decode()
+        self.assertNotIn('value="_new_"', page)
+        self.assertNotIn('id="id_custom_project_lead"', page)
+
+    def test_existing_lead_still_selectable_without_lead_permission(self):
+        response = self.client.post(reverse("project_create"), envoi_projet(
+            name="Perm-Existing", project_lead=str(self.lead.id)))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Project.objects.get(name="Perm-Existing").project_lead, self.lead)
+
+    def test_forged_new_lead_post_is_rejected(self):
+        response = self.client.post(reverse("project_create"), envoi_projet(
+            name="Perm-Forged", project_lead="_new_", custom_project_lead="Lead Beta"))
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Project.objects.filter(name="Perm-Forged").exists())
+        self.assertFalse(ProjectLead.objects.filter(name="Lead Beta").exists())
+
+    def test_option_shown_with_lead_permission(self):
+        self.user.user_permissions.add(
+            Permission.objects.get(codename="add_projectlead", content_type__app_label="core"))
+        self.user = User.objects.get(pk=self.user.pk)  # drop the cached permissions
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("project_create")).content.decode()
+        self.assertIn('value="_new_"', page)
