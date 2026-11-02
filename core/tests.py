@@ -2466,3 +2466,55 @@ class ProjectLeadEntryTests(TestCase):
                     name="Phase2-Fails", project_lead="_new_",
                     custom_project_lead="Orphan"))
         self.assertFalse(ProjectLead.objects.filter(name="Orphan").exists())
+
+    def test_new_lead_name_spacing_is_normalized(self):
+        self.client.post(reverse("project_create"), envoi_projet(
+            name="Phase2-Spaces", project_lead="_new_",
+            custom_project_lead="  Weeks   /  Roy  "))
+        self.assertTrue(ProjectLead.objects.filter(name="Weeks / Roy").exists())
+
+
+class ProjectLeadRulesTests(TestCase):
+    """The lead naming rules live on the model, so every creation path shares them."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("rules_admin", password="x")
+        self.client = Client()
+        self.client.force_login(self.admin)
+        self.reiman = ProjectLead.objects.create(name="Reiman")
+
+    def test_save_normalizes_spacing(self):
+        lead = ProjectLead.objects.create(name="  Xu  ")
+        self.assertEqual(lead.name, "Xu")
+
+    def test_find_or_create_reuses_case_variant(self):
+        lead, created = ProjectLead.find_or_create(" REIMAN ")
+        self.assertFalse(created)
+        self.assertEqual(lead, self.reiman)
+
+    def test_find_or_create_creates_when_missing(self):
+        lead, created = ProjectLead.find_or_create("Boudreau")
+        self.assertTrue(created)
+        self.assertEqual(lead.name, "Boudreau")
+
+    def test_leads_page_rejects_case_duplicate(self):
+        response = self.client.post(reverse("project_lead_create"), {"name": "reiman"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "already exists")
+        self.assertEqual(ProjectLead.objects.count(), 1)
+
+    def test_leads_page_allows_renaming_own_case(self):
+        response = self.client.post(
+            reverse("project_lead_update", kwargs={"lead_id": self.reiman.id}),
+            {"name": "REIMAN"})
+        self.assertEqual(response.status_code, 302)
+        self.reiman.refresh_from_db()
+        self.assertEqual(self.reiman.name, "REIMAN")
+
+    def test_leads_page_rejects_rename_onto_another_lead(self):
+        xu = ProjectLead.objects.create(name="Xu")
+        response = self.client.post(
+            reverse("project_lead_update", kwargs={"lead_id": xu.id}), {"name": "reiman"})
+        self.assertEqual(response.status_code, 200)
+        xu.refresh_from_db()
+        self.assertEqual(xu.name, "Xu")

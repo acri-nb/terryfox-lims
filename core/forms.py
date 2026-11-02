@@ -19,6 +19,23 @@ class ProjectLeadForm(forms.ModelForm):
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('Project Lead Name')}),
         }
 
+    def clean_name(self):
+        """Refuse a name that only differs from an existing lead by case or spacing.
+
+        The unique constraint on the column is case-sensitive, so "reiman"
+        would otherwise be accepted next to "Reiman".
+        """
+        name = ProjectLead.normalize_name(self.cleaned_data.get('name'))
+        if not name:
+            raise forms.ValidationError(_('Enter a name.'))
+        clash = ProjectLead.objects.filter(name__iexact=name).exclude(pk=self.instance.pk).first()
+        if clash:
+            raise forms.ValidationError(
+                _('A project lead named "%(name)s" already exists.'),
+                params={'name': clash.name},
+            )
+        return name
+
 class ProjectForm(forms.ModelForm):
     """Form for creating and updating projects."""
     
@@ -82,15 +99,15 @@ class ProjectForm(forms.ModelForm):
         if not self._adding_lead:
             return cleaned
 
-        name = ' '.join((cleaned.get('custom_project_lead') or '').split())
+        name = ProjectLead.normalize_name(cleaned.get('custom_project_lead'))
         if not name:
             self.add_error('custom_project_lead', _('Enter the name of the new project lead.'))
             return cleaned
 
         # Reuse an existing lead when the same name is typed with different
-        # case, instead of creating a near-duplicate.
-        existing = ProjectLead.objects.filter(name__iexact=name).first()
-        cleaned['project_lead'] = existing or ProjectLead(name=name)
+        # case, instead of creating a near-duplicate. A new one stays unsaved
+        # until save(), so an invalid form writes nothing.
+        cleaned['project_lead'] = ProjectLead.find_by_name(name) or ProjectLead(name=name)
         return cleaned
 
     def save(self, commit=True):
@@ -110,8 +127,9 @@ class ProjectForm(forms.ModelForm):
 
         with transaction.atomic():
             if new_lead:
-                lead.save()
-                self.instance.project_lead = lead
+                # find_or_create rather than lead.save(): someone may have
+                # added the same lead since the form was validated.
+                self.instance.project_lead, _created = ProjectLead.find_or_create(lead.name)
             return super().save(commit=True)
 
 class CaseForm(forms.ModelForm):
