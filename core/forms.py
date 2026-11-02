@@ -1,4 +1,5 @@
 from django import forms
+from django.db import transaction
 from django.forms import inlineformset_factory
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.models import User, Group
@@ -93,11 +94,25 @@ class ProjectForm(forms.ModelForm):
         return cleaned
 
     def save(self, commit=True):
+        """Save the project, creating the new lead first when one was typed.
+
+        With commit=False nothing is written, the new lead included: it stays
+        attached unsaved, and saving the project without saving the lead first
+        raises instead of silently storing a project with no lead. With
+        commit=True the lead and the project are written in one transaction,
+        so a failed project save leaves no orphan lead behind.
+        """
         lead = self.cleaned_data.get('project_lead')
-        if lead is not None and lead.pk is None:
-            lead.save()
-            self.instance.project_lead = lead
-        return super().save(commit=commit)
+        new_lead = lead is not None and lead.pk is None
+
+        if not commit:
+            return super().save(commit=False)
+
+        with transaction.atomic():
+            if new_lead:
+                lead.save()
+                self.instance.project_lead = lead
+            return super().save(commit=True)
 
 class CaseForm(forms.ModelForm):
     """Identite du cas. Ni le statut ni les couvertures ne sont ici.

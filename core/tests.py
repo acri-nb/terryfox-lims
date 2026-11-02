@@ -2449,3 +2449,20 @@ class ProjectLeadEntryTests(TestCase):
                          custom_project_lead="Xu"))
         project.refresh_from_db()
         self.assertEqual(project.project_lead, ProjectLead.objects.get(name="Xu"))
+
+    def test_commit_false_writes_nothing(self):
+        from .forms import ProjectForm
+        form = ProjectForm(data=envoi_projet(
+            name="Phase2-Deferred", project_lead="_new_", custom_project_lead="Deferred"))
+        self.assertTrue(form.is_valid(), form.errors)
+        project = form.save(commit=False)
+        self.assertIsNone(project.pk)
+        self.assertFalse(ProjectLead.objects.filter(name="Deferred").exists())
+
+    def test_failed_project_save_leaves_no_orphan_lead(self):
+        with mock.patch.object(Project, "save", side_effect=IntegrityError("boom")):
+            with self.assertRaises(IntegrityError):
+                self.client.post(reverse("project_create"), envoi_projet(
+                    name="Phase2-Fails", project_lead="_new_",
+                    custom_project_lead="Orphan"))
+        self.assertFalse(ProjectLead.objects.filter(name="Orphan").exists())
