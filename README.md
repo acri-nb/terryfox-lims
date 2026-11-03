@@ -75,12 +75,12 @@ set, so work done in between is never overwritten.
 
 ## Statuses
 
-Ten statuses in three stages, which is also the order the work happens in:
+Eleven statuses in three stages, which is also the order the work happens in:
 
 | Stage | Statuses |
 |---|---|
 | Biobank | Case Created · Sent to Sequencing Center |
-| Sequencing Center | Received · QC complete · Library complete · iSeq finished · Sequencing Complete |
+| Sequencing Center | Received Specimen · Received Nucl. Acid · QC complete · Library complete · iSeq finished · Sequencing Complete |
 | Bioinformatics | Transferred to CAIR · Analyzing · Analysis complete |
 
 Rows inherited from V1 carry a transition status. It is absent from the entry menus and
