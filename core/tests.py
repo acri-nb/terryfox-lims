@@ -2786,3 +2786,134 @@ class SpecimenTypeLabelTests(TestCase):
         entete = next(csv.reader(io.StringIO(texte)))
         for colonne in ("Normal_DNA_Status", "Tumour_DNA_Status", "Tumour_RNA_Status"):
             self.assertIn(colonne, entete)
+
+
+class AllCasesTableTests(TestCase):
+    """The home page lists every case of every project, filtered like a project page."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("allcases_admin", password="x")
+        self.alpha = Project.objects.create(name="Alpha", created_by=self.admin)
+        self.beta = Project.objects.create(name="Beta", created_by=self.admin)
+        self.a1 = self._case(self.alpha, "AC-A1")
+        self.b1 = self._case(self.beta, "AC-B1", invoicing_complete=True)
+        self.client = Client()
+        self.client.force_login(self.admin)
+
+    def _case(self, project, biobank_id, **champs):
+        case = Case.objects.create(project=project, biobank_id=biobank_id, **champs)
+        case.ensure_specimens()
+        return case
+
+    def _home(self, **params):
+        return self.client.get(reverse("home"), params).content.decode()
+
+    def test_cases_of_every_project_are_listed(self):
+        page = self._home()
+        self.assertIn('id="all-cases-table"', page)
+        self.assertIn("AC-A1", page)
+        self.assertIn("AC-B1", page)
+
+    def test_filters_by_name_project_and_invoicing(self):
+        page = self._home(**{"c-name": "AC-A"})
+        self.assertIn("AC-A1", page)
+        self.assertNotIn("AC-B1", page)
+        page = self._home(**{"c-project": self.beta.id})
+        self.assertIn("AC-B1", page)
+        self.assertNotIn("AC-A1", page)
+        page = self._home(**{"c-invoicing": "no"})
+        self.assertIn("AC-A1", page)
+        self.assertNotIn("AC-B1", page)
+
+    def test_status_filter(self):
+        for specimen in self.b1.specimens.all():
+            specimen.status = statuses.QC_COMPLETE
+            specimen.save()
+        page = self._home(**{"c-status": statuses.QC_COMPLETE})
+        self.assertIn("AC-B1", page)
+        self.assertNotIn("AC-A1", page)
+
+    def test_the_project_search_does_not_filter_the_cases(self):
+        """Both forms use a `name` field; the prefix keeps them apart."""
+        page = self._home(name="Alpha")
+        self.assertIn("AC-B1", page)
+
+    def test_an_empty_result_keeps_both_regions(self):
+        page = self._home(**{"c-name": "nothing-matches"})
+        self.assertIn('id="all-cases-region"', page)
+        self.assertIn('id="all-cases-heading"', page)
+        self.assertIn("No case matches these filters", page)
+
+    def test_priority_cases_come_first(self):
+        self._case(self.beta, "AC-ZZ-PRIORITY", is_priority=True)
+        page = self._home()
+        self.assertLess(page.index("AC-ZZ-PRIORITY"), page.index("AC-A1"))
+
+    def test_query_count_does_not_grow_with_case_count(self):
+        with CaptureQueriesContext(connection) as avant:
+            self._home()
+        for i in range(10):
+            self._case(self.alpha, f"AC-N{i}")
+        with CaptureQueriesContext(connection) as apres:
+            self._home()
+        self.assertEqual(len(avant.captured_queries), len(apres.captured_queries))
+
+
+class AllCasesExportTests(TestCase):
+    """Export the all-cases table, whole or as the filtered snapshot."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("export_all_admin", password="x")
+        self.alpha = Project.objects.create(name="Alpha", created_by=self.admin)
+        self.beta = Project.objects.create(name="Beta", created_by=self.admin)
+        for project, biobank_id in ((self.alpha, "EA-A1"), (self.beta, "EA-B1")):
+            Case.objects.create(project=project, biobank_id=biobank_id).ensure_specimens()
+        self.client = Client()
+        self.client.force_login(self.admin)
+
+    def _rows(self, **params):
+        response = self.client.get(reverse("all_cases_export"), params)
+        self.assertEqual(response["Content-Type"], "text/csv; charset=utf-8")
+        return response, list(csv.reader(io.StringIO(response.content.decode())))
+
+    def test_export_all_covers_every_project(self):
+        response, lignes = self._rows()
+        self.assertIn("terryfox_cases_all_", response["Content-Disposition"])
+        biobank = [l[lignes[0].index("Biobank_ID")] for l in lignes[1:]]
+        self.assertEqual(sorted(biobank), ["EA-A1", "EA-B1"])
+
+    def test_filtered_export_is_the_snapshot(self):
+        response, lignes = self._rows(**{"c-project": self.beta.id})
+        self.assertIn("terryfox_cases_filtered_", response["Content-Disposition"])
+        self.assertEqual(len(lignes), 2)
+        self.assertEqual(lignes[1][lignes[0].index("Biobank_ID")], "EA-B1")
+
+    def test_same_columns_as_the_project_export(self):
+        _r, lignes = self._rows()
+        from .exports import ENTETE_CAS
+        self.assertEqual(lignes[0], ENTETE_CAS)
+
+    def test_only_administrators_can_export(self):
+        editor = make_editor("export_all_editor")
+        client = Client()
+        client.force_login(editor)
+        response = client.get(reverse("all_cases_export"))
+        self.assertEqual(response.status_code, 302)
+        page = client.get(reverse("home")).content.decode()
+        self.assertNotIn(reverse("all_cases_export"), page)
+
+    def test_the_filtered_button_carries_the_current_filter(self):
+        page = self.client.get(reverse("home"), {"c-name": "EA-B"}).content.decode()
+        self.assertIn("Export filtered", page)
+        self.assertIn("c-name=EA-B", page)
+        page = self.client.get(reverse("home")).content.decode()
+        self.assertNotIn("Export filtered", page)
+
+    def test_query_count_does_not_grow_with_case_count(self):
+        with CaptureQueriesContext(connection) as avant:
+            self._rows()
+        for i in range(10):
+            Case.objects.create(project=self.alpha, biobank_id=f"EA-N{i}").ensure_specimens()
+        with CaptureQueriesContext(connection) as apres:
+            self._rows()
+        self.assertEqual(len(avant.captured_queries), len(apres.captured_queries))

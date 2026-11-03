@@ -12,6 +12,7 @@ import csv
 import re
 from io import TextIOWrapper
 from datetime import datetime
+from urllib.parse import urlencode
 import string
 import random
 
@@ -21,7 +22,7 @@ from . import exports, statuses
 from django.views.decorators.http import require_POST
 from .models import BatchOperation, SpecimenStatusChange, Project, Case, Specimen, Accession, Comment, ProjectLead, IdentifierSequence, Favorite
 
-from .forms import ProjectForm, CaseForm, CaseStatusForm, SpecimenFormSet, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, BatchCaseForm, BulkStatusForm, ResubmitForm, CSVImportForm, UserCreateForm, BatchUserCreateForm, UserUpdateForm, UserFilterForm
+from .forms import ProjectForm, CaseForm, CaseStatusForm, SpecimenFormSet, CommentForm, AccessionFormSet, ProjectLeadForm, ProjectFilterForm, CaseFilterForm, AllCasesFilterForm, BatchCaseForm, BulkStatusForm, ResubmitForm, CSVImportForm, UserCreateForm, BatchUserCreateForm, UserUpdateForm, UserFilterForm
 
 # Nombre de cas affiches par page. Le plus gros projet en compte 256 ; a 100 par
 # page la recherche et les filtres restent le chemin principal pour retrouver un
@@ -29,6 +30,17 @@ from .forms import ProjectForm, CaseForm, CaseStatusForm, SpecimenFormSet, Comme
 CASES_PER_PAGE = 100
 
 logger = logging.getLogger(__name__)
+
+def _all_cases_filtered(filter_form):
+    """Every live case of every project, narrowed by the home table's filters.
+
+    The priority flag leads the order, as on every other case list.
+    """
+    cases = Case.objects.select_related('project')
+    if filter_form.is_valid():
+        cases = filter_cases(cases, filter_form.cleaned_data)
+    return cases.order_by('-is_priority', 'name')
+
 
 @login_required
 def home(request):
@@ -120,7 +132,33 @@ def home(request):
     projects_by_lead = (Project.objects.values('project_lead__name')
                         .annotate(count=Count('id')).order_by('-count'))
 
+    # Tous les cas de tous les projets, avec les filtres de la page projet.
+    # Pagination sous `cpage` : `page` reste libre, et le filtre des projets
+    # de cette meme page garde ses propres parametres.
+    cases_filter_form = AllCasesFilterForm(request.GET)
+    all_cases = _all_cases_filtered(cases_filter_form).prefetch_related('specimens').annotate(
+        to_classify=Count(
+            'specimens', distinct=True,
+            filter=Q(specimens__status=statuses.UNKNOWN_LEGACY),
+        ),
+    )
+    cases_paginator = Paginator(all_cases, CASES_PER_PAGE)
+    cases_page = cases_paginator.get_page(request.GET.get('cpage'))
+    cases_params = request.GET.copy()
+    cases_params.pop('cpage', None)
+    filtres_cas = {k: v for k, v in request.GET.items()
+                   if k.startswith(f'{AllCasesFilterForm.PREFIX}-') and v}
+
     return render(request, 'core/home.html', {
+        'cases_filter_form': cases_filter_form,
+        'cases_page': cases_page,
+        'cases_page_range': cases_paginator.get_elided_page_range(
+            cases_page.number, on_each_side=2, on_ends=1),
+        'cases_page_ellipsis': Paginator.ELLIPSIS,
+        'cases_querystring': cases_params.urlencode(),
+        'cases_filtered': AllCasesFilterForm.is_filtering(request.GET),
+        'cases_filtered_count': cases_paginator.count,
+        'cases_export_query': urlencode(filtres_cas),
         'projects': projects,
         'projets_phase2': projets_phase2,
         'projets_phase1': projets_phase1,
@@ -176,6 +214,58 @@ def case_search(request):
     })
 
 
+def filter_cases(cases, criteria):
+    """Apply the case filters of the project page or the home table.
+
+    `criteria` is a filter form's cleaned_data. Shared by the project page,
+    the all-cases table on the home page and its exports, so the three can
+    never disagree on what a filter means.
+    """
+    case_name = criteria.get('name')
+    if case_name:
+        # Un seul champ, deux identifiants : personne ne doit avoir a savoir
+        # dans lequel des deux chercher.
+        cases = cases.filter(
+            Q(name__icontains=case_name) | Q(biobank_id__icontains=case_name)
+        )
+
+    if criteria.get('status'):
+        cases = cases.filter(status=criteria['status'])
+
+    if criteria.get('tier'):
+        cases = cases.filter(tier=criteria['tier'])
+
+    if criteria.get('project'):
+        cases = cases.filter(project=criteria['project'])
+
+    if criteria.get('priority'):
+        cases = cases.filter(is_priority=True)
+
+    if criteria.get('to_classify'):
+        cases = cases.filter(specimens__status=statuses.UNKNOWN_LEGACY).distinct()
+
+    # « Il manque un consentement » vise le CAS des qu'UN specimen n'est pas
+    # consenti : c'est ce qu'on cherche quand on releve ce qui reste a
+    # obtenir. Un filtre exigeant que tous soient non consentis raterait le
+    # cas a moitie couvert, qui est justement celui qui demande une action.
+    if criteria.get('not_consented'):
+        cases = cases.filter(specimens__consented_generation_all=False).distinct()
+
+    rendu = criteria.get('report_returned')
+    if rendu == 'yes':
+        cases = cases.filter(report_returned=True)
+    elif rendu == 'no':
+        cases = cases.filter(report_returned=False)
+
+    facturation = criteria.get('invoicing')
+    if facturation == 'yes':
+        cases = cases.filter(invoicing_complete=True)
+    elif facturation == 'no':
+        cases = cases.filter(invoicing_complete=False)
+
+    return cases
+
+
 @login_required
 def project_detail(request, project_id):
     """
@@ -189,50 +279,9 @@ def project_detail(request, project_id):
     # Start with all cases for this project
     cases = project.cases.all()
     
-    # Apply filters if the form is valid
     if filter_form.is_valid():
-        case_name = filter_form.cleaned_data.get('name')
-        case_status = filter_form.cleaned_data.get('status')
-        case_tier = filter_form.cleaned_data.get('tier')
-        
-        if case_name:
-            # Un seul champ, deux identifiants : personne ne doit avoir a savoir
-            # dans lequel des deux chercher.
-            cases = cases.filter(
-                Q(name__icontains=case_name) | Q(biobank_id__icontains=case_name)
-            )
+        cases = filter_cases(cases, filter_form.cleaned_data)
 
-        if case_status:
-            cases = cases.filter(status=case_status)
-            
-        if case_tier:
-            cases = cases.filter(tier=case_tier)
-
-        if filter_form.cleaned_data.get('priority'):
-            cases = cases.filter(is_priority=True)
-
-        if filter_form.cleaned_data.get('to_classify'):
-            cases = cases.filter(specimens__status=statuses.UNKNOWN_LEGACY).distinct()
-
-        # « Il manque un consentement » vise le CAS des qu'UN specimen n'est pas
-        # consenti : c'est ce qu'on cherche quand on releve ce qui reste a
-        # obtenir. Un filtre exigeant que tous soient non consentis raterait le
-        # cas a moitie couvert, qui est justement celui qui demande une action.
-        if filter_form.cleaned_data.get('not_consented'):
-            cases = cases.filter(specimens__consented_generation_all=False).distinct()
-
-        rendu = filter_form.cleaned_data.get('report_returned')
-        if rendu == 'yes':
-            cases = cases.filter(report_returned=True)
-        elif rendu == 'no':
-            cases = cases.filter(report_returned=False)
-
-        facturation = filter_form.cleaned_data.get('invoicing')
-        if facturation == 'yes':
-            cases = cases.filter(invoicing_complete=True)
-        elif facturation == 'no':
-            cases = cases.filter(invoicing_complete=False)
-    
     # Les compteurs affiches sur chaque carte ({{ case.accessions.count }} et
     # {{ case.comments.count }}) declenchaient une requete chacun, par cas :
     # 522 requetes et 1,1 s sur P06 et ses 256 cas. Deux annotations suffisent.
@@ -1118,6 +1167,39 @@ def project_export_bundle(request, project_id):
         f'attachment; filename="terryfox_{project.name}_{horodatage}.zip"')
     logger.info("Export projet %s par %s : %s",
                 project.name, request.user.username, comptes)
+    return response
+
+
+@login_required
+def all_cases_export(request):
+    """CSV of the all-cases table on the home page: everything, or only what
+    the current filters show.
+
+    Same rule as the consortium export, because the file gathers every group
+    of the consortium: administrators only, and logged.
+    """
+    if not request.user.is_superuser:
+        messages.error(
+            request,
+            _('An export across all projects covers every group. Only administrators '
+              'can produce one; your own project exports are on the project page.'))
+        return redirect('home')
+
+    filter_form = AllCasesFilterForm(request.GET)
+    filtered = AllCasesFilterForm.is_filtering(request.GET)
+    cases = exports._cases_queryset()
+    if filter_form.is_valid():
+        cases = filter_cases(cases, filter_form.cleaned_data)
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    horodatage = datetime.now().strftime('%Y%m%d_%H%M%S')
+    nom = 'filtered' if filtered else 'all'
+    response['Content-Disposition'] = (
+        f'attachment; filename="terryfox_cases_{nom}_{horodatage}.csv"')
+    n = exports.ecrire_cas(response, cases=cases)
+    logger.warning("EXPORT ALL CASES (%s) par %s (%s) : %d cas, filtres %s",
+                   nom, request.user.username, request.META.get('REMOTE_ADDR', '?'), n,
+                   dict(request.GET.items()))
     return response
 
 
