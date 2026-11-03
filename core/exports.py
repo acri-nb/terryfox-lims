@@ -39,7 +39,8 @@ ENTETE_CAS = (
     + [f'{nom}_{champ}' for _t, nom, unite in BLOCS
        for champ in ('Status', 'Preservation', 'Consent', f'Coverage_{unite}')]
     + ['Specimens_To_Classify', 'Consent_Generation_All', 'Report_Returned',
-       'Report_Returned_On', 'Comments', 'Created', 'Created_By', 'Updated']
+       'Report_Returned_On', 'Invoicing_Complete', 'Invoicing_Complete_On',
+       'Comments', 'Created', 'Created_By', 'Updated']
 )
 
 ENTETE_SPECIMENS = [
@@ -107,6 +108,8 @@ def ligne_cas(case):
          'partial'),
         'yes' if case.report_returned else 'no',
         _date(case.report_returned_at) if case.report_returned_at else '',
+        'yes' if case.invoicing_complete else 'no',
+        _date(case.invoicing_complete_at) if case.invoicing_complete_at else '',
         len(case.comments.all()),
         _date(case.created_at),
         # Vide pour les cas anterieurs a la v2 : ils n'ont pas de createur, et

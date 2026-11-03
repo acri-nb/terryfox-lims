@@ -156,7 +156,7 @@ class CaseForm(forms.ModelForm):
 
     class Meta:
         model = Case
-        fields = ['biobank_id', 'is_priority', 'report_returned']
+        fields = ['biobank_id', 'is_priority', 'report_returned', 'invoicing_complete']
         widgets = {
             'biobank_id': forms.TextInput(attrs={
                 'class': 'form-control', 'placeholder': 'e.g. N-BBN 440',
@@ -164,6 +164,7 @@ class CaseForm(forms.ModelForm):
             }),
             'is_priority': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'report_returned': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'invoicing_complete': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
         help_texts = {
             'biobank_id': _('The identifier the biobank uses. This is what people search by.'),
@@ -225,6 +226,9 @@ class CaseForm(forms.ModelForm):
             # A la creation, aucun rapport n'a pu etre rendu : le proposer
             # inviterait a cocher une case qui ne peut pas etre vraie.
             self.fields.pop('report_returned', None)
+            # Same for invoicing: a case that does not exist yet cannot
+            # have been invoiced.
+            self.fields.pop('invoicing_complete', None)
 
     def clean_biobank_id(self):
         """Controle souple : nomme le cas en conflit plutot que de bloquer.
@@ -563,6 +567,13 @@ class CaseFilterForm(forms.Form):
     report_returned = forms.ChoiceField(
         choices=[('', _('Report: any')), ('yes', _('Report returned')),
                  ('no', _('Report not returned'))],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    #: Lets the sequencing team list the cases still waiting to be invoiced.
+    invoicing = forms.ChoiceField(
+        choices=[('', _('Invoicing: any')), ('yes', _('Invoicing complete')),
+                 ('no', _('Invoicing not complete'))],
         required=False,
         widget=forms.Select(attrs={'class': 'form-select'}),
     )

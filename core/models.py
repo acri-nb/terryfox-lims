@@ -358,6 +358,20 @@ class Case(SoftDeleteModel):
         verbose_name=_('Report returned on'),
     )
 
+    # Ticked by the sequencing team once the case has been invoiced. On the
+    # CASE like report_returned: one invoice per case, whatever the number of
+    # specimens. A resubmit starts a new attempt, which is invoiced again.
+    invoicing_complete = models.BooleanField(
+        default=False, db_index=True, verbose_name=_('Invoicing complete'),
+        help_text=_('The sequencing team has completed invoicing for this case.'),
+    )
+    # Stamped by save(), never typed, and cleared when the box is unticked so
+    # a date never sits on a case that was not invoiced.
+    invoicing_complete_at = models.DateTimeField(
+        null=True, blank=True, editable=False,
+        verbose_name=_('Invoicing completed on'),
+    )
+
     tier = models.CharField(max_length=4, choices=TIER_CHOICES, default=TIER_A)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -386,6 +400,12 @@ class Case(SoftDeleteModel):
             self.report_returned_at = timezone.now()
         elif not self.report_returned:
             self.report_returned_at = None
+
+        # Same rule for invoicing: the date follows the box both ways.
+        if self.invoicing_complete and self.invoicing_complete_at is None:
+            self.invoicing_complete_at = timezone.now()
+        elif not self.invoicing_complete:
+            self.invoicing_complete_at = None
 
         self.tier = self.calculate_tier()
         super().save(*args, **kwargs)

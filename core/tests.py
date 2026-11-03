@@ -2583,3 +2583,78 @@ class ProjectLeadPermissionTests(TestCase):
         self.client.force_login(self.user)
         page = self.client.get(reverse("project_create")).content.decode()
         self.assertIn('value="_new_"', page)
+
+
+class InvoicingCompleteTests(TestCase):
+    """The sequencing team ticks 'Invoicing complete' on a case when it is invoiced."""
+
+    def setUp(self):
+        self.editor = make_editor("invoicing1")
+        self.project = Project.objects.create(name="P invoicing", created_by=self.editor)
+        self.client = Client()
+        self.client.force_login(self.editor)
+
+    def _case(self, biobank_id, **champs):
+        case = Case.objects.create(project=self.project, biobank_id=biobank_id, **champs)
+        case.ensure_specimens()
+        return case
+
+    def test_ticking_stamps_the_date_and_unticking_clears_it(self):
+        case = self._case("IN-001")
+        self.assertIsNone(case.invoicing_complete_at)
+        case.invoicing_complete = True
+        case.save()
+        self.assertIsNotNone(case.invoicing_complete_at)
+        case.invoicing_complete = False
+        case.save()
+        self.assertIsNone(case.invoicing_complete_at)
+
+    def test_saving_again_keeps_the_first_date(self):
+        case = self._case("IN-002", invoicing_complete=True)
+        first = case.invoicing_complete_at
+        case.save()
+        case.refresh_from_db()
+        self.assertEqual(case.invoicing_complete_at, first)
+
+    def test_not_offered_at_creation_but_offered_on_an_existing_case(self):
+        self.assertNotIn("invoicing_complete", CaseForm().fields)
+        case = self._case("IN-003")
+        self.assertIn("invoicing_complete", CaseForm(instance=case).fields)
+
+    def test_the_case_page_saves_the_checkbox(self):
+        case = self._case("IN-004")
+        url = reverse("case_detail", kwargs={"case_id": case.id})
+        self.client.post(url, {"case_update": "1", "biobank_id": "IN-004",
+                               "invoicing_complete": "on"})
+        case.refresh_from_db()
+        self.assertTrue(case.invoicing_complete)
+        page = self.client.get(url).content.decode()
+        self.assertIn("Invoicing complete", page)
+
+    def test_the_filter_separates_invoiced_from_pending(self):
+        self._case("IN-010", invoicing_complete=True)
+        self._case("IN-011")
+        url = reverse("project_detail", kwargs={"project_id": self.project.id})
+        page = self.client.get(url, {"invoicing": "no"}).content.decode()
+        self.assertIn("IN-011", page)
+        self.assertNotIn("IN-010", page)
+        page = self.client.get(url, {"invoicing": "yes"}).content.decode()
+        self.assertIn("IN-010", page)
+        self.assertNotIn("IN-011", page)
+
+    def test_the_export_carries_the_flag_and_its_date(self):
+        self._case("IN-020", invoicing_complete=True)
+        texte = self.client.get(
+            reverse("csv_case_export", kwargs={"project_id": self.project.id})
+        ).content.decode()
+        lignes = list(csv.reader(io.StringIO(texte)))
+        entete = lignes[0]
+        self.assertEqual(lignes[1][entete.index("Invoicing_Complete")], "yes")
+        self.assertNotEqual(lignes[1][entete.index("Invoicing_Complete_On")], "")
+        self.assertEqual(len(lignes[1]), len(entete))
+
+    def test_a_resubmitted_attempt_starts_not_invoiced(self):
+        case = self._case("IN-030", invoicing_complete=True)
+        suivant = case.resubmit(user=self.editor)
+        self.assertFalse(suivant.invoicing_complete)
+        self.assertIsNone(suivant.invoicing_complete_at)

@@ -226,6 +226,12 @@ def project_detail(request, project_id):
             cases = cases.filter(report_returned=True)
         elif rendu == 'no':
             cases = cases.filter(report_returned=False)
+
+        facturation = filter_form.cleaned_data.get('invoicing')
+        if facturation == 'yes':
+            cases = cases.filter(invoicing_complete=True)
+        elif facturation == 'no':
+            cases = cases.filter(invoicing_complete=False)
     
     # Les compteurs affiches sur chaque carte ({{ case.accessions.count }} et
     # {{ case.comments.count }}) declenchaient une requete chacun, par cas :

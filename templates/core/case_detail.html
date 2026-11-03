@@ -94,6 +94,16 @@
                         {% endif %}
                     </p>
                     {% endif %}
+                    {% if case.invoicing_complete %}
+                    <p class="mb-2">
+                        <span class="badge bg-success">
+                            <i class="fas fa-file-invoice-dollar me-1"></i> Invoicing complete
+                        </span>
+                        {% if case.invoicing_complete_at %}
+                        <small class="text-muted ms-1">{{ case.invoicing_complete_at|date:"F d, Y" }}</small>
+                        {% endif %}
+                    </p>
+                    {% endif %}
                     <p class="mb-2"><strong>Created:</strong> {{ case.created_at|date:"F d, Y" }}
                             {% comment %}
                             Les cas anterieurs a la v2 n'ont pas de createur. On
@@ -128,6 +138,12 @@
                             {% if case.report_returned_at %}
                             <p class="form-text mt-0 mb-3">
                                 Returned on {{ case.report_returned_at|date:"F d, Y" }}
+                            </p>
+                            {% endif %}
+                            {{ case_form.invoicing_complete|as_crispy_field }}
+                            {% if case.invoicing_complete_at %}
+                            <p class="form-text mt-0 mb-3">
+                                Completed on {{ case.invoicing_complete_at|date:"F d, Y" }}
                             </p>
                             {% endif %}
                         </div>
