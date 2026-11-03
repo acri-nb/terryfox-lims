@@ -1460,7 +1460,7 @@ class PreservationTests(TestCase):
         ).content.decode()
         lignes = list(csv.reader(io.StringIO(texte)))
         self.assertIn("Tumour_DNA_Preservation", lignes[0])
-        self.assertEqual(lignes[1][lignes[0].index("Tumour_DNA_Preservation")], "FFPE")
+        self.assertEqual(lignes[1][lignes[0].index("Tumour_DNA_Preservation")], "FFPE - blanks")
 
         archive = zipfile.ZipFile(io.BytesIO(self.client.get(
             reverse("project_export_bundle",
@@ -1468,7 +1468,7 @@ class PreservationTests(TestCase):
         specimens = list(csv.reader(io.StringIO(
             archive.read("specimens.csv").decode())))
         self.assertIn("Preservation", specimens[0])
-        self.assertEqual(specimens[1][specimens[0].index("Preservation")], "FFPE")
+        self.assertEqual(specimens[1][specimens[0].index("Preservation")], "FFPE - blanks")
 
 
 class FormRenderingTests(TestCase):
@@ -2703,3 +2703,55 @@ class ReceivedStatusSplitTests(TestCase):
             specimen.save()
         case.refresh_from_db()
         self.assertEqual(case.status, statuses.RECEIVED_NUCLEIC_ACID)
+
+
+class PreservationOptionsTests(TestCase):
+    """The preservation list requested by the lab, and what happens to old values."""
+
+    def setUp(self):
+        self.editor = make_editor("preserve1")
+        self.project = Project.objects.create(name="P preserve", created_by=self.editor)
+
+    def test_intake_offers_exactly_the_requested_list_in_order(self):
+        from .forms import BatchCaseForm
+        attendu = ["Fresh frozen", "Frozen in RNA later", "FFPE - blanks", "FFPE - scrolls",
+                   "FFPE - punch", "Whole blood", "PBMCs", "DNA from blood", "Buffy coat"]
+        for form in (CaseForm(), BatchCaseForm()):
+            libelles = [str(l) for _v, l in form.fields["preservation"].choices]
+            self.assertEqual(libelles, attendu)
+
+    def test_other_and_not_recorded_are_not_offered_at_intake(self):
+        valeurs = [v for v, _l in CaseForm().fields["preservation"].choices]
+        self.assertNotIn(Specimen.PRESERVATION_OTHER, valeurs)
+        self.assertNotIn(Specimen.PRESERVATION_UNKNOWN, valeurs)
+
+    def test_existing_values_read_with_the_new_labels(self):
+        case = Case.objects.create(project=self.project, biobank_id="PV-001")
+        case.ensure_specimens(preservation=Specimen.PRESERVATION_FF)
+        self.assertEqual(case.specimens.first().get_preservation_display(), "Fresh frozen")
+        case.specimens.update(preservation=Specimen.PRESERVATION_FFPE)
+        self.assertEqual(case.specimens.first().get_preservation_display(), "FFPE - blanks")
+
+    def test_a_specimen_already_marked_other_keeps_its_value(self):
+        case = Case.objects.create(project=self.project, biobank_id="PV-002")
+        case.ensure_specimens(preservation=Specimen.PRESERVATION_OTHER)
+        specimen = case.specimens.first()
+        form = SpecimenForm(instance=specimen)
+        self.assertIn(Specimen.PRESERVATION_OTHER,
+                      [v for v, _l in form.fields["preservation"].choices])
+        self.assertEqual(specimen.get_preservation_display(), "Other")
+
+    def test_every_new_code_fits_the_column(self):
+        longueur = Specimen._meta.get_field("preservation").max_length
+        for valeur, _l in Specimen.PRESERVATION_CHOICES:
+            self.assertLessEqual(len(valeur), longueur)
+
+    def test_a_new_value_can_be_chosen_at_intake(self):
+        client = Client()
+        client.force_login(self.editor)
+        client.post(reverse("case_create", kwargs={"project_id": self.project.id}),
+                    envoi_creation(biobank_id="PV-003",
+                                   preservation=Specimen.PRESERVATION_BUFFY_COAT))
+        case = Case.objects.get(biobank_id="PV-003")
+        for specimen in case.specimens.all():
+            self.assertEqual(specimen.preservation, Specimen.PRESERVATION_BUFFY_COAT)

@@ -769,19 +769,41 @@ class Specimen(models.Model):
     #: Mode de conservation. « unknown » n'est pas un choix qu'on fait, c'est
     #: l'etat des 3 955 specimens anterieurs a ce champ : les afficher comme
     #: « Other » les aurait declares renseignes alors qu'ils ne le sont pas.
+    #: The codes 'ff' and 'ffpe' are kept and only relabelled: every existing
+    #: "Fresh frozen (FF)" now reads "Fresh frozen" and every "FFPE" reads
+    #: "FFPE - blanks", as requested, with no data migration. "(FF)" was
+    #: dropped because it was being confused with FFPE.
     PRESERVATION_FF = 'ff'
+    PRESERVATION_FROZEN_RNALATER = 'frozen_rnalater'
     PRESERVATION_FFPE = 'ffpe'
+    PRESERVATION_FFPE_SCROLLS = 'ffpe_scrolls'
+    PRESERVATION_FFPE_PUNCH = 'ffpe_punch'
+    PRESERVATION_WHOLE_BLOOD = 'whole_blood'
+    PRESERVATION_PBMC = 'pbmc'
+    PRESERVATION_DNA_FROM_BLOOD = 'dna_from_blood'
+    PRESERVATION_BUFFY_COAT = 'buffy_coat'
     PRESERVATION_OTHER = 'other'
     PRESERVATION_UNKNOWN = 'unknown'
-    PRESERVATION_CHOICES = [
-        (PRESERVATION_FF, _('Fresh frozen (FF)')),
-        (PRESERVATION_FFPE, _('FFPE')),
+
+    #: What intake offers, in the order the lab asked for.
+    PRESERVATION_ENTRY_CHOICES = [
+        (PRESERVATION_FF, _('Fresh frozen')),
+        (PRESERVATION_FROZEN_RNALATER, _('Frozen in RNA later')),
+        (PRESERVATION_FFPE, _('FFPE - blanks')),
+        (PRESERVATION_FFPE_SCROLLS, _('FFPE - scrolls')),
+        (PRESERVATION_FFPE_PUNCH, _('FFPE - punch')),
+        (PRESERVATION_WHOLE_BLOOD, _('Whole blood')),
+        (PRESERVATION_PBMC, _('PBMCs')),
+        (PRESERVATION_DNA_FROM_BLOOD, _('DNA from blood')),
+        (PRESERVATION_BUFFY_COAT, _('Buffy coat')),
+    ]
+    #: "Other" is no longer offered at intake but stays valid so specimens
+    #: already recorded as Other keep their value. « Not recorded » est un
+    #: constat, pas une reponse : jamais propose a la saisie.
+    PRESERVATION_CHOICES = PRESERVATION_ENTRY_CHOICES + [
         (PRESERVATION_OTHER, _('Other')),
         (PRESERVATION_UNKNOWN, _('Not recorded')),
     ]
-    #: Ce qu'on propose a la SAISIE : « Not recorded » est un constat, pas une
-    #: reponse, et le proposer reviendrait a offrir de ne pas repondre.
-    PRESERVATION_ENTRY_CHOICES = PRESERVATION_CHOICES[:3]
 
     case = models.ForeignKey(Case, on_delete=models.CASCADE, related_name='specimens')
     specimen_type = models.CharField(
