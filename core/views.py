@@ -634,15 +634,18 @@ def project_create(request):
     View for creating a new project
     """
     if request.method == 'POST':
-        form = ProjectForm(request.POST)
+        form = ProjectForm(request.POST, user=request.user)
         if form.is_valid():
-            project = form.save(commit=False)
-            project.created_by = request.user
-            project.save()
+            # created_by is set on the instance before a single save(), so the
+            # form can write a newly typed project lead and the project in one
+            # transaction. save(commit=False) followed by project.save() would
+            # split them.
+            form.instance.created_by = request.user
+            project = form.save()
             messages.success(request, _('Project created successfully!'))
             return redirect('project_detail', project_id=project.id)
     else:
-        form = ProjectForm()
+        form = ProjectForm(user=request.user)
     
     return render(request, 'core/project_form.html', {'form': form, 'title': _('Create Project')})
 
@@ -655,13 +658,13 @@ def project_update(request, project_id):
     project = get_object_or_404(Project, id=project_id)
     
     if request.method == 'POST':
-        form = ProjectForm(request.POST, instance=project)
+        form = ProjectForm(request.POST, instance=project, user=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, _('Project updated successfully!'))
             return redirect('project_detail', project_id=project.id)
     else:
-        form = ProjectForm(instance=project)
+        form = ProjectForm(instance=project, user=request.user)
     
     return render(request, 'core/project_form.html', {
         'form': form, 

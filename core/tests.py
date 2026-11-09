@@ -2388,3 +2388,177 @@ class UserSearchTests(TestCase):
             self._chercher()
         self.assertEqual(len(quatre.captured_queries), len(seize.captured_queries),
                          "le nombre de requetes grandit avec le nombre de comptes")
+
+
+class ProjectLeadEntryTests(TestCase):
+    """Adding a new project lead straight from the project form.
+
+    The form used to offer only leads already in the database, so a phase 2
+    project with a new lead could not be created without first going to the
+    Project Leads page.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("lead_admin", password="x")
+        self.client = Client()
+        self.client.force_login(self.admin)
+        self.existing = ProjectLead.objects.create(name="Reiman")
+
+    def test_form_offers_add_new_lead_option(self):
+        page = self.client.get(reverse("project_create")).content.decode()
+        self.assertIn('value="_new_"', page)
+        self.assertIn('id="id_custom_project_lead"', page)
+
+    def test_creating_project_with_new_lead_creates_the_lead(self):
+        response = self.client.post(reverse("project_create"), envoi_projet(
+            name="Phase2-New", project_lead="_new_",
+            custom_project_lead="  Smith/Jones ",
+        ))
+        self.assertEqual(response.status_code, 302)
+        lead = ProjectLead.objects.get(name="Smith/Jones")
+        self.assertEqual(Project.objects.get(name="Phase2-New").project_lead, lead)
+
+    def test_same_name_different_case_reuses_existing_lead(self):
+        self.client.post(reverse("project_create"), envoi_projet(
+            name="Phase2-Reuse", project_lead="_new_", custom_project_lead="reiman",
+        ))
+        self.assertEqual(ProjectLead.objects.count(), 1)
+        self.assertEqual(Project.objects.get(name="Phase2-Reuse").project_lead, self.existing)
+
+    def test_new_lead_without_a_name_is_rejected(self):
+        response = self.client.post(reverse("project_create"), envoi_projet(
+            name="Phase2-Blank", project_lead="_new_", custom_project_lead="  ",
+        ))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Enter the name of the new project lead.")
+        self.assertFalse(Project.objects.filter(name="Phase2-Blank").exists())
+        self.assertEqual(ProjectLead.objects.count(), 1)
+
+    def test_existing_lead_still_works(self):
+        self.client.post(reverse("project_create"), envoi_projet(
+            name="Phase2-Existing", project_lead=str(self.existing.id),
+        ))
+        self.assertEqual(Project.objects.get(name="Phase2-Existing").project_lead, self.existing)
+
+    def test_updating_project_to_new_lead(self):
+        project = Project.objects.create(
+            name="Phase2-Update", project_lead=self.existing, created_by=self.admin)
+        self.client.post(
+            reverse("project_update", kwargs={"project_id": project.id}),
+            envoi_projet(name="Phase2-Update", project_lead="_new_",
+                         custom_project_lead="Xu"))
+        project.refresh_from_db()
+        self.assertEqual(project.project_lead, ProjectLead.objects.get(name="Xu"))
+
+    def test_commit_false_writes_nothing(self):
+        from .forms import ProjectForm
+        form = ProjectForm(user=self.admin, data=envoi_projet(
+            name="Phase2-Deferred", project_lead="_new_", custom_project_lead="Deferred"))
+        self.assertTrue(form.is_valid(), form.errors)
+        project = form.save(commit=False)
+        self.assertIsNone(project.pk)
+        self.assertFalse(ProjectLead.objects.filter(name="Deferred").exists())
+
+    def test_failed_project_save_leaves_no_orphan_lead(self):
+        with mock.patch.object(Project, "save", side_effect=IntegrityError("boom")):
+            with self.assertRaises(IntegrityError):
+                self.client.post(reverse("project_create"), envoi_projet(
+                    name="Phase2-Fails", project_lead="_new_",
+                    custom_project_lead="Orphan"))
+        self.assertFalse(ProjectLead.objects.filter(name="Orphan").exists())
+
+    def test_new_lead_name_spacing_is_normalized(self):
+        self.client.post(reverse("project_create"), envoi_projet(
+            name="Phase2-Spaces", project_lead="_new_",
+            custom_project_lead="  Weeks   /  Roy  "))
+        self.assertTrue(ProjectLead.objects.filter(name="Weeks / Roy").exists())
+
+
+class ProjectLeadRulesTests(TestCase):
+    """The lead naming rules live on the model, so every creation path shares them."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("rules_admin", password="x")
+        self.client = Client()
+        self.client.force_login(self.admin)
+        self.reiman = ProjectLead.objects.create(name="Reiman")
+
+    def test_save_normalizes_spacing(self):
+        lead = ProjectLead.objects.create(name="  Xu  ")
+        self.assertEqual(lead.name, "Xu")
+
+    def test_find_or_create_reuses_case_variant(self):
+        lead, created = ProjectLead.find_or_create(" REIMAN ")
+        self.assertFalse(created)
+        self.assertEqual(lead, self.reiman)
+
+    def test_find_or_create_creates_when_missing(self):
+        lead, created = ProjectLead.find_or_create("Boudreau")
+        self.assertTrue(created)
+        self.assertEqual(lead.name, "Boudreau")
+
+    def test_leads_page_rejects_case_duplicate(self):
+        response = self.client.post(reverse("project_lead_create"), {"name": "reiman"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "already exists")
+        self.assertEqual(ProjectLead.objects.count(), 1)
+
+    def test_leads_page_allows_renaming_own_case(self):
+        response = self.client.post(
+            reverse("project_lead_update", kwargs={"lead_id": self.reiman.id}),
+            {"name": "REIMAN"})
+        self.assertEqual(response.status_code, 302)
+        self.reiman.refresh_from_db()
+        self.assertEqual(self.reiman.name, "REIMAN")
+
+    def test_leads_page_rejects_rename_onto_another_lead(self):
+        xu = ProjectLead.objects.create(name="Xu")
+        response = self.client.post(
+            reverse("project_lead_update", kwargs={"lead_id": xu.id}), {"name": "reiman"})
+        self.assertEqual(response.status_code, 200)
+        xu.refresh_from_db()
+        self.assertEqual(xu.name, "Xu")
+
+
+class ProjectLeadPermissionTests(TestCase):
+    """Adding a lead from the project form needs core.add_projectlead.
+
+    Without this check, anyone allowed to create or edit projects could create
+    leads through the form even when the Project Leads page refuses them.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user("project_only", password="x")
+        self.user.user_permissions.add(
+            Permission.objects.get(codename="add_project", content_type__app_label="core"),
+            Permission.objects.get(codename="change_project", content_type__app_label="core"),
+        )
+        self.client = Client()
+        self.client.force_login(self.user)
+        self.lead = ProjectLead.objects.create(name="Lead Alpha")
+
+    def test_option_hidden_without_lead_permission(self):
+        page = self.client.get(reverse("project_create")).content.decode()
+        self.assertNotIn('value="_new_"', page)
+        self.assertNotIn('id="id_custom_project_lead"', page)
+
+    def test_existing_lead_still_selectable_without_lead_permission(self):
+        response = self.client.post(reverse("project_create"), envoi_projet(
+            name="Perm-Existing", project_lead=str(self.lead.id)))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Project.objects.get(name="Perm-Existing").project_lead, self.lead)
+
+    def test_forged_new_lead_post_is_rejected(self):
+        response = self.client.post(reverse("project_create"), envoi_projet(
+            name="Perm-Forged", project_lead="_new_", custom_project_lead="Lead Beta"))
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Project.objects.filter(name="Perm-Forged").exists())
+        self.assertFalse(ProjectLead.objects.filter(name="Lead Beta").exists())
+
+    def test_option_shown_with_lead_permission(self):
+        self.user.user_permissions.add(
+            Permission.objects.get(codename="add_projectlead", content_type__app_label="core"))
+        self.user = User.objects.get(pk=self.user.pk)  # drop the cached permissions
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("project_create")).content.decode()
+        self.assertIn('value="_new_"', page)

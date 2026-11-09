@@ -1,4 +1,5 @@
 from django import forms
+from django.db import transaction
 from django.forms import inlineformset_factory
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.models import User, Group
@@ -17,6 +18,23 @@ class ProjectLeadForm(forms.ModelForm):
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('Project Lead Name')}),
         }
+
+    def clean_name(self):
+        """Refuse a name that only differs from an existing lead by case or spacing.
+
+        The unique constraint on the column is case-sensitive, so "reiman"
+        would otherwise be accepted next to "Reiman".
+        """
+        name = ProjectLead.normalize_name(self.cleaned_data.get('name'))
+        if not name:
+            raise forms.ValidationError(_('Enter a name.'))
+        clash = ProjectLead.objects.filter(name__iexact=name).exclude(pk=self.instance.pk).first()
+        if clash:
+            raise forms.ValidationError(
+                _('A project lead named "%(name)s" already exists.'),
+                params={'name': clash.name},
+            )
+        return name
 
 class ProjectForm(forms.ModelForm):
     """Form for creating and updating projects."""
@@ -38,11 +56,92 @@ class ProjectForm(forms.ModelForm):
             'phase': forms.Select(attrs={'class': 'form-select'}),
         }
 
-    def __init__(self, *args, **kwargs):
+    #: Value of the extra dropdown entry that reveals the free-text field.
+    NEW_LEAD = '_new_'
+
+    #: Typed name of a lead that is not in the list yet. Hidden by the template
+    #: until "Add a new project lead" is picked in the dropdown.
+    custom_project_lead = forms.CharField(
+        required=False,
+        max_length=255,
+        label=_('New project lead'),
+        widget=forms.TextInput(attrs={
+            'class': 'form-control mt-2',
+            'placeholder': _('e.g. Smith/Jones'),
+            'autocomplete': 'off',
+        }),
+    )
+
+    def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
-        
+
         # Create blank option for project_lead
         self.fields['project_lead'].empty_label = _('-- Select a Project Lead --')
+
+        # Creating a lead from here must need the same permission as the
+        # Project Leads page, otherwise this form would bypass it. Without a
+        # user, nobody is allowed.
+        self.can_add_lead = bool(user and user.has_perm('core.add_projectlead'))
+        self._adding_lead = False
+
+        if not self.can_add_lead:
+            # The field disappears and '_new_' is left as an unknown choice,
+            # which the model field rejects on its own.
+            del self.fields['custom_project_lead']
+            return
+
+        # Phase 2 projects have leads that phase 1 never had. Without this
+        # entry the dropdown only offered existing leads, and adding one meant
+        # leaving the form for the Project Leads page.
+        self.fields['project_lead'].widget.choices = list(
+            self.fields['project_lead'].choices
+        ) + [(self.NEW_LEAD, _('+ Add a new project lead...'))]
+
+        # The model field rejects '_new_' as an unknown id, so the raw value is
+        # read here and the field is emptied before validation; clean() then
+        # attaches the lead typed in custom_project_lead.
+        if self.is_bound and self.data.get(self.add_prefix('project_lead')) == self.NEW_LEAD:
+            self._adding_lead = True
+            self.data = self.data.copy()
+            self.data[self.add_prefix('project_lead')] = ''
+
+    def clean(self):
+        cleaned = super().clean()
+        if not self._adding_lead:
+            return cleaned
+
+        name = ProjectLead.normalize_name(cleaned.get('custom_project_lead'))
+        if not name:
+            self.add_error('custom_project_lead', _('Enter the name of the new project lead.'))
+            return cleaned
+
+        # Reuse an existing lead when the same name is typed with different
+        # case, instead of creating a near-duplicate. A new one stays unsaved
+        # until save(), so an invalid form writes nothing.
+        cleaned['project_lead'] = ProjectLead.find_by_name(name) or ProjectLead(name=name)
+        return cleaned
+
+    def save(self, commit=True):
+        """Save the project, creating the new lead first when one was typed.
+
+        With commit=False nothing is written, the new lead included: it stays
+        attached unsaved, and saving the project without saving the lead first
+        raises instead of silently storing a project with no lead. With
+        commit=True the lead and the project are written in one transaction,
+        so a failed project save leaves no orphan lead behind.
+        """
+        lead = self.cleaned_data.get('project_lead')
+        new_lead = lead is not None and lead.pk is None
+
+        if not commit:
+            return super().save(commit=False)
+
+        with transaction.atomic():
+            if new_lead:
+                # find_or_create rather than lead.save(): someone may have
+                # added the same lead since the form was validated.
+                self.instance.project_lead, _created = ProjectLead.find_or_create(lead.name)
+            return super().save(commit=True)
 
 class CaseForm(forms.ModelForm):
     """Identite du cas. Ni le statut ni les couvertures ne sont ici.

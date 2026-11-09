@@ -124,10 +124,38 @@ class IdentifierSequence(models.Model):
 class ProjectLead(models.Model):
     """Model representing a project lead in the LIMS."""
     name = models.CharField(max_length=255, unique=True)
-    
+
     def __str__(self):
         return self.name
-        
+
+    @staticmethod
+    def normalize_name(name):
+        """Trim the name and collapse inner runs of whitespace to one space."""
+        return ' '.join((name or '').split())
+
+    @classmethod
+    def find_by_name(cls, name):
+        """The lead with this name ignoring case and spacing, or None."""
+        return cls.objects.filter(name__iexact=cls.normalize_name(name)).first()
+
+    @classmethod
+    def find_or_create(cls, name):
+        """Return (lead, created), reusing a lead whose name differs only by case.
+
+        "reiman" typed next to an existing "Reiman" must point at the same
+        lead, otherwise filtering projects by lead silently splits in two.
+        """
+        existing = cls.find_by_name(name)
+        if existing:
+            return existing, False
+        return cls.objects.create(name=cls.normalize_name(name)), True
+
+    def save(self, *args, **kwargs):
+        # Every creation path (project form, Project Leads page, admin) goes
+        # through here, so the spacing rule holds whichever one is used.
+        self.name = self.normalize_name(self.name)
+        super().save(*args, **kwargs)
+
     class Meta:
         ordering = ['name']
         verbose_name = _('Project Lead')
