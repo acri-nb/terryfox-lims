@@ -2658,3 +2658,48 @@ class InvoicingCompleteTests(TestCase):
         suivant = case.resubmit(user=self.editor)
         self.assertFalse(suivant.invoicing_complete)
         self.assertIsNone(suivant.invoicing_complete_at)
+
+
+class ReceivedStatusSplitTests(TestCase):
+    """'Received' became 'Received Specimen' then 'Received Nucl. Acid'."""
+
+    def test_both_statuses_sit_in_the_sequencing_stage_in_order(self):
+        groupe = dict(statuses.GROUPED_CHOICES)[statuses.STAGE_LABELS[statuses.STAGE_SEQUENCING]]
+        slugs = [slug for slug, _label in groupe]
+        self.assertEqual(slugs[:3], [statuses.RECEIVED, statuses.RECEIVED_NUCLEIC_ACID,
+                                     statuses.QC_COMPLETE])
+
+    def test_labels(self):
+        self.assertEqual(str(statuses.LABEL_OF[statuses.RECEIVED]), "Received Specimen")
+        self.assertEqual(str(statuses.LABEL_OF[statuses.RECEIVED_NUCLEIC_ACID]),
+                         "Received Nucl. Acid")
+
+    def test_nucleic_acid_ranks_between_specimen_and_qc(self):
+        self.assertLess(statuses.rank(statuses.RECEIVED),
+                        statuses.rank(statuses.RECEIVED_NUCLEIC_ACID))
+        self.assertLess(statuses.rank(statuses.RECEIVED_NUCLEIC_ACID),
+                        statuses.rank(statuses.QC_COMPLETE))
+
+    def test_case_status_is_the_least_advanced(self):
+        self.assertEqual(
+            statuses.least_advanced([statuses.RECEIVED_NUCLEIC_ACID, statuses.QC_COMPLETE]),
+            statuses.RECEIVED_NUCLEIC_ACID)
+
+    def test_existing_and_new_csv_labels_still_import(self):
+        self.assertEqual(statuses.from_any("Received"), statuses.RECEIVED)
+        self.assertEqual(statuses.from_any("Received Specimen"), statuses.RECEIVED)
+        self.assertEqual(statuses.from_any("Received Nucl. Acid"),
+                         statuses.RECEIVED_NUCLEIC_ACID)
+        self.assertEqual(statuses.from_any("received_nucleic_acid"),
+                         statuses.RECEIVED_NUCLEIC_ACID)
+
+    def test_a_specimen_can_be_set_to_the_new_status(self):
+        admin = User.objects.create_superuser("recv_admin", password="x")
+        project = Project.objects.create(name="P recv", created_by=admin)
+        case = Case.objects.create(project=project, biobank_id="RC-001")
+        case.ensure_specimens()
+        for specimen in case.specimens.all():
+            specimen.status = statuses.RECEIVED_NUCLEIC_ACID
+            specimen.save()
+        case.refresh_from_db()
+        self.assertEqual(case.status, statuses.RECEIVED_NUCLEIC_ACID)

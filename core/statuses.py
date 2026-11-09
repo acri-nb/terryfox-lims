@@ -36,6 +36,10 @@ ORDERED_STAGES = [STAGE_BIOBANK, STAGE_SEQUENCING, STAGE_BIOINFO]
 CASE_CREATED = 'case_created'
 SENT_TO_SEQUENCING = 'sent_to_sequencing'
 RECEIVED = 'received'
+# 'Received' was split in two: the sequencing centre first receives the
+# specimen, then extracts the nucleic acid. The slug 'received' is kept for
+# the first one, so existing rows keep their meaning without a data migration.
+RECEIVED_NUCLEIC_ACID = 'received_nucleic_acid'
 QC_COMPLETE = 'qc_complete'
 LIBRARY_COMPLETE = 'library_complete'
 ISEQ_FINISHED = 'iseq_finished'
@@ -54,7 +58,8 @@ DEFINITIONS = [
     (CASE_CREATED,        _('Case Created'),                STAGE_BIOBANK,     10),
     (SENT_TO_SEQUENCING,  _('Sent to Sequencing Center'),   STAGE_BIOBANK,     20),
 
-    (RECEIVED,            _('Received'),                    STAGE_SEQUENCING,  30),
+    (RECEIVED,            _('Received Specimen'),           STAGE_SEQUENCING,  30),
+    (RECEIVED_NUCLEIC_ACID, _('Received Nucl. Acid'),       STAGE_SEQUENCING,  35),
     (QC_COMPLETE,         _('QC complete'),                 STAGE_SEQUENCING,  40),
     (LIBRARY_COMPLETE,    _('Library complete'),            STAGE_SEQUENCING,  50),
     (ISEQ_FINISHED,       _('iSeq finished'),               STAGE_SEQUENCING,  60),

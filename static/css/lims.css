@@ -234,7 +234,7 @@ select:focus-visible, textarea:focus-visible, summary:focus-visible,
 .badge-case_created, .badge-sent_to_sequencing {
   background: var(--surface-2); color: var(--ink-2); border-color: var(--rule-strong);
 }
-.badge-received, .badge-qc_complete, .badge-library_complete,
+.badge-received, .badge-received_nucleic_acid, .badge-qc_complete, .badge-library_complete,
 .badge-iseq_finished, .badge-sequencing_complete {
   background: var(--accent-bg); color: var(--accent); border-color: var(--accent);
 }
