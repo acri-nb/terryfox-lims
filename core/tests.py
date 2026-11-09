@@ -2519,6 +2519,27 @@ class ProjectLeadRulesTests(TestCase):
         xu.refresh_from_db()
         self.assertEqual(xu.name, "Xu")
 
+    def test_database_rejects_case_duplicate(self):
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                ProjectLead.objects.create(name="reiman")
+
+    def test_find_or_create_survives_a_concurrent_insert(self):
+        # Simulates another request creating "Reiman" between the lookup and
+        # the insert: the first lookup misses, the insert hits the constraint.
+        real = ProjectLead.find_by_name
+        calls = []
+
+        def miss_once(name):
+            calls.append(name)
+            return None if len(calls) == 1 else real(name)
+
+        with mock.patch.object(ProjectLead, "find_by_name", side_effect=miss_once):
+            lead, created = ProjectLead.find_or_create("REIMAN")
+        self.assertFalse(created)
+        self.assertEqual(lead, self.reiman)
+        self.assertEqual(ProjectLead.objects.count(), 1)
+
 
 class ProjectLeadPermissionTests(TestCase):
     """Adding a lead from the project form needs core.add_projectlead.

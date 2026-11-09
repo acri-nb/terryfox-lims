@@ -1,5 +1,6 @@
-from django.db import models, transaction
+from django.db import IntegrityError, models, transaction
 from django.db.models import F, Max
+from django.db.models.functions import Lower
 from django.contrib.auth.models import User, Group
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -148,7 +149,13 @@ class ProjectLead(models.Model):
         existing = cls.find_by_name(name)
         if existing:
             return existing, False
-        return cls.objects.create(name=cls.normalize_name(name)), True
+        try:
+            # Savepoint: if another request created the same lead in between,
+            # the constraint fires and the surrounding transaction survives.
+            with transaction.atomic():
+                return cls.objects.create(name=cls.normalize_name(name)), True
+        except IntegrityError:
+            return cls.find_by_name(name), False
 
     def save(self, *args, **kwargs):
         # Every creation path (project form, Project Leads page, admin) goes
@@ -160,6 +167,18 @@ class ProjectLead(models.Model):
         ordering = ['name']
         verbose_name = _('Project Lead')
         verbose_name_plural = _('Project Leads')
+        # The database itself refuses "reiman" next to "Reiman". The form
+        # checks give a friendlier message first; this is the guarantee that
+        # also covers the admin, the shell and two simultaneous submissions.
+        # SQLite's lower() folds ASCII only: "Bélanger" and "BÉLANGER" stay
+        # distinct.
+        constraints = [
+            models.UniqueConstraint(
+                Lower('name'),
+                name='uniq_projectlead_name_ci',
+                violation_error_message=_('A project lead with this name already exists.'),
+            ),
+        ]
 
 class Project(SoftDeleteModel):
     """Model representing a research project in the LIMS."""
