@@ -578,6 +578,34 @@ class CaseFilterForm(forms.Form):
         widget=forms.Select(attrs={'class': 'form-select'}),
     )
 
+class AllCasesFilterForm(CaseFilterForm):
+    """Filters of the all-cases table on the home page.
+
+    The same fields as the project page, plus the project, under the prefix
+    "c" so they do not collide with the project search box already on the
+    home page, which is also called `name`.
+    """
+
+    PREFIX = 'c'
+
+    project = forms.ModelChoiceField(
+        queryset=Project.objects.order_by('name'),
+        required=False,
+        empty_label=_('All projects'),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('prefix', self.PREFIX)
+        super().__init__(*args, **kwargs)
+
+    @classmethod
+    def is_filtering(cls, query):
+        """True when the request carries any non-empty filter of this form."""
+        debut = f'{cls.PREFIX}-'
+        return any(cle.startswith(debut) and valeur for cle, valeur in query.items())
+
+
 class UserFilterForm(forms.Form):
     """Recherche dans la liste des comptes.
 

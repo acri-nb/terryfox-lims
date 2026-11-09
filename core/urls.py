@@ -27,6 +27,7 @@ urlpatterns = [
     path('projects/<int:project_id>/cases/export-csv/', views.csv_case_export, name='csv_case_export'),
     path('projects/<int:project_id>/export/', views.project_export_bundle, name='project_export_bundle'),
     path('export/consortium/', views.consortium_export, name='consortium_export'),
+    path('export/cases/', views.all_cases_export, name='all_cases_export'),
     path('cases/<int:case_id>/resubmit/', views.case_resubmit, name='case_resubmit'),
 
     # Favoris, propres a chaque utilisateur

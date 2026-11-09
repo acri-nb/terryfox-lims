@@ -117,7 +117,8 @@
         Le bouton et le lien restent dans le HTML pour les navigateurs sans
         JavaScript ; le script les masque lui-meme quand il prend la main.
         {% endcomment %}
-        <form method="get" class="d-flex gap-2 align-items-center" data-live-filter>
+        <form method="get" class="d-flex gap-2 align-items-center" data-live-filter
+              data-live-keep data-live-regions="projects-region">
             {{ filter_form.name }}
             {{ filter_form.project_lead }}
             <button type="submit" class="btn btn-sm btn-outline-secondary" data-live-submit>Filter</button>
@@ -184,5 +185,232 @@
     </details>
     {% endif %}
     </div>
+</div>
+
+{# ---- Tous les cas ---- #}
+{% comment %}
+Every case of every project, with the project page's filters. Its form only
+swaps its own two regions and keeps the project filter above in the address
+(data-live-keep), so the two filters on this page do not reset each other.
+The export links live inside the heading region so they always carry the
+filter currently applied.
+{% endcomment %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-4 mb-3"
+     id="all-cases-heading" data-live-region>
+    <h2 class="mb-0">All cases
+        {% if cases_filtered %}
+        <span class="badge bg-info ms-2">Filtered</span>
+        <small class="text-muted ms-2">({{ cases_filtered_count }} result{{ cases_filtered_count|pluralize }})</small>
+        {% endif %}
+    </h2>
+    {% if user.is_superuser %}
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'all_cases_export' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-file-csv me-1"></i> Export all
+        </a>
+        {% if cases_filtered %}
+        <a href="{% url 'all_cases_export' %}?{{ cases_export_query }}" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-filter me-1"></i> Export filtered
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end" data-live-filter
+              data-live-keep data-live-reset="cpage"
+              data-live-regions="all-cases-heading all-cases-region">
+            <div class="col-md-3">
+                <label for="{{ cases_filter_form.name.id_for_label }}" class="form-label">Search by Name</label>
+                {{ cases_filter_form.name }}
+            </div>
+            <div class="col-md-3">
+                <label for="{{ cases_filter_form.project.id_for_label }}" class="form-label">Project</label>
+                {{ cases_filter_form.project }}
+            </div>
+            <div class="col-md-3">
+                <label for="{{ cases_filter_form.status.id_for_label }}" class="form-label">Status</label>
+                {{ cases_filter_form.status }}
+            </div>
+            <div class="col-md-3">
+                <label for="{{ cases_filter_form.tier.id_for_label }}" class="form-label">Tier</label>
+                {{ cases_filter_form.tier }}
+            </div>
+            <div class="col-md-3">
+                <label for="{{ cases_filter_form.report_returned.id_for_label }}" class="form-label">Report</label>
+                {{ cases_filter_form.report_returned }}
+            </div>
+            <div class="col-md-3">
+                <label for="{{ cases_filter_form.invoicing.id_for_label }}" class="form-label">Invoicing</label>
+                {{ cases_filter_form.invoicing }}
+            </div>
+            <div class="col-md-auto">
+                <div class="form-check">
+                    {{ cases_filter_form.priority }}
+                    <label class="form-check-label" for="{{ cases_filter_form.priority.id_for_label }}">
+                        <i class="fas fa-flag text-warning me-1"></i> Priority only
+                    </label>
+                </div>
+                <div class="form-check">
+                    {{ cases_filter_form.to_classify }}
+                    <label class="form-check-label" for="{{ cases_filter_form.to_classify.id_for_label }}">
+                        To classify
+                    </label>
+                </div>
+                <div class="form-check">
+                    {{ cases_filter_form.not_consented }}
+                    <label class="form-check-label" for="{{ cases_filter_form.not_consented.id_for_label }}">
+                        Consent missing
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-auto">
+                <button type="submit" class="btn btn-primary" data-live-submit>
+                    <i class="fas fa-search me-1"></i> Search
+                </button>
+                <a href="{% url 'home' %}" class="btn btn-outline-secondary" data-live-clear
+                   {% if not cases_filtered %}hidden{% endif %}>
+                    <i class="fas fa-times me-1"></i> Clear
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% comment %}
+La region enveloppe le tableau ET l'etat vide, comme sur la page projet.
+{% endcomment %}
+<div id="all-cases-region" data-live-region>
+{% if cases_page %}
+    <div class="card mb-3">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="all-cases-table">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:1.5rem"></th>
+                        <th>ACC</th>
+                        <th>Biobank ID</th>
+                        <th>Project</th>
+                        <th class="d-none d-md-table-cell" style="min-width:9rem">Specimens</th>
+                        <th>Status</th>
+                        <th class="text-center">Tier</th>
+                        <th class="text-end d-none d-md-table-cell">Updated</th>
+                        <th class="text-end">&nbsp;</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for case in cases_page %}
+                    <tr{% if case.is_priority %} class="is-priority"{% endif %}>
+                        <td>
+                            {% if case.is_priority %}
+                            <i class="fas fa-flag text-warning" title="Priority case"></i>
+                            {% endif %}
+                        </td>
+                        <td class="font-monospace">
+                            <a href="{% url 'case_detail' case_id=case.id %}"
+                               class="text-decoration-none">{{ case.name }}</a>
+                        </td>
+                        <td class="font-monospace small">{{ case.biobank_id|default:"--" }}</td>
+                        <td class="small">
+                            <a href="{% url 'project_detail' project_id=case.project.id %}"
+                               class="text-decoration-none">{{ case.project.name }}</a>
+                        </td>
+                        <td class="d-none d-md-table-cell">
+                            {% for specimen in case.specimens_in_order %}
+                            <div class="d-flex align-items-center gap-1" style="line-height:1.1">
+                                <span class="font-monospace text-muted"
+                                      style="font-size:11px;width:.9rem">{{ specimen.short_code }}</span>
+                                <span class="track" title="{{ specimen.get_specimen_type_display }}: {{ specimen.get_status_display }}">
+                                    <i class="{% if specimen.stage_index >= 0 %}on{% endif %}"></i>
+                                    <i class="{% if specimen.stage_index >= 1 %}on{% endif %}"></i>
+                                    <i class="{% if specimen.stage_index >= 2 %}on{% endif %}"></i>
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ case.status }} rounded-pill">
+                                {{ case.get_status_display }}
+                            </span>
+                            {% if case.to_classify %}
+                            <div><span class="badge badge-priority mt-1"
+                                       title="Specimens inherited from V1 whose state is unknown">
+                                {{ case.to_classify }} to classify
+                            </span></div>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <span class="badge badge-{{ case.tier }}">{{ case.tier }}</span>
+                        </td>
+                        <td class="text-end small text-muted d-none d-md-table-cell">{{ case.updated_at|date:"M d, Y" }}</td>
+                        <td class="text-end">
+                            <a href="{% url 'case_detail' case_id=case.id %}"
+                               class="btn btn-sm btn-outline-primary" aria-label="Open {{ case.name }}">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if cases_page.paginator.num_pages > 1 %}
+    <nav aria-label="All cases pages" class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+        <span class="text-muted small">
+            Showing {{ cases_page.start_index }}&ndash;{{ cases_page.end_index }} of {{ cases_filtered_count }} case{{ cases_filtered_count|pluralize }}
+        </span>
+        <ul class="pagination flex-wrap mb-0">
+            <li class="page-item {% if not cases_page.has_previous %}disabled{% endif %}">
+                {% if cases_page.has_previous %}
+                    <a class="page-link" href="?cpage={{ cases_page.previous_page_number }}{% if cases_querystring %}&amp;{{ cases_querystring }}{% endif %}" aria-label="Previous">
+                        <i class="fas fa-chevron-left"></i>
+                    </a>
+                {% else %}
+                    <span class="page-link"><i class="fas fa-chevron-left"></i></span>
+                {% endif %}
+            </li>
+            {% for num in cases_page_range %}
+                {% if num == cases_page_ellipsis %}
+                    <li class="page-item disabled"><span class="page-link">{{ num }}</span></li>
+                {% elif num == cases_page.number %}
+                    <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
+                {% else %}
+                    <li class="page-item">
+                        <a class="page-link" href="?cpage={{ num }}{% if cases_querystring %}&amp;{{ cases_querystring }}{% endif %}">{{ num }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+            <li class="page-item {% if not cases_page.has_next %}disabled{% endif %}">
+                {% if cases_page.has_next %}
+                    <a class="page-link" href="?cpage={{ cases_page.next_page_number }}{% if cases_querystring %}&amp;{{ cases_querystring }}{% endif %}" aria-label="Next">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                {% else %}
+                    <span class="page-link"><i class="fas fa-chevron-right"></i></span>
+                {% endif %}
+            </li>
+        </ul>
+    </nav>
+    {% endif %}
+{% else %}
+    <div class="card">
+        <div class="card-body">
+            <div class="empty-state">
+                {% if cases_filtered %}
+                <h6>No case matches these filters</h6>
+                <p>The search looks at both the ACC and the Biobank ID, anywhere in the value.</p>
+                <a href="{% url 'home' %}" class="btn btn-sm btn-outline-secondary">Clear filters</a>
+                {% else %}
+                <h6>No case yet</h6>
+                <p>Cases appear here as soon as they are added to a project.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endif %}
 </div>
 {% endblock %}

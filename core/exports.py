@@ -120,11 +120,15 @@ def ligne_cas(case):
     return ligne
 
 
-def ecrire_cas(flux, project=None, archived=False):
+def ecrire_cas(flux, project=None, archived=False, cases=None):
+    """Write cases.csv. `cases` replaces the default selection, e.g. a
+    filtered one; it must come from _cases_queryset() to keep its prefetches."""
     writer = csv.writer(flux)
     writer.writerow(ENTETE_CAS)
     n = 0
-    for case in _cases_queryset(project, archived):
+    if cases is None:
+        cases = _cases_queryset(project, archived)
+    for case in cases:
         writer.writerow(ligne_cas(case))
         n += 1
     return n

@@ -33,8 +33,17 @@
            ['text', 'search', 'number', 'date', ''].indexOf(champ.type) !== -1;
   }
 
-  function regions() {
-    return document.querySelectorAll('[data-live-region]');
+  /**
+   * Les regions qu'un formulaire remplace. Par defaut toutes ; un formulaire
+   * qui porte data-live-regions="id1 id2" ne touche qu'aux siennes, ce qui
+   * permet a deux filtres de cohabiter sur une meme page (l'accueil).
+   */
+  function regions(form) {
+    var ids = form && form.getAttribute('data-live-regions');
+    if (!ids) { return document.querySelectorAll('[data-live-region]'); }
+    return ids.split(/\s+/).filter(Boolean).map(function (id) {
+      return document.getElementById(id);
+    }).filter(Boolean);
   }
 
   /** Le formulaire porte-t-il au moins un filtre ? */
@@ -46,9 +55,24 @@
     return pose;
   }
 
-  /** L'adresse que le formulaire produirait s'il etait envoye. */
+  /**
+   * L'adresse que le formulaire produirait s'il etait envoye.
+   *
+   * Avec data-live-keep, les parametres deja presents dans l'adresse et
+   * etrangers au formulaire sont conserves : le filtre de l'autre formulaire
+   * de la page survit. data-live-reset="cpage" nomme les parametres a
+   * oublier quand ce filtre change, typiquement sa pagination.
+   */
   function adresse(form) {
     var params = new URLSearchParams();
+    if (form.hasAttribute('data-live-keep')) {
+      params = new URLSearchParams(window.location.search);
+      chacun(form.elements, function (champ) {
+        if (champ.name) { params.delete(champ.name); }
+      });
+      (form.getAttribute('data-live-reset') || '').split(/\s+/)
+        .filter(Boolean).forEach(function (cle) { params.delete(cle); });
+    }
     new FormData(form).forEach(function (valeur, cle) {
       // Un champ vide n'apporte rien et rend l'adresse illisible.
       if (valeur !== '') { params.append(cle, valeur); }
@@ -76,15 +100,15 @@
     });
   }
 
-  function occupe(actif) {
-    chacun(regions(), function (region) {
+  function occupe(form, actif) {
+    chacun(regions(form), function (region) {
       if (actif) { region.setAttribute('aria-busy', 'true'); }
       else { region.removeAttribute('aria-busy'); }
     });
   }
 
   function equiper(form) {
-    if (!regions().length) { return; }
+    if (!regions(form).length) { return; }
 
     var minuteur = null;
     var encours = null;
@@ -104,7 +128,7 @@
       encours = new AbortController();
 
       var cible = adresse(form);
-      occupe(true);
+      occupe(form, true);
 
       fetch(cible, {
         credentials: 'same-origin',
@@ -117,7 +141,7 @@
         })
         .then(function (html) {
           var recu = new DOMParser().parseFromString(html, 'text/html');
-          chacun(regions(), function (ancienne) {
+          chacun(regions(form), function (ancienne) {
             var neuve = recu.getElementById(ancienne.id);
             if (neuve) { ancienne.replaceWith(neuve); }
           });
@@ -133,7 +157,7 @@
           if (erreur.name === 'AbortError') { return; }
           // Plutot que de laisser l'ecran fige sur un resultat perime, on rend
           // la main au formulaire ordinaire.
-          occupe(false);
+          occupe(form, false);
           form.submit();
         });
     }
