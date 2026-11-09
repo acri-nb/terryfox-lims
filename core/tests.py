@@ -2755,3 +2755,34 @@ class PreservationOptionsTests(TestCase):
         case = Case.objects.get(biobank_id="PV-003")
         for specimen in case.specimens.all():
             self.assertEqual(specimen.preservation, Specimen.PRESERVATION_BUFFY_COAT)
+
+
+class SpecimenTypeLabelTests(TestCase):
+    """Case pages show the assay (WGS / WTS) instead of DNA / RNA."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("labels_admin", password="x")
+        self.project = Project.objects.create(name="P labels", created_by=self.admin)
+        self.case = Case.objects.create(project=self.project, biobank_id="LB-001")
+        self.case.ensure_specimens()
+        self.client = Client()
+        self.client.force_login(self.admin)
+
+    def test_labels(self):
+        self.assertEqual([str(l) for _v, l in Specimen.TYPE_CHOICES],
+                         ["Normal (WGS)", "Tumour (WGS)", "Tumour (WTS)"])
+
+    def test_the_case_page_uses_the_new_labels(self):
+        page = self.client.get(
+            reverse("case_detail", kwargs={"case_id": self.case.id})).content.decode()
+        for libelle in ("Normal (WGS)", "Tumour (WGS)", "Tumour (WTS)"):
+            self.assertIn(libelle, page)
+        self.assertNotIn("Tumour (RNA)", page)
+
+    def test_export_column_names_are_unchanged(self):
+        texte = self.client.get(
+            reverse("csv_case_export", kwargs={"project_id": self.project.id})
+        ).content.decode()
+        entete = next(csv.reader(io.StringIO(texte)))
+        for colonne in ("Normal_DNA_Status", "Tumour_DNA_Status", "Tumour_RNA_Status"):
+            self.assertIn(colonne, entete)

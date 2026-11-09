@@ -736,10 +736,13 @@ class Specimen(models.Model):
     TYPE_TUMOUR_DNA = 'tumour_dna'
     TYPE_TUMOUR_RNA = 'tumour_rna'
 
+    #: Labels show the assay (WGS = whole genome, WTS = whole transcriptome)
+    #: instead of DNA/RNA. Only the labels changed: the stored codes and the
+    #: Normal_DNA / Tumour_DNA / Tumour_RNA export column names stay the same.
     TYPE_CHOICES = [
-        (TYPE_NORMAL_DNA, _('Normal (DNA)')),
-        (TYPE_TUMOUR_DNA, _('Tumour (DNA)')),
-        (TYPE_TUMOUR_RNA, _('Tumour (RNA)')),
+        (TYPE_NORMAL_DNA, _('Normal (WGS)')),
+        (TYPE_TUMOUR_DNA, _('Tumour (WGS)')),
+        (TYPE_TUMOUR_RNA, _('Tumour (WTS)')),
     ]
 
     #: Ordre d'affichage : normal, puis tumeur ADN, puis tumeur ARN.
