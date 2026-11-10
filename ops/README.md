@@ -80,15 +80,23 @@ sudo ./ops/restore_db.sh <fichier>
 
 ## Ce que fait `deploy.sh`, dans l'ordre
 
-1. Arrête `terryfox-lims-watchdog.timer` — sans ça, le watchdog relance le service
-   toutes les 5 minutes, potentiellement au milieu d'un `migrate`.
-2. Sauvegarde étiquetée, vérifiée, conservée indéfiniment. Échec ici = rien ne se passe.
-3. Fige les invariants (comptages, distribution des tiers).
-4. Arrête le service et vérifie qu'aucun worker n'écrit plus.
-5. `migrate` puis `collectstatic` — ce dernier est obligatoire : sans lui,
+La procedure complete, du commit local a la verification apres coup, est dans
+[`docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md). En resume :
+
+0. Verifie que systemd repond : `is-active` echoue aussi bien sur une unite inactive que sur
+   un gestionnaire injoignable.
+1. Arrete `terryfox-lims-watchdog.timer` **et** toute execution deja en vol. Sans ca, le
+   watchdog relance le service toutes les 5 minutes, potentiellement au milieu d'un `migrate`.
+2. Arrete le service, puis refuse de continuer tant qu'un worker `wsgi_prod` tient la base.
+3. Sauvegarde etiquetee, verifiee, conservee indefiniment, prise base au repos. Echec ici =
+   rien ne se passe.
+4. Fige les invariants, puis rejoue les `--allow` a blanc : une faute de frappe est
+   detectee avant la migration, et non a l'etape 6.
+5. `migrate` puis `collectstatic`. Ce dernier est obligatoire : sans lui,
    `CompressedManifestStaticFilesStorage` renvoie des 500 sur tout le site.
-6. Recompare les invariants. **Tout écart non déclaré déclenche une restauration automatique.**
-7. Redémarre, attend une réponse HTTP valide, réactive le watchdog.
+6. Recompare les invariants. **Tout ecart non declare declenche une restauration automatique.**
+7. Redemarre, attend une reponse HTTP, prouve qu'une vraie lecture ORM aboutit, reactive le
+   watchdog.
 
 ## Fichiers
 

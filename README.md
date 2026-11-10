@@ -164,6 +164,10 @@ verified labelled backup, freezes a set of invariants, migrates, compares them a
 **restores automatically** on any drift that was not declared. It ends by checking that the
 application answers.
 
+The full operator procedure is in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): preparing and
+rehearsing a migration, pulling on the server, deploying, verifying, recovering, and what to
+check after a reboot.
+
 ```bash
 sudo systemctl status terryfox-lims.service
 sudo journalctl -u terryfox-lims.service -f
@@ -236,6 +240,7 @@ ops/                backups, invariants, deployment, screenshots
 
 - `docs/RAPPORT_V2_SYNTHESE.md` — what changed in V2 and why, in three pages
 - `docs/RAPPORT_V2.md` — the same, in full
+- `docs/DEPLOYMENT.md` — deployment and migration runbook for operators
 - `ops/README.md` — backups, invariants, deployment, restore
 - `docs/PRODUCTION.md`, `docs/NGINX_DEPLOYMENT.md`, `docs/HTTPS.md` — deployment guides
 - `CLAUDE.md` — developer orientation

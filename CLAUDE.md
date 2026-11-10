@@ -766,6 +766,7 @@ where a required field is added.
 - `docs/RAPPORT_V2_SYNTHESE.md` (+ `.pdf`) — what changed in V2 and why, five pages, for the
   consortium
 - `docs/RAPPORT_V2.md` (+ `.pdf`) — the same in full, eleven pages, with the measurements
+- `docs/DEPLOYMENT.md` — the operator runbook: prepare, pull (as `hadriengt`), deploy, verify, recover
 - `ops/README.md` — backups, invariants, deployment, restore
 - `docs/PRODUCTION.md`, `docs/NGINX_DEPLOYMENT.md`, `docs/HTTPS.md` — deployment guides written
   for earlier setups; `NGINX_DEPLOYMENT.md` in particular describes a path not in use (the
