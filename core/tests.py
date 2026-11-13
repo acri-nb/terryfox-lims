@@ -2715,7 +2715,9 @@ class PreservationOptionsTests(TestCase):
     def test_intake_offers_exactly_the_requested_list_in_order(self):
         from .forms import BatchCaseForm
         attendu = ["Fresh frozen", "Frozen in RNA later", "FFPE - blanks", "FFPE - scrolls",
-                   "FFPE - punch", "Whole blood", "PBMCs", "DNA from blood", "Buffy coat"]
+                   "FFPE - punch", "Whole blood", "PBMCs", "DNA from blood", "Buffy coat",
+                   "CD138+ cells", "CD138- cells", "Whole bone marrow aspirate",
+                   "Mononuclear cells from bone marrow aspirate"]
         for form in (CaseForm(), BatchCaseForm()):
             libelles = [str(l) for _v, l in form.fields["preservation"].choices]
             self.assertEqual(libelles, attendu)
@@ -2755,6 +2757,20 @@ class PreservationOptionsTests(TestCase):
         case = Case.objects.get(biobank_id="PV-003")
         for specimen in case.specimens.all():
             self.assertEqual(specimen.preservation, Specimen.PRESERVATION_BUFFY_COAT)
+
+    def test_bone_marrow_values_can_be_chosen_at_intake(self):
+        client = Client()
+        client.force_login(self.editor)
+        for i, valeur in enumerate((Specimen.PRESERVATION_CD138_POS,
+                                    Specimen.PRESERVATION_CD138_NEG,
+                                    Specimen.PRESERVATION_BM_ASPIRATE,
+                                    Specimen.PRESERVATION_BM_MNC)):
+            biobank_id = f"PV-BM{i}"
+            client.post(reverse("case_create", kwargs={"project_id": self.project.id}),
+                        envoi_creation(biobank_id=biobank_id, preservation=valeur))
+            case = Case.objects.get(biobank_id=biobank_id)
+            for specimen in case.specimens.all():
+                self.assertEqual(specimen.preservation, valeur)
 
 
 class SpecimenTypeLabelTests(TestCase):
