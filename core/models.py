@@ -785,6 +785,10 @@ class Specimen(models.Model):
     PRESERVATION_PBMC = 'pbmc'
     PRESERVATION_DNA_FROM_BLOOD = 'dna_from_blood'
     PRESERVATION_BUFFY_COAT = 'buffy_coat'
+    PRESERVATION_CD138_POS = 'cd138_pos'
+    PRESERVATION_CD138_NEG = 'cd138_neg'
+    PRESERVATION_BM_ASPIRATE = 'bm_aspirate'
+    PRESERVATION_BM_MNC = 'bm_mnc'
     PRESERVATION_OTHER = 'other'
     PRESERVATION_UNKNOWN = 'unknown'
 
@@ -799,6 +803,10 @@ class Specimen(models.Model):
         (PRESERVATION_PBMC, _('PBMCs')),
         (PRESERVATION_DNA_FROM_BLOOD, _('DNA from blood')),
         (PRESERVATION_BUFFY_COAT, _('Buffy coat')),
+        (PRESERVATION_CD138_POS, _('CD138+ cells')),
+        (PRESERVATION_CD138_NEG, _('CD138- cells')),
+        (PRESERVATION_BM_ASPIRATE, _('Whole bone marrow aspirate')),
+        (PRESERVATION_BM_MNC, _('Mononuclear cells from bone marrow aspirate')),
     ]
     #: "Other" is no longer offered at intake but stays valid so specimens
     #: already recorded as Other keep their value. « Not recorded » est un
