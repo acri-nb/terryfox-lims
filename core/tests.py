@@ -23,7 +23,8 @@ from django.contrib.auth.models import Group, Permission, User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection, transaction
 from django.db.utils import IntegrityError
-from django.test import Client, TestCase
+from django.db.migrations.executor import MigrationExecutor
+from django.test import Client, TestCase, TransactionTestCase
 from django.test.utils import CaptureQueriesContext, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -114,9 +115,14 @@ class TierCalculationTests(TestCase):
         (85, 35, 79, "B", "ARN juste sous le seuil de Tier A"),
         (29, 35, 100, "FAIL", "DNA(T) sous 30"),
         (85, 29, 100, "FAIL", "DNA(N) sous 30"),
-        (None, 35, 100, "FAIL", "DNA(T) manquant"),
-        (85, None, 100, "FAIL", "DNA(N) manquant"),
-        (None, None, None, "FAIL", "aucune couverture"),
+        # Missing DNA coverage means not analysed yet: N/A, not FAIL
+        # (requested by the consortium, Nov 2026).
+        (None, 35, 100, "N/A", "DNA(T) manquant"),
+        (85, None, 100, "N/A", "DNA(N) manquant"),
+        (None, None, None, "N/A", "aucune couverture"),
+        # ...unless the DNA coverage already entered is below 30X.
+        (None, 20, None, "FAIL", "DNA(T) manquant, DNA(N) sous 30"),
+        (20, None, None, "FAIL", "DNA(N) manquant, DNA(T) sous 30"),
     ]
 
     def test_tier_reference(self):
@@ -134,6 +140,98 @@ class TierCalculationTests(TestCase):
             dna_t_coverage=10, dna_n_coverage=10, tier="A",
         )
         self.assertEqual(case.tier, "FAIL")
+
+
+class TierNotAnalyzedTests(TestCase):
+    """A case whose DNA coverage is not in yet reads N/A, not FAIL."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("na_admin", password="x")
+        self.project = Project.objects.create(name="P na", created_by=self.admin)
+        self.client = Client()
+        self.client.force_login(self.admin)
+
+    def test_a_new_case_reads_na_and_moves_once_coverage_arrives(self):
+        case = Case.objects.create(project=self.project, biobank_id="NA-001")
+        case.ensure_specimens()
+        case.refresh_from_db()
+        self.assertEqual(case.tier, Case.TIER_NA)
+        for specimen in case.specimens.all():
+            specimen.coverage = {"normal_dna": 35, "tumour_dna": 85, "tumour_rna": 90}[
+                specimen.specimen_type]
+            specimen.save()
+        case.refresh_from_db()
+        self.assertEqual(case.tier, Case.TIER_A)
+
+    def test_pages_render_the_na_badge_with_a_valid_class(self):
+        case = Case.objects.create(project=self.project, biobank_id="NA-002")
+        case.ensure_specimens()
+        urls = [
+            reverse("home"),
+            reverse("project_detail", kwargs={"project_id": self.project.id}),
+            reverse("case_detail", kwargs={"case_id": case.id}),
+        ]
+        for url in urls:
+            page = self.client.get(url).content.decode()
+            self.assertIn('badge-NA', page, url)
+            self.assertNotIn('badge-N/A', page, url)
+
+    def test_the_tier_filter_offers_na(self):
+        Case.objects.create(project=self.project, biobank_id="NA-003").ensure_specimens()
+        url = reverse("project_detail", kwargs={"project_id": self.project.id})
+        page = self.client.get(url, {"tier": "N/A"}).content.decode()
+        self.assertIn("NA-003", page)
+        page = self.client.get(url, {"tier": "FAIL"}).content.decode()
+        self.assertNotIn("NA-003", page)
+
+
+class TierNotAnalyzedMigrationTests(TransactionTestCase):
+    """Migration 0042 turns FAIL into N/A only where a DNA coverage is missing."""
+
+    before = [("core", "0041_case_he_clinical_uploaded")]
+    after = [("core", "0042_case_tier_not_analyzed")]
+
+    def setUp(self):
+        self.executor = MigrationExecutor(connection)
+        self.executor.migrate(self.before)
+        old = self.executor.loader.project_state(self.before).apps
+        Project_ = old.get_model("core", "Project")
+        Case_ = old.get_model("core", "Case")
+        User_ = old.get_model("auth", "User")
+        owner = User_.objects.create(username="mig_na_owner")
+        project = Project_.objects.create(name="P mig na", created_by_id=owner.id)
+        rows = {
+            "no-coverage": (None, None, "FAIL"),
+            "dna-t-missing": (None, 40, "FAIL"),
+            "partial-low": (None, 20, "FAIL"),
+            "low": (20, 40, "FAIL"),
+            "tier-a": (85, 35, "A"),
+        }
+        for name, (t, n, tier) in rows.items():
+            Case_.objects.create(project=project, name=name, dna_t_coverage=t,
+                                 dna_n_coverage=n, tier=tier)
+
+    def tearDown(self):
+        MigrationExecutor(connection).migrate(
+            MigrationExecutor(connection).loader.graph.leaf_nodes())
+
+    def _tiers(self, state):
+        apps = MigrationExecutor(connection).loader.project_state(state).apps
+        Case_ = apps.get_model("core", "Case")
+        return dict(Case_.objects.values_list("name", "tier"))
+
+    def test_forward_and_back(self):
+        self.executor.loader.build_graph()
+        self.executor.migrate(self.after)
+        self.assertEqual(self._tiers(self.after), {
+            "no-coverage": "N/A", "dna-t-missing": "N/A",
+            "partial-low": "FAIL", "low": "FAIL", "tier-a": "A",
+        })
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.before)
+        tiers = self._tiers(self.before)
+        self.assertEqual(tiers["no-coverage"], "FAIL")
+        self.assertEqual(tiers["dna-t-missing"], "FAIL")
 
 
 class SoftDeleteTests(TestCase):
@@ -245,7 +343,7 @@ class CsvImportTests(TestCase):
 
         new = Case.objects.get(name="ACC-9999")
         self.assertIsNone(new.dna_t_coverage)
-        self.assertEqual(new.tier, "FAIL")
+        self.assertEqual(new.tier, "N/A")
 
 
 class ProjectListingTests(TestCase):

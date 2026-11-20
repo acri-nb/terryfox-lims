@@ -67,7 +67,7 @@
                             {% for tier_stat in cases_by_tier %}
                                 <div class="d-flex justify-content-between mb-2">
                                     <span>Tier {{ tier_stat.tier }}:</span>
-                                    <span class="badge badge-{{ tier_stat.tier }} rounded-pill">{{ tier_stat.count }}</span>
+                                    <span class="badge badge-{{ tier_stat.tier|cut:"/" }} rounded-pill">{{ tier_stat.count }}</span>
                                 </div>
                             {% empty %}
                                 <div class="small text-muted">No cases available</div>
@@ -287,7 +287,7 @@ n'aurait rien a remettre en place.
                             {% endif %}
                         </td>
                         <td class="text-center">
-                            <span class="badge badge-{{ case.tier }}">{{ case.tier }}</span>
+                            <span class="badge badge-{{ case.tier|cut:"/" }}">{{ case.tier }}</span>
                         </td>
                         <td class="text-end small text-muted d-none d-md-table-cell">{{ case.updated_at|date:"M d, Y" }}</td>
                         <td class="text-end">

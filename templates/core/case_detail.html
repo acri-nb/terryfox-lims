@@ -82,7 +82,7 @@
                     </div>
                     <div class="col-md-6">
                         <p class="mb-2"><strong>Tier:</strong>
-                            <span class="badge badge-{{ case.tier }}">{{ case.tier }}</span>
+                            <span class="badge badge-{{ case.tier|cut:"/" }}">{{ case.tier }}</span>
                             <small class="text-muted">derived from coverage</small></p>
                         {% if case.report_returned %}
                     <p class="mb-2">
@@ -365,12 +365,13 @@
                     <div class="row mt-3">
                         <div class="col-12">
                             <div class="tier-info">
-                                <h6>Tier: <span class="badge badge-{{ case.tier }}">{{ case.tier }}</span></h6>
+                                <h6>Tier: <span class="badge badge-{{ case.tier|cut:"/" }}">{{ case.tier }}</span></h6>
                                 <small class="text-muted">
                                     <i class="fas fa-info-circle me-1"></i> Tier is automatically calculated based on coverage values:<br>
                                     - Tier A: DNA(T) ≥ 80X, DNA(N) ≥ 30X, RNA ≥ 80M<br>
                                     - Tier B: 30X ≤ DNA(T) ≤ 80X, DNA(N) ≥ 30X (any RNA) OR DNA(T) ≥ 80X, DNA(N) ≥ 30X, RNA &lt; 80M or no RNA<br>
-                                    - FAIL: DNA(T) &lt; 30X OR DNA(N) &lt; 30X
+                                    - FAIL: DNA(T) &lt; 30X OR DNA(N) &lt; 30X<br>
+                                    - N/A: not analysed yet (a DNA coverage is still missing)
                                 </small>
                             </div>
                         </div>
