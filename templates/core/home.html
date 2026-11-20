@@ -231,6 +231,10 @@ filter currently applied.
                 {{ cases_filter_form.project }}
             </div>
             <div class="col-md-3">
+                <label for="{{ cases_filter_form.phase.id_for_label }}" class="form-label">Phase</label>
+                {{ cases_filter_form.phase }}
+            </div>
+            <div class="col-md-3">
                 <label for="{{ cases_filter_form.status.id_for_label }}" class="form-label">Status</label>
                 {{ cases_filter_form.status }}
             </div>

@@ -594,6 +594,14 @@ class AllCasesFilterForm(CaseFilterForm):
         empty_label=_('All projects'),
         widget=forms.Select(attrs={'class': 'form-select'}),
     )
+    #: Only on the home table: a project page already belongs to one phase.
+    phase = forms.TypedChoiceField(
+        choices=[('', _('All phases'))] + Project.PHASE_CHOICES,
+        coerce=int,
+        empty_value=None,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
 
     def __init__(self, *args, **kwargs):
         kwargs.setdefault('prefix', self.PREFIX)
