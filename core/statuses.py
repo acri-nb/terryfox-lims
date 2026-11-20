@@ -113,6 +113,19 @@ def stage_index(slug):
     return ORDERED_STAGES.index(stage) if stage in ORDERED_STAGES else -1
 
 
+def progress_percent(slug):
+    """Share of the workflow done, as a whole percentage, shown next to the bar.
+
+    Counted on the position in the selectable list, not on the rank: ranks are
+    spaced to leave room for new statuses, so they are not percentages. The
+    last status reads 100. A status still to classify has no position, so it
+    returns None and nothing is shown rather than a made-up figure.
+    """
+    if slug not in SELECTABLE:
+        return None
+    return round((SELECTABLE.index(slug) + 1) * 100 / len(SELECTABLE))
+
+
 def least_advanced(slugs):
     """Statut du specimen le moins avance, en ignorant ceux a reclasser.
 

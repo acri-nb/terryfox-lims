@@ -269,6 +269,12 @@ select:focus-visible, textarea:focus-visible, summary:focus-visible,
   background: var(--rule-strong); border-radius: 1px;
 }
 .track i.on { background: var(--accent); }
+/* Percentage next to the bar, fixed width so the bars stay aligned. */
+.track-pct {
+  display: inline-block; min-width: 2.6em; margin-left: var(--s1);
+  font-family: var(--font-mono); font-size: var(--t-xs);
+  color: var(--ink-3); text-align: right; vertical-align: middle;
+}
 
 /* ------------------------------------------------------ cas prioritaire */
 

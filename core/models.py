@@ -906,6 +906,11 @@ class Specimen(models.Model):
         return statuses.stage_index(self.status)
 
     @property
+    def progress_percent(self):
+        """Percentage shown next to the bar; None while the status is unknown."""
+        return statuses.progress_percent(self.status)
+
+    @property
     def needs_classification(self):
         return statuses.is_legacy(self.status)
 
