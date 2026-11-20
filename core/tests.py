@@ -2962,3 +2962,86 @@ class AllCasesExportTests(TestCase):
         with CaptureQueriesContext(connection) as apres:
             self._rows()
         self.assertEqual(len(avant.captured_queries), len(apres.captured_queries))
+
+
+class HEClinicalUploadedTests(TestCase):
+    """'H&E and clinical data uploaded' is ticked on a case, like invoicing."""
+
+    def setUp(self):
+        self.editor = make_editor("heclin1")
+        self.project = Project.objects.create(name="P he clinical", created_by=self.editor)
+        self.client = Client()
+        self.client.force_login(self.editor)
+
+    def _case(self, biobank_id, **champs):
+        case = Case.objects.create(project=self.project, biobank_id=biobank_id, **champs)
+        case.ensure_specimens()
+        return case
+
+    def test_ticking_stamps_the_date_and_unticking_clears_it(self):
+        case = self._case("HE-001")
+        self.assertIsNone(case.he_clinical_uploaded_at)
+        case.he_clinical_uploaded = True
+        case.save()
+        self.assertIsNotNone(case.he_clinical_uploaded_at)
+        case.he_clinical_uploaded = False
+        case.save()
+        self.assertIsNone(case.he_clinical_uploaded_at)
+
+    def test_saving_again_keeps_the_first_date(self):
+        case = self._case("HE-002", he_clinical_uploaded=True)
+        first = case.he_clinical_uploaded_at
+        case.save()
+        case.refresh_from_db()
+        self.assertEqual(case.he_clinical_uploaded_at, first)
+
+    def test_not_offered_at_creation_but_offered_on_an_existing_case(self):
+        self.assertNotIn("he_clinical_uploaded", CaseForm().fields)
+        case = self._case("HE-003")
+        self.assertIn("he_clinical_uploaded", CaseForm(instance=case).fields)
+
+    def test_the_case_page_saves_the_checkbox(self):
+        case = self._case("HE-004")
+        url = reverse("case_detail", kwargs={"case_id": case.id})
+        self.client.post(url, {"case_update": "1", "biobank_id": "HE-004",
+                               "he_clinical_uploaded": "on"})
+        case.refresh_from_db()
+        self.assertTrue(case.he_clinical_uploaded)
+        self.assertFalse(case.invoicing_complete)
+        page = self.client.get(url).content.decode()
+        self.assertIn("H&amp;E and clinical data uploaded", page)
+
+    def test_the_project_filter_separates_uploaded_from_pending(self):
+        self._case("HE-010", he_clinical_uploaded=True)
+        self._case("HE-011")
+        url = reverse("project_detail", kwargs={"project_id": self.project.id})
+        page = self.client.get(url, {"he_clinical": "no"}).content.decode()
+        self.assertIn("HE-011", page)
+        self.assertNotIn("HE-010", page)
+        page = self.client.get(url, {"he_clinical": "yes"}).content.decode()
+        self.assertIn("HE-010", page)
+        self.assertNotIn("HE-011", page)
+
+    def test_the_home_table_filter(self):
+        self._case("HE-012", he_clinical_uploaded=True)
+        self._case("HE-013")
+        page = self.client.get(reverse("home"), {"c-he_clinical": "yes"}).content.decode()
+        self.assertIn("HE-012", page)
+        self.assertNotIn("HE-013", page)
+
+    def test_the_export_carries_the_flag_and_its_date(self):
+        self._case("HE-020", he_clinical_uploaded=True)
+        texte = self.client.get(
+            reverse("csv_case_export", kwargs={"project_id": self.project.id})
+        ).content.decode()
+        lignes = list(csv.reader(io.StringIO(texte)))
+        entete = lignes[0]
+        self.assertEqual(lignes[1][entete.index("HE_Clinical_Uploaded")], "yes")
+        self.assertNotEqual(lignes[1][entete.index("HE_Clinical_Uploaded_On")], "")
+        self.assertEqual(len(lignes[1]), len(entete))
+
+    def test_a_resubmitted_attempt_starts_not_uploaded(self):
+        case = self._case("HE-030", he_clinical_uploaded=True)
+        suivant = case.resubmit(user=self.editor)
+        self.assertFalse(suivant.he_clinical_uploaded)
+        self.assertIsNone(suivant.he_clinical_uploaded_at)

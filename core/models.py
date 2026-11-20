@@ -372,6 +372,19 @@ class Case(SoftDeleteModel):
         verbose_name=_('Invoicing completed on'),
     )
 
+    # Ticked once the H&E slide and the clinical data are uploaded. One flag
+    # for both, as requested: they arrive together. Same pattern as
+    # invoicing_complete: the date is stamped by save() and follows the box.
+    he_clinical_uploaded = models.BooleanField(
+        default=False, db_index=True,
+        verbose_name=_('H&E and clinical data uploaded'),
+        help_text=_('The H&E and the clinical data for this case have been uploaded.'),
+    )
+    he_clinical_uploaded_at = models.DateTimeField(
+        null=True, blank=True, editable=False,
+        verbose_name=_('H&E and clinical data uploaded on'),
+    )
+
     tier = models.CharField(max_length=4, choices=TIER_CHOICES, default=TIER_A)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -406,6 +419,11 @@ class Case(SoftDeleteModel):
             self.invoicing_complete_at = timezone.now()
         elif not self.invoicing_complete:
             self.invoicing_complete_at = None
+
+        if self.he_clinical_uploaded and self.he_clinical_uploaded_at is None:
+            self.he_clinical_uploaded_at = timezone.now()
+        elif not self.he_clinical_uploaded:
+            self.he_clinical_uploaded_at = None
 
         self.tier = self.calculate_tier()
         super().save(*args, **kwargs)

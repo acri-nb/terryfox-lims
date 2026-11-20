@@ -266,6 +266,12 @@ def filter_cases(cases, criteria):
     elif facturation == 'no':
         cases = cases.filter(invoicing_complete=False)
 
+    he_clinical = criteria.get('he_clinical')
+    if he_clinical == 'yes':
+        cases = cases.filter(he_clinical_uploaded=True)
+    elif he_clinical == 'no':
+        cases = cases.filter(he_clinical_uploaded=False)
+
     return cases
 
 

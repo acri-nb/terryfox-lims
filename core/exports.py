@@ -40,6 +40,7 @@ ENTETE_CAS = (
        for champ in ('Status', 'Preservation', 'Consent', f'Coverage_{unite}')]
     + ['Specimens_To_Classify', 'Consent_Generation_All', 'Report_Returned',
        'Report_Returned_On', 'Invoicing_Complete', 'Invoicing_Complete_On',
+       'HE_Clinical_Uploaded', 'HE_Clinical_Uploaded_On',
        'Comments', 'Created', 'Created_By', 'Updated']
 )
 
@@ -110,6 +111,8 @@ def ligne_cas(case):
         _date(case.report_returned_at) if case.report_returned_at else '',
         'yes' if case.invoicing_complete else 'no',
         _date(case.invoicing_complete_at) if case.invoicing_complete_at else '',
+        'yes' if case.he_clinical_uploaded else 'no',
+        _date(case.he_clinical_uploaded_at) if case.he_clinical_uploaded_at else '',
         len(case.comments.all()),
         _date(case.created_at),
         # Vide pour les cas anterieurs a la v2 : ils n'ont pas de createur, et

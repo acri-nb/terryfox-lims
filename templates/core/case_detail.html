@@ -104,6 +104,16 @@
                         {% endif %}
                     </p>
                     {% endif %}
+                    {% if case.he_clinical_uploaded %}
+                    <p class="mb-2">
+                        <span class="badge bg-success">
+                            <i class="fas fa-file-medical me-1"></i> H&amp;E and clinical data uploaded
+                        </span>
+                        {% if case.he_clinical_uploaded_at %}
+                        <small class="text-muted ms-1">{{ case.he_clinical_uploaded_at|date:"F d, Y" }}</small>
+                        {% endif %}
+                    </p>
+                    {% endif %}
                     <p class="mb-2"><strong>Created:</strong> {{ case.created_at|date:"F d, Y" }}
                             {% comment %}
                             Les cas anterieurs a la v2 n'ont pas de createur. On
@@ -144,6 +154,12 @@
                             {% if case.invoicing_complete_at %}
                             <p class="form-text mt-0 mb-3">
                                 Completed on {{ case.invoicing_complete_at|date:"F d, Y" }}
+                            </p>
+                            {% endif %}
+                            {{ case_form.he_clinical_uploaded|as_crispy_field }}
+                            {% if case.he_clinical_uploaded_at %}
+                            <p class="form-text mt-0 mb-3">
+                                Uploaded on {{ case.he_clinical_uploaded_at|date:"F d, Y" }}
                             </p>
                             {% endif %}
                         </div>
