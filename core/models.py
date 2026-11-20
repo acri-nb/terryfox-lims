@@ -278,11 +278,16 @@ class Case(SoftDeleteModel):
     TIER_A = 'A'
     TIER_B = 'B'
     TIER_FA = 'FAIL'
+    #: Not analysed yet: a DNA coverage is still missing and nothing entered
+    #: so far is below threshold. Before this, such a case read FAIL, which
+    #: made every new case look like a failed sequencing run.
+    TIER_NA = 'N/A'
     
     TIER_CHOICES = [
         (TIER_A, _('A')),
         (TIER_B, _('B')),
         (TIER_FA, _('FAIL')),
+        (TIER_NA, _('N/A')),
     ]
     
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='cases')
@@ -610,13 +615,16 @@ class Case(SoftDeleteModel):
     
     def calculate_tier(self):
         """Calculate tier based on coverage values."""
-        # Return FAIL if DNA coverage values are missing or below thresholds
-        if self.dna_t_coverage is None or self.dna_n_coverage is None:
+        # FAIL as soon as an entered DNA coverage is below 30X, even if the
+        # other one is still missing: that run has already failed.
+        dna = [self.dna_t_coverage, self.dna_n_coverage]
+        if any(v is not None and v < 30 for v in dna):
             return self.TIER_FA
-            
-        # Tier FAIL: DNA(T) < 30X OR DNA(N) < 30X
-        if self.dna_t_coverage < 30 or self.dna_n_coverage < 30:
-            return self.TIER_FA
+
+        # N/A while a DNA coverage is missing: the bioinformatics team has not
+        # analysed the case yet, so there is nothing to call a failure.
+        if any(v is None for v in dna):
+            return self.TIER_NA
         
         # Tier A: DNA(T) >= 80X, DNA(N) >= 30X, RNA >= 80M reads
         if self.dna_t_coverage >= 80 and self.dna_n_coverage >= 30 and self.rna_coverage is not None and self.rna_coverage >= 80:

@@ -91,7 +91,7 @@
                 {% for stat in cases_by_tier %}
                 <div class="stat-row">
                     <span class="stat-label" style="min-width:4.5rem">
-                        <span class="badge badge-{{ stat.tier }}">{{ stat.tier }}</span>
+                        <span class="badge badge-{{ stat.tier|cut:"/" }}">{{ stat.tier }}</span>
                     </span>
                     <span class="stat-bar"><span style="width: {{ stat.pct }}%"></span></span>
                     <span class="stat-value">{{ stat.count }}</span>
@@ -101,7 +101,7 @@
                 {% endfor %}
                 <p class="form-text mt-3 mb-0">
                     Tier is derived from coverage: A needs DNA(T) &ge; 80X, DNA(N) &ge; 30X
-                    and RNA &ge; 80M. It is never entered by hand.
+                    and RNA &ge; 80M. N/A means not analysed yet. It is never entered by hand.
                 </p>
             </div>
         </div>
@@ -351,7 +351,7 @@ La region enveloppe le tableau ET l'etat vide, comme sur la page projet.
                             {% endif %}
                         </td>
                         <td class="text-center">
-                            <span class="badge badge-{{ case.tier }}">{{ case.tier }}</span>
+                            <span class="badge badge-{{ case.tier|cut:"/" }}">{{ case.tier }}</span>
                         </td>
                         <td class="text-end small text-muted d-none d-md-table-cell">{{ case.updated_at|date:"M d, Y" }}</td>
                         <td class="text-end">

@@ -248,7 +248,7 @@ select:focus-visible, textarea:focus-visible, summary:focus-visible,
 /* Tier : la semantique etait INVERSEE -- A en rouge, FAIL en gris. Un PI qui
    survolait un projet voyait un mur de rouge et lisait une catastrophe.
    Forme carree et casse haute, pour ne pas confondre avec un statut. */
-.badge-A, .badge-B, .badge-FAIL {
+.badge-A, .badge-B, .badge-FAIL, .badge-NA {
   border-radius: 2px;
   text-transform: uppercase;
   min-width: 2.6rem;
@@ -258,6 +258,8 @@ select:focus-visible, textarea:focus-visible, summary:focus-visible,
 .badge-A    { background: var(--good-bg); color: var(--good); border-color: var(--good); }
 .badge-B    { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
 .badge-FAIL { background: var(--bad-bg);  color: var(--bad);  border-color: var(--bad); }
+/* Neutral grey: not analysed is not a result, good or bad. */
+.badge-NA   { background: var(--surface-2); color: var(--ink-3); border-color: var(--rule-strong); }
 
 /* --------------------------------------------- progression d'un specimen */
 

@@ -73,7 +73,7 @@
                         </span>
                     </td>
                     <td class="text-center">
-                        <span class="badge badge-{{ favori.case.tier }}">{{ favori.case.tier }}</span>
+                        <span class="badge badge-{{ favori.case.tier|cut:"/" }}">{{ favori.case.tier }}</span>
                     </td>
                     <td class="text-end">
                         <form method="post"

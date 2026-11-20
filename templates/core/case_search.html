@@ -65,7 +65,7 @@
                                    class="text-decoration-none">{{ case.project.name }}</a>
                             </td>
                             <td><span class="badge badge-{{ case.status }} rounded-pill">{{ case.get_status_display }}</span></td>
-                            <td><span class="badge badge-{{ case.tier }} rounded-pill">{{ case.tier }}</span></td>
+                            <td><span class="badge badge-{{ case.tier|cut:"/" }} rounded-pill">{{ case.tier }}</span></td>
                         </tr>
                         {% endfor %}
                     </tbody>

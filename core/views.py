@@ -126,7 +126,7 @@ def home(request):
          'pct': round(100 * n / total_cases) if total_cases else 0}
         for tier, n in sorted(
             actifs.values_list('tier').annotate(n=Count('id')).order_by(),
-            key=lambda kv: ['A', 'B', 'FAIL'].index(kv[0]) if kv[0] in ('A', 'B', 'FAIL') else 9)
+            key=lambda kv: ['A', 'B', 'FAIL', 'N/A'].index(kv[0]) if kv[0] in ('A', 'B', 'FAIL', 'N/A') else 9)
     ]
 
     projects_by_lead = (Project.objects.values('project_lead__name')

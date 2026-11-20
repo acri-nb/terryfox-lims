@@ -30,8 +30,8 @@ def test_tier_criteria():
         (85, 35, 79, 'B', 'Tier B: DNA(T)>=80, DNA(N)>=30, RNA<80 (pas Tier A, devient B)'),
         (25, 35, 120, 'FAIL', 'Tier FAIL: DNA(T)<30'),
         (85, 25, 120, 'FAIL', 'Tier FAIL: DNA(N)<30'),
-        (None, 35, 120, 'FAIL', 'Tier FAIL: DNA(T) manquant'),
-        (85, None, 120, 'FAIL', 'Tier FAIL: DNA(N) manquant'),
+        (None, 35, 120, 'N/A', 'Tier N/A: DNA(T) manquant'),
+        (85, None, 120, 'N/A', 'Tier N/A: DNA(N) manquant'),
     ]
     
     print("Tests unitaires:")
@@ -72,7 +72,7 @@ def test_tier_criteria():
     print("\n=== Exemples de cases par tier ===")
     print("-" * 50)
     
-    for tier in ['A', 'B', 'FAIL']:
+    for tier in ['A', 'B', 'FAIL', 'N/A']:
         cases = Case.objects.filter(tier=tier)[:3]
         print(f"\nTier {tier} (exemples):")
         for case in cases:
