@@ -238,6 +238,9 @@ def filter_cases(cases, criteria):
     if criteria.get('project'):
         cases = cases.filter(project=criteria['project'])
 
+    if criteria.get('phase'):
+        cases = cases.filter(project__phase=criteria['phase'])
+
     if criteria.get('priority'):
         cases = cases.filter(is_priority=True)
 

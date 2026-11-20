@@ -2841,6 +2841,28 @@ class AllCasesTableTests(TestCase):
         self.assertIn("AC-A1", page)
         self.assertNotIn("AC-B1", page)
 
+    def test_phase_filter(self):
+        self.alpha.phase = Project.PHASE_1
+        self.alpha.save()
+        page = self._home(**{"c-phase": Project.PHASE_2})
+        self.assertIn("AC-B1", page)
+        self.assertNotIn("AC-A1", page)
+        page = self._home(**{"c-phase": Project.PHASE_1})
+        self.assertIn("AC-A1", page)
+        self.assertNotIn("AC-B1", page)
+
+    def test_no_phase_selected_lists_both_phases(self):
+        self.alpha.phase = Project.PHASE_1
+        self.alpha.save()
+        page = self._home()
+        self.assertIn("AC-A1", page)
+        self.assertIn("AC-B1", page)
+
+    def test_an_unknown_phase_is_ignored(self):
+        page = self._home(**{"c-phase": "9"})
+        self.assertIn("AC-A1", page)
+        self.assertIn("AC-B1", page)
+
     def test_status_filter(self):
         for specimen in self.b1.specimens.all():
             specimen.status = statuses.QC_COMPLETE
@@ -2903,6 +2925,13 @@ class AllCasesExportTests(TestCase):
         self.assertIn("terryfox_cases_filtered_", response["Content-Disposition"])
         self.assertEqual(len(lignes), 2)
         self.assertEqual(lignes[1][lignes[0].index("Biobank_ID")], "EA-B1")
+
+    def test_filtered_export_honours_the_phase(self):
+        self.alpha.phase = Project.PHASE_1
+        self.alpha.save()
+        _r, lignes = self._rows(**{"c-phase": Project.PHASE_2})
+        biobank = [l[lignes[0].index("Biobank_ID")] for l in lignes[1:]]
+        self.assertEqual(biobank, ["EA-B1"])
 
     def test_same_columns_as_the_project_export(self):
         _r, lignes = self._rows()
