@@ -156,7 +156,8 @@ class CaseForm(forms.ModelForm):
 
     class Meta:
         model = Case
-        fields = ['biobank_id', 'is_priority', 'report_returned', 'invoicing_complete']
+        fields = ['biobank_id', 'is_priority', 'report_returned', 'invoicing_complete',
+                  'he_clinical_uploaded']
         widgets = {
             'biobank_id': forms.TextInput(attrs={
                 'class': 'form-control', 'placeholder': 'e.g. N-BBN 440',
@@ -165,6 +166,7 @@ class CaseForm(forms.ModelForm):
             'is_priority': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'report_returned': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'invoicing_complete': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'he_clinical_uploaded': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
         help_texts = {
             'biobank_id': _('The identifier the biobank uses. This is what people search by.'),
@@ -229,6 +231,7 @@ class CaseForm(forms.ModelForm):
             # Same for invoicing: a case that does not exist yet cannot
             # have been invoiced.
             self.fields.pop('invoicing_complete', None)
+            self.fields.pop('he_clinical_uploaded', None)
 
     def clean_biobank_id(self):
         """Controle souple : nomme le cas en conflit plutot que de bloquer.
@@ -574,6 +577,13 @@ class CaseFilterForm(forms.Form):
     invoicing = forms.ChoiceField(
         choices=[('', _('Invoicing: any')), ('yes', _('Invoicing complete')),
                  ('no', _('Invoicing not complete'))],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    he_clinical = forms.ChoiceField(
+        choices=[('', _('H&E / clinical: any')),
+                 ('yes', _('H&E and clinical uploaded')),
+                 ('no', _('H&E and clinical not uploaded'))],
         required=False,
         widget=forms.Select(attrs={'class': 'form-select'}),
     )
