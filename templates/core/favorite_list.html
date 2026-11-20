@@ -63,6 +63,7 @@
                                 <i class="{% if forloop.counter0 <= specimen.stage_index %}on{% endif %}"></i>
                                 {% endfor %}
                             </span>
+                            {% if specimen.progress_percent is not None %}<span class="track-pct">{{ specimen.progress_percent }}%</span>{% endif %}
                         </div>
                         {% endfor %}
                     </td>

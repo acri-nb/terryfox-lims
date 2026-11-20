@@ -335,6 +335,7 @@ La region enveloppe le tableau ET l'etat vide, comme sur la page projet.
                                     <i class="{% if specimen.stage_index >= 1 %}on{% endif %}"></i>
                                     <i class="{% if specimen.stage_index >= 2 %}on{% endif %}"></i>
                                 </span>
+                                {% if specimen.progress_percent is not None %}<span class="track-pct">{{ specimen.progress_percent }}%</span>{% endif %}
                             </div>
                             {% endfor %}
                         </td>

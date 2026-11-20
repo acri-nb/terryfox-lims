@@ -3045,3 +3045,55 @@ class HEClinicalUploadedTests(TestCase):
         suivant = case.resubmit(user=self.editor)
         self.assertFalse(suivant.he_clinical_uploaded)
         self.assertIsNone(suivant.he_clinical_uploaded_at)
+
+
+class ProgressPercentTests(TestCase):
+    """A percentage is shown next to the three-segment progress bar."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("pct_admin", password="x")
+        self.project = Project.objects.create(name="P pct", created_by=self.admin)
+        self.case = Case.objects.create(project=self.project, biobank_id="PCT-001")
+        self.case.ensure_specimens()
+        self.client = Client()
+        self.client.force_login(self.admin)
+
+    def test_first_and_last_status(self):
+        self.assertEqual(statuses.progress_percent(statuses.ANALYSIS_COMPLETE), 100)
+        self.assertEqual(statuses.progress_percent(statuses.CASE_CREATED),
+                         round(100 / len(statuses.SELECTABLE)))
+
+    def test_percent_grows_with_the_workflow(self):
+        valeurs = [statuses.progress_percent(s) for s in statuses.SELECTABLE]
+        self.assertEqual(valeurs, sorted(valeurs))
+        self.assertEqual(len(set(valeurs)), len(valeurs))
+
+    def test_a_status_to_classify_has_no_percent(self):
+        self.assertIsNone(statuses.progress_percent(statuses.UNKNOWN_LEGACY))
+        self.assertIsNone(statuses.progress_percent("not-a-status"))
+
+    def test_the_pages_show_the_percent(self):
+        for specimen in self.case.specimens.all():
+            specimen.status = statuses.ANALYSIS_COMPLETE
+            specimen.save()
+        urls = [
+            reverse("home"),
+            reverse("project_detail", kwargs={"project_id": self.project.id}),
+            reverse("case_detail", kwargs={"case_id": self.case.id}),
+        ]
+        for url in urls:
+            page = self.client.get(url).content.decode()
+            self.assertIn('<span class="track-pct">100%</span>', page, url)
+
+    def test_the_favorites_page_shows_the_percent(self):
+        Favorite.objects.create(user=self.admin, case=self.case)
+        page = self.client.get(reverse("favorite_list")).content.decode()
+        self.assertIn('class="track-pct"', page)
+
+    def test_no_percent_for_a_specimen_to_classify(self):
+        specimen = self.case.specimens.first()
+        specimen.status = statuses.UNKNOWN_LEGACY
+        specimen.save()
+        page = self.client.get(
+            reverse("case_detail", kwargs={"case_id": self.case.id})).content.decode()
+        self.assertEqual(page.count('class="track-pct"'), 2)
