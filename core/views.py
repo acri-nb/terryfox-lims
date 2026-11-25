@@ -150,6 +150,7 @@ def home(request):
                    if k.startswith(f'{AllCasesFilterForm.PREFIX}-') and v}
 
     return render(request, 'core/home.html', {
+        'can_export_cases': (request.user.is_superuser or request.user.groups.filter(name='editor').exists()),
         'cases_filter_form': cases_filter_form,
         'cases_page': cases_page,
         'cases_page_range': cases_paginator.get_elided_page_range(
@@ -1187,7 +1188,7 @@ def all_cases_export(request):
     Same rule as the consortium export, because the file gathers every group
     of the consortium: administrators only, and logged.
     """
-    if not request.user.is_superuser:
+    if not (request.user.is_superuser or request.user.groups.filter(name='editor').exists()):
         messages.error(
             request,
             _('An export across all projects covers every group. Only administrators '

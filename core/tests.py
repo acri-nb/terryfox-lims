@@ -3036,10 +3036,19 @@ class AllCasesExportTests(TestCase):
         from .exports import ENTETE_CAS
         self.assertEqual(lignes[0], ENTETE_CAS)
 
-    def test_only_administrators_can_export(self):
+    def test_editors_can_export(self):
         editor = make_editor("export_all_editor")
         client = Client()
         client.force_login(editor)
+        response = client.get(reverse("all_cases_export"))
+        self.assertEqual(response.status_code, 200)
+        page = client.get(reverse("home"), {"c-name": "EA-B"}).content.decode()
+        self.assertIn("Export filtered", page)
+
+    def test_plain_users_cannot_export(self):
+        user = User.objects.create_user("export_all_viewer", password="x")
+        client = Client()
+        client.force_login(user)
         response = client.get(reverse("all_cases_export"))
         self.assertEqual(response.status_code, 302)
         page = client.get(reverse("home")).content.decode()

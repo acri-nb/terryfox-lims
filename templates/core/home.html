@@ -203,7 +203,7 @@ filter currently applied.
         <small class="text-muted ms-2">({{ cases_filtered_count }} result{{ cases_filtered_count|pluralize }})</small>
         {% endif %}
     </h2>
-    {% if user.is_superuser %}
+    {% if can_export_cases %}
     <div class="d-flex gap-2 flex-wrap">
         <a href="{% url 'all_cases_export' %}" class="btn btn-sm btn-outline-secondary">
             <i class="fas fa-file-csv me-1"></i> Export all
